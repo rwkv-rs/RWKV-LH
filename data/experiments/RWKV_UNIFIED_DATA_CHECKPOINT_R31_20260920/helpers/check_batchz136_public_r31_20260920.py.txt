@@ -1,0 +1,21 @@
+from pathlib import Path
+import json,random,subprocess
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCHz136.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920);cases=[];answers=[]
+for trial in range(160):
+ n=rng.randrange(2,11);routes=[list(range(n))]+[rng.sample(range(n),rng.randrange(2,n+1)) for _ in range(rng.randrange(5))];start,finish=rng.sample(range(n),2);edges=[];nodes=n
+ for route in routes:
+  for order in (route,route[::-1]):
+   base=nodes;nodes+=len(order)
+   for i,u in enumerate(order):
+    edges.append((u,base+i,(1,0)));edges.append((base+i,u,(0,0)))
+    if i:edges.append((base+i-1,base+i,(0,-1)))
+ distances=[(10**9,0)]*nodes;distances[start]=(0,0)
+ for iteration in range(nodes):
+  changed=False
+  for u,v,cost in edges:
+   candidate=(distances[u][0]+cost[0],distances[u][1]+cost[1])
+   if candidate<distances[v]:distances[v]=candidate;changed=True
+  if not changed:break
+ boards,negative_minutes=distances[finish];minutes=-negative_minutes;names=[f'S{i}' for i in range(n)];cases.append('Stops: '+', '.join(names)+'\nLines: '+', '.join(f'L{i}' for i in range(len(routes)))+'\n'+''.join(f'L{i} route: '+', '.join(names[u] for u in route)+'\n' for i,route in enumerate(routes))+f'Johny lives at S{start}\nMichelle lives at S{finish}\n');answers.append(f"optimal travel from S{start} to S{finish}: {boards} {'line' if boards==1 else 'lines'}, {minutes} {'minute' if minutes==1 else 'minutes'}")
+actual=subprocess.check_output([str(R/'.venv/bin/python'),path],input=(str(len(cases))+'\n\n'+'\n'.join(cases)).encode(),timeout=10).decode().splitlines();assert actual==answers,[(i,a,b) for i,(a,b) in enumerate(zip(actual,answers)) if a!=b][:3]
+(D/'PUBLIC_CROSSCHECKS_BATCHz136.json').write_text(json.dumps({'status':'passed','cases':{'205':160},'seed':20260920,'private_cases_read':False,'oracle':'Explicit directed riding-position graph with separate forward/reverse boarding, Bellman-Ford lexicographic optimization of (boardings,-minutes)'},indent=2)+'\n');print('public passed')

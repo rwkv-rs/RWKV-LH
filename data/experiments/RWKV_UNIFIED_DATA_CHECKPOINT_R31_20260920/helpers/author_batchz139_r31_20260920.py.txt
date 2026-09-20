@@ -1,0 +1,24 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));left,top,right,bottom=v[:4];n=v[4];points=list(zip(v[5::2],v[6::2]));events={}
+for i,(x,y) in enumerate(points):
+ xx,yy=points[(i+1)%n]
+ if y!=yy:continue
+ lo=max(left,min(x,xx));hi=min(right,max(x,xx))
+ if lo<hi:events[y]=events.get(y,0)^(((1<<(hi-lo))-1)<<(lo-left))
+def corners(lower,upper):
+ a=lower<<1;b=lower;c=upper<<1;d=upper;odd=a^b^c^d;pairs=(a&b)|(a&c)|(a&d)|(b&c)|(b&d)|(c&d);one=odd&~pairs;three=odd&pairs;diagonal=(a&d&~b&~c)|(b&c&~a&~d);return one.bit_count()-three.bit_count()+2*diagonal.bit_count()
+current=0
+for y,change in events.items():
+ if y<=bottom:current^=change
+score=corners(0,current)
+for y in sorted(events):
+ if bottom<y<top:
+  following=current^events[y];score+=corners(current,following);current=following
+score+=corners(current,0);print(score//4)
+'''
+note='Exploit integer axis-aligned geometry without rasterizing every cell. Sweep horizontal polygon edges: crossing an edge toggles the interior x-interval, represented by a clipped integer bitset. Only distinct edge heights change the row pattern. Count the 4-connected Euler characteristic from each adjacent-row transition: (one-black 2x2 corners minus three-black corners plus twice diagonal-two corners)/4. Repeated identical rows contribute zero, so large vertical gaps cost no work. The intersection has no holes: the complements of the simple polygon and the rectangle are both connected and meet outside a large enclosing box, hence their union (the intersection complement) is connected. Therefore the Euler characteristic equals the number of open black components. Use empty rows at the window bottom/top and exact clipped horizontal intervals; edge/point-only contacts do not create black area.'
+row=rows[175];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz139.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':175,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

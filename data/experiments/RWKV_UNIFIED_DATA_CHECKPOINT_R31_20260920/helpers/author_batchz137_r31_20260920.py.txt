@@ -1,0 +1,15 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));heights=sorted(v[1:])[:-1];levels=sorted(set(heights));possible=1
+for h in heights:
+ following=0
+ for level in levels:
+  if level>=h:following|=possible<<(level-h)
+ possible=following
+print(' '.join(str(i) for i in range(possible.bit_length()) if possible>>i&1))
+'''
+note='Reserve one highest pillar as the final right boundary. For every other pillar of height h, independently choose a water contribution H-h for any available remaining height H>=h, including zero. This independence preserves exactly the attainable total amounts: regard each positive contribution as an edge to a higher pillar. Whenever a wet pillar b has a child a and parent c, replace edges a->b and b->c by a->c, making b dry; the total contribution telescopes and stays unchanged. Repeating produces star groups with dry roots. Place those groups in increasing root height, each root followed by its wet leaves, then the reserved global maximum; each group traps exactly its assigned amount. Conversely any physical arrangement chooses water levels at pillar heights other than the reserved maximum. Boolean bitset knapsack multiplies the independent difference choices, with at most 500 pillars and 50 height values.'
+row=rows[160];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz137.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':160,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

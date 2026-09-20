@@ -1,0 +1,38 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+from collections import deque
+stream=iter(sys.stdin);tests=int(next(stream));out=[]
+for _ in range(tests):
+ line=next(stream).strip()
+ while not line:line=next(stream).strip()
+ names=[name.strip() for name in line.split(':',1)[1].split(',')];index={name:i for i,name in enumerate(names)};count=len(names);line_names=[name.strip() for name in next(stream).split(':',1)[1].split(',')];routes=[];incident=[[] for _ in names]
+ for j in range(len(line_names)):
+  stops=[index[name.strip()] for name in next(stream).split(':',1)[1].split(',')];routes.append(stops)
+  for u in stops:incident[u].append(j)
+ start_name=next(stream).strip().removeprefix('Johny lives at ');finish_name=next(stream).strip().removeprefix('Michelle lives at ');start=index[start_name];finish=index[finish_name];distance=[-1]*count;distance[start]=0;queue=deque([start]);used=[False]*len(routes);ordered=[]
+ while queue:
+  u=queue.popleft()
+  for j in incident[u]:
+   if used[j]:continue
+   used[j]=True;level=distance[u];ordered.append((level,j))
+   for w in routes[j]:
+    if distance[w]<0:distance[w]=level+1;queue.append(w)
+ best=[-10**18]*count;best[start]=0
+ for level,j in ordered:
+  stops=routes[j];running=-10**18
+  for position,u in enumerate(stops):
+   if distance[u]==level:running=max(running,best[u]-position)
+   elif distance[u]==level+1:best[u]=max(best[u],running+position)
+  running=-10**18
+  for position in range(len(stops)-1,-1,-1):
+   u=stops[position]
+   if distance[u]==level:running=max(running,best[u]+position)
+   elif distance[u]==level+1:best[u]=max(best[u],running-position)
+ boards=distance[finish];minutes=best[finish];out.append(f"optimal travel from {start_name} to {finish_name}: {boards} {'line' if boards==1 else 'lines'}, {minutes} {'minute' if minutes==1 else 'minutes'}")
+print('\\n'.join(out))
+'''
+note='First find the minimum number of boarded lines per station by BFS in the station-line incidence graph, expanding each line once. Every line connects stations at only its minimum level and that level plus one. Any prefix of a minimum-boarding route must itself use the minimum boardings to its station; otherwise replacement would improve the full route. Process lines in BFS level order and maximize minutes from level-d boarding stations to level-(d+1) destinations. Two linear sweeps compute max(best[u]+abs(position[v]-position[u])) for forward/backward riding without reversing on the same boarding. All lines of one level finish before the next, preserving dependency order. Parse the named routes and emit the requested singular/plural summary. Runtime is linear in total route length plus stations.'
+row=rows[205];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz136.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':205,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

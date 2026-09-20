@@ -1,0 +1,29 @@
+from pathlib import Path
+import json,subprocess,random,itertools,functools,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz146.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+for trial in range(180):
+ n=rng.randrange(1,9);grass=[rng.randrange(1,n+1) for _ in range(n)];cows=rng.sample(list(itertools.product(range(1,n+1),repeat=2)),rng.randrange(1,min(7,n*n)+1));m=len(cows)
+ # Actually feed selected cows in every possible next order, preserving eaten grass and blockers.
+ best=0;count=0
+ for assignment in itertools.product(range(3),repeat=m):
+  chosen=sum(x!=0 for x in assignment)
+  if chosen<best:continue
+  @functools.lru_cache(None)
+  def possible(mask,remaining,blocked):
+   if not mask:return True
+   for i,(f,h) in enumerate(cows):
+    if not (mask>>i&1):continue
+    direction=assignment[i];positions=range(n) if direction==1 else range(n-1,-1,-1);need=h;new=remaining
+    for j in positions:
+     if blocked>>j&1:break
+     if remaining>>j&1 and grass[j]==f:
+      new&=~(1<<j);need-=1
+      if not need:
+       if possible(mask^(1<<i),new,blocked|(1<<j)):return True
+       break
+   return False
+  if possible(sum((x!=0)<<i for i,x in enumerate(assignment)),(1<<n)-1,0):
+   if chosen>best:best=chosen;count=1
+   else:count+=1
+ text=f'{n} {m}\n'+' '.join(map(str,grass))+'\n'+'\n'.join(f'{f} {h}' for f,h in cows)+'\n';r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=5);assert r.returncode==0,r.stderr;actual=tuple(map(int,r.stdout.split()));assert actual==(best,count),(text,actual,(best,count))
+out={'status':'passed','cases':{'292':180},'private_cases_read':False,'oracle':'Enumerate all three-way cow assignments and recursively simulate every feeding order with consumed grass and sleeping blockers'};(D/'PUBLIC_CROSSCHECKS_BATCHz146.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "4b8a8a64195d5c58d7c1fac4d0221be94c79818c07bb8c8395d5fe3685165ea8",
+  "solution_sha256": "ec7430554ae68813e59beccce4919a2b31dd5ab57142ef9ced60d3022640f336",
+  "reasoning": "A more-equal array is a parking function: its sorted ith entry is at most i. Circular parking on n+1 spots partitions all preference arrays into rotation orbits of size n+1 with one parking function each, preserving equality among marked indices. If the k ordered marked indices use exactly j distinct positions, their count is S(k,j)*(n)_j; forcing their preferences equal and dividing by rotation yields (n+1)^(n-j). Sum over j. Compute Stirling numbers by the convolution S(k,j)=sum_i (-1)^(j-i)*i^k/(i!*(j-i)!). The code uses exact packed integer polynomial multiplication, choosing a byte lane strictly wider than the largest possible unreduced coefficient, so no carries cross lanes. Reduce extracted coefficients modulo the prime. n+1 divisible by the prime yields zero since n=998244352 is greater than k, making every exponent positive. Otherwise update powers by an inverse; falling factorials automatically handle n greater than the modulus.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

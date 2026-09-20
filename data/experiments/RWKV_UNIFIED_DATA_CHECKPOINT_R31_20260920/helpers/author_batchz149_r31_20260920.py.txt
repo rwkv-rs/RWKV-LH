@@ -1,0 +1,23 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+from array import array
+stream=sys.stdin.buffer;n=int(stream.readline());a=[]
+while len(a)<n:
+ row=list(map(int,stream.readline().split()))
+ if row:a.append(row)
+rank=[]
+for row in a:
+ r=array('H',[0])*n
+ for k,j in enumerate(sorted(range(n),key=row.__getitem__)):r[j]=k
+ rank.append(r)
+answer=0;last=n-1
+for j in range(n):
+ for c,i in enumerate(sorted(range(n),key=lambda i:a[i][j])):
+  r=rank[i][j];answer+=r*(last-c)+(last-r)*c
+print(answer//2)
+'''
+note='For each rectangle inspect its four corners cyclically. If the two youngest vertices are diagonal, both youngest vertices are smaller than both adjacent vertices and both older vertices are larger; there are zero corners with one younger and one older neighbor. If the two youngest are adjacent, exactly two corners have one younger and one older neighbor. Count such mixed corners over the entire grid: a cell with r younger cells in its row and c younger cells in its column contributes r*(n-1-c)+(n-1-r)*c. Every choice of its row and column neighbor determines exactly one rectangle. Therefore half the total is exactly the desired count. Row and column sorting finds r,c in O(n^2 log n); compact unsigned-short row ranks fit n<=1500.'
+row=rows[531];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz149.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':531,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

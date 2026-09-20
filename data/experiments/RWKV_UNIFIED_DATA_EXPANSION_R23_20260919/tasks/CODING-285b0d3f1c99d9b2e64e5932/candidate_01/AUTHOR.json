@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "b23d9568a27ed8868c40f408913206e2d1db313bcfc850e52e2b9b51c7f68003",
+  "solution_sha256": "9a6ec8051033d75ff290be69664bc61c56cca15b40be151aa2c7f27b8aacca78",
+  "reasoning": "Exploit integer axis-aligned geometry without rasterizing every cell. Sweep horizontal polygon edges: crossing an edge toggles the interior x-interval, represented by a clipped integer bitset. Only distinct edge heights change the row pattern. Count the 4-connected Euler characteristic from each adjacent-row transition: (one-black 2x2 corners minus three-black corners plus twice diagonal-two corners)/4. Repeated identical rows contribute zero, so large vertical gaps cost no work. The intersection has no holes: the complements of the simple polygon and the rectangle are both connected and meet outside a large enclosing box, hence their union (the intersection complement) is connected. Therefore the Euler characteristic equals the number of open black components. Use empty rows at the window bottom/top and exact clipped horizontal intervals; edge/point-only contacts do not create black area.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

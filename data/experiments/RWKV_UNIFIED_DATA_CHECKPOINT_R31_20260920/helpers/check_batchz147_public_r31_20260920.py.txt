@@ -1,0 +1,15 @@
+from pathlib import Path
+import json,subprocess,random,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz147.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+def run(a):
+ r=subprocess.run([str(R/'.venv/bin/python'),p],input=str(len(a))+'\n'+' '.join(map(str,a))+'\n',text=True,capture_output=True,timeout=10);assert r.returncode==0,r.stderr;return list(map(int,r.stdout.split()))
+for trial in range(240):
+ n=rng.randrange(1,70);a=[rng.randrange(10001) for _ in range(n)];expected=[]
+ for k in range(n-1):
+  distance=[0]*n
+  for i in range(k,-1,-1):distance[i]=1+min(distance[i+j] for j in (1<<b for b in range(n.bit_length())) if i+j<n)
+  expected.append(sum(a[i]*distance[i] for i in range(k+1)))
+ actual=run(a);assert actual==expected,(a,actual,expected)
+assert run([1,0,1,2])==[1,1,3];assert run(list(range(1,9)))==[1,3,6,10,16,24,40]
+start=time.monotonic();actual=run([10000]*100000);elapsed=time.monotonic()-start;assert len(actual)==99999
+out={'status':'passed','cases':{'24':242},'private_cases_read':False,'oracle':'Independent shortest-path dynamic programming over every legal power-of-two jump for every prefix, plus both published examples','max_n_smoke_seconds':elapsed};(D/'PUBLIC_CROSSCHECKS_BATCHz147.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

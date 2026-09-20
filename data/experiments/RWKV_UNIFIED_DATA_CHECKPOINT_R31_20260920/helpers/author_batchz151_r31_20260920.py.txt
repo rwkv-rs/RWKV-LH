@@ -1,0 +1,23 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys,math
+v=iter(map(int,sys.stdin.buffer.read().split()));t=next(v);out=[];MOD=10000000
+for _ in range(t):
+ p=next(v);q=next(v);k=next(v);m=p+k
+ if k==0 or p+q==0 or q>2*m:out.append('0');continue
+ if m==1:ways=[1,2,1][q]
+ else:
+  gaps=m-1;ways=0
+  for j in range(min(gaps,q//3)+1):
+   degree=q-3*j;coefficient=math.comb(gaps+degree-1,degree)
+   if degree>=1:coefficient+=2*math.comb(gaps+degree-2,degree-1)
+   if degree>=2:coefficient+=math.comb(gaps+degree-3,degree-2)
+   term=math.comb(gaps,j)*coefficient
+   ways+=-term if j%2 else term
+ out.append(str(ways*math.comb(m,k)%MOD))
+print('\\n'.join(out))
+'''
+note='Arrange all p+k non-female symbols first, with C(p+k,k) possible B/M strings. Each interior gap permits zero, one, or two females; exterior gaps permit zero or one, exactly enforcing that every female has a male or guide neighbor. Thus count the coefficient of x^q in (1+x)^2*(1+x+x^2)^(p+k-1). Rewrite the second factor as (1-x^3)^(m-1)/(1-x)^(m-1) and use exact integer binomial inclusion-exclusion; no modular division is used because 10^7 is composite. If both guide and participant symbols exist, some adjacent guide/participant pair must occur in the line; otherwise the required guide condition fails. Handle m=1 directly and impossible q>2m as zero.'
+row=rows[275];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz151.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':275,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

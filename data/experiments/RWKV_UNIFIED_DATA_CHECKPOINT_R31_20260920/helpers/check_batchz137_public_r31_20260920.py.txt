@@ -1,0 +1,9 @@
+from pathlib import Path
+import json,random,subprocess,itertools,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCHz137.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+for trial in range(160):
+ heights=[rng.randrange(1,8) for _ in range(rng.randrange(2,9))];expected=set()
+ for order in set(itertools.permutations(heights)):expected.add(sum(max(0,min(max(order[:i+1]),max(order[i:]))-h) for i,h in enumerate(order)))
+ data=str(len(heights))+'\n'+' '.join(map(str,heights))+'\n';actual=set(map(int,subprocess.check_output([str(R/'.venv/bin/python'),path],input=data.encode(),timeout=3).split()));assert actual==expected,(heights,actual,expected)
+heights=[1]*498+[50,50];data='500\n'+' '.join(map(str,heights))+'\n';start=time.monotonic();actual=list(map(int,subprocess.check_output([str(R/'.venv/bin/python'),path],input=data.encode(),timeout=3).split()));assert actual==[49*i for i in range(499)];elapsed=time.monotonic()-start
+(D/'PUBLIC_CROSSCHECKS_BATCHz137.json').write_text(json.dumps({'status':'passed','cases':{'160':161},'seed':20260920,'private_cases_read':False,'oracle':'Exhaust all distinct permutations and directly sum trapped water from left/right maxima; maximum-size two-wall case has exactly multiples of 49','max_size_seconds':elapsed},indent=2)+'\n');print('public passed',elapsed)

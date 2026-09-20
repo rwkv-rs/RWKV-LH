@@ -1,0 +1,23 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+v=sys.stdin.buffer.read().split();n=int(v[0]);s=v[1];runs=[]
+for c in s:
+ if not runs or runs[-1]!=c:runs.append(c)
+MOD=1000000007;m=len(runs);total=[0]*(m+1);total[0]=1;ending={c:[0]*(m+1) for c in set(runs)}
+for length,c in enumerate(runs,1):
+ old=ending[c]
+ for r in range(length,0,-1):
+  new=(total[r-1]-old[r-1])%MOD;total[r]=(total[r]+new-old[r])%MOD;old[r]=new
+answer=0;choose=1;inverse=[0]*(m+1)
+if m:inverse[1]=1
+for i in range(2,m+1):inverse[i]=MOD-(MOD//i)*inverse[MOD%i]%MOD
+for r in range(1,m+1):
+ answer=(answer+choose*total[r])%MOD
+ choose=choose*(n-r)%MOD*inverse[r]%MOD
+print(answer)
+'''
+note='An attack only moves a boundary or deletes an entire run; it cannot reorder run colors or create a new color occurrence. Therefore a final compressed run sequence is exactly a subsequence of the original compressed sequence with adjacent colors different. Conversely keep one representative of each chosen run, erase unchosen runs into neighboring chosen runs, and move the retained boundaries to realize any positive run lengths. For r retained runs there are C(n-1,r-1) length compositions. Count distinct compressed subsequences by length and last color: when reading c, replace ending[c][r] by total[r-1]-ending[c][r-1], excluding an adjacent repeated c and deduplicating earlier occurrences. Update lengths descending to use the prior prefix state. Sum the distinct counts times the composition counts modulo the prime.'
+row=rows[283];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz152.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':283,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

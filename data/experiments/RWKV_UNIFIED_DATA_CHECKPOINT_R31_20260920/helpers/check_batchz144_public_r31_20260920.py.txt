@@ -1,0 +1,20 @@
+from pathlib import Path
+import json,subprocess,random,heapq
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz144.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+for trial in range(180):
+ n=rng.randrange(2,7);edges=[(rng.randrange(v),v,rng.randrange(10)) for v in range(1,n)]
+ for _ in range(rng.randrange(5)):
+  u=rng.randrange(n-1);edges.append((u,rng.randrange(u+1,n),rng.randrange(10)))
+ adj=[[] for _ in range(n)]
+ for i,(u,v,c) in enumerate(edges):adj[u].append((v,c,1<<i))
+ goal=(1<<len(edges))-1;distance={(0,0):0};heap=[(0,0,0)]
+ while heap:
+  d,u,mask=heapq.heappop(heap)
+  if d!=distance[u,mask]:continue
+  if mask==goal:expected=d;break
+  for v,c,bit in adj[u]+[(0,0,0)]:
+   key=(v,mask|bit);nd=d+c
+   if nd<distance.get(key,10**9):distance[key]=nd;heapq.heappush(heap,(nd,*key))
+ text=str(n)+'\n'+'\n'.join(str(len(es))+' '+ ' '.join(f'{v+1} {c}' for v,c,b in es) for es in adj)+'\n'
+ r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=5);assert r.returncode==0,r.stderr;actual=int(r.stdout);assert actual==expected,(text,actual,expected)
+out={'status':'passed','cases':{'387':180},'private_cases_read':False,'oracle':'Independent shortest-path search over (current branching point, exact set of already read story edges), allowing free reset after any edge'};(D/'PUBLIC_CROSSCHECKS_BATCHz144.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

@@ -1,0 +1,32 @@
+from pathlib import Path
+import json,random,subprocess,collections
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCHz139.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920);count=0
+while count<220:
+ cells={(5,5)}
+ for step in range(rng.randrange(1,50)):
+  x,y=rng.choice(list(cells));dx,dy=rng.choice([(1,0),(-1,0),(0,1),(0,-1)]);cells.add((x+dx,y+dy))
+ edges=set()
+ for x,y in cells:
+  vertices=[(x,y),(x+1,y),(x+1,y+1),(x,y+1)]
+  for a,b in zip(vertices,vertices[1:]+vertices[:1]):
+   if (b,a) in edges:edges.remove((b,a))
+   else:edges.add((a,b))
+ outgoing={}
+ for a,b in edges:outgoing.setdefault(a,[]).append(b)
+ if any(len(v)!=1 for v in outgoing.values()):continue
+ first=min(outgoing);polygon=[first];u=outgoing[first][0]
+ while u!=first:polygon.append(u);u=outgoing[u][0]
+ if len(polygon)!=len(edges):continue
+ poly=[]
+ for i,b in enumerate(polygon):
+  a=polygon[i-1];c=polygon[(i+1)%len(polygon)]
+  if (b[0]-a[0])*(c[1]-b[1])!=(b[1]-a[1])*(c[0]-b[0]):poly.append(b)
+ # Shift into the specified nonnegative coordinate domain.
+ shift=20;poly=[(x+shift,y+shift) for x,y in poly];cells={(x+shift,y+shift) for x,y in cells};left,right=sorted(rng.sample(range(19,32),2));bottom,top=sorted(rng.sample(range(19,32),2));remaining={(x,y) for x,y in cells if left<=x<right and bottom<=y<top};expected=0
+ while remaining:
+  expected+=1;queue=[remaining.pop()]
+  for x,y in queue:
+   for point in ((x+1,y),(x-1,y),(x,y+1),(x,y-1)):
+    if point in remaining:remaining.remove(point);queue.append(point)
+ data=f'{left} {top} {right} {bottom}\n{len(poly)}\n'+''.join(f'{x} {y}\n' for x,y in poly);actual=int(subprocess.check_output([str(R/'.venv/bin/python'),path],input=data.encode(),timeout=3));assert actual==expected,(data,actual,expected);count+=1
+(D/'PUBLIC_CROSSCHECKS_BATCHz139.json').write_text(json.dumps({'status':'passed','cases':{'175':count},'seed':20260920,'private_cases_read':False,'oracle':'Generate simple orthogonal polygon boundaries from connected hole-free polyominoes, clip the actual cells to random windows and count components by flood fill'},indent=2)+'\n');print('public passed')

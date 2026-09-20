@@ -1,0 +1,11 @@
+from pathlib import Path
+import json,subprocess,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz142.json').read_text())['candidates'][0]['candidate_path']
+def run(n):
+ r=subprocess.run([str(R/'.venv/bin/python'),p],input=str(n),text=True,capture_output=True,timeout=60);assert r.returncode==0,r.stderr;return int(r.stdout)
+for n in range(1,81):
+ expected=sum(any(x*b==y*a for a in map(int,str(x)) if a for b in map(int,str(y)) if b) for x in range(1,n+1) for y in range(1,n+1));actual=run(n);assert actual==expected,(n,actual,expected)
+assert run(42)==150
+assert run(3141592653589793238462643383279)==459925407
+start=time.monotonic();v=run(10**100-1);elapsed=time.monotonic()-start
+out={'status':'passed','cases':{'75':82},'private_cases_read':False,'oracle':'All x,y pairs with directly enumerated contained nonzero decimal digits for n=1..80, plus both published examples','max_n_smoke_seconds':elapsed,'max_n_answer':v};(D/'PUBLIC_CROSSCHECKS_BATCHz142.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

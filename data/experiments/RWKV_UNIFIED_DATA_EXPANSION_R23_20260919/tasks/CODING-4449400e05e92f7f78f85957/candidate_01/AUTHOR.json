@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "ed1972be5c88c9b47624a2486ff26bd29915cf6de6219758c0c9706a88e534be",
+  "solution_sha256": "401b3dcbdccac318cf117e58a3b1dbdb141d722b7db9f8e1a6f4bec8c102ade6",
+  "reasoning": "On one side at most one cow of each sweetness can sleep: the first such cow consumes every matching grass before its sleeping point. Different sweetness cows can all feed in decreasing left endpoint order (or increasing right endpoint order). Thus a selected left/right assignment is feasible exactly when the largest left sleeping position is before the smallest right sleeping position. Sweep cuts through the grass. For each sweetness count eligible left and right cows; choosing both gives L*R-min(L,R), excluding the same cow selected twice. Other choices give one cow or none. Independent sweetness groups combine additively in maximum size and multiplicatively in count. Avoid counting a subset once per feasible cut: count all-right choices at cut zero, and subsequently only choices containing the uniquely newly eligible left cow at that cut. That is precisely the first feasible cut of every subset with a left cow. Fixing that cow leaves either any eligible different right cow, or no right cow. Maintain the other groups product by modular inverses; every local count is positive and below the prime.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

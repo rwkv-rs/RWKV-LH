@@ -1,0 +1,16 @@
+from pathlib import Path
+import json,subprocess,random,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz152.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+def run(s):
+ r=subprocess.run([str(R/'.venv/bin/python'),p],input=f'{len(s)}\n{s}\n',text=True,capture_output=True,timeout=30);assert r.returncode==0,r.stderr;return int(r.stdout)
+for trial in range(140):
+ n=rng.randrange(1,9);s=''.join(rng.choice('abc') for _ in range(n));seen={s};queue=[s]
+ for state in queue:
+  for i in range(n-1):
+   for a,b in [(i,i+1),(i+1,i)]:
+    child=state[:b]+state[a]+state[b+1:]
+    if child not in seen:seen.add(child);queue.append(child)
+ actual=run(s);assert actual==len(seen),(s,actual,len(seen))
+for s,e in [('aaa',1),('ab',3),('babb',11),('abacaba',589)]:assert run(s)==e
+start=time.monotonic();v=run(('abcdefghijklmnopqrstuvwxyz'*193)[:5000]);elapsed=time.monotonic()-start
+out={'status':'passed','cases':{'283':144},'private_cases_read':False,'oracle':'Full reachable-state BFS applying every directed neighboring attack for random strings, plus four published samples','max_n_smoke_seconds':elapsed,'max_n_answer':v};(D/'PUBLIC_CROSSCHECKS_BATCHz152.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

@@ -1,0 +1,15 @@
+from pathlib import Path
+import json,subprocess,random,itertools,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz145.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920);parts=[];expected=[]
+for trial in range(180):
+ n=rng.choice([3,5,7]);edges=list(itertools.combinations(range(n),2));rng.shuffle(edges);m=rng.randrange(max(1,len(edges)-12),len(edges));fixed=[e if rng.randrange(2) else e[::-1] for e in edges[:m]];unknown=edges[m:];wins=[0]*n
+ for u,v in fixed:wins[u]+=1
+ answer=0
+ for mask in range(1<<len(unknown)):
+  counts=wins[:]
+  for i,(u,v) in enumerate(unknown):counts[v if mask>>i&1 else u]+=1
+  answer+=all(x==n//2 for x in counts)
+ parts.append(f'{n}\n{m}\n'+'\n'.join(f'{u+1} {v+1}' for u,v in fixed));expected.append(answer)
+parts.append('9\n1\n1 2');expected.append(1615040)
+start=time.monotonic();r=subprocess.run([str(R/'.venv/bin/python'),p],input='\n'.join(parts)+'\n0\n',text=True,capture_output=True,timeout=30);elapsed=time.monotonic()-start;assert r.returncode==0,r.stderr;actual=list(map(int,r.stdout.split()));assert actual==expected,[(i,a,b) for i,(a,b) in enumerate(zip(actual,expected)) if a!=b]
+out={'status':'passed','cases':{'214':181},'private_cases_read':False,'oracle':'Exhaust all orientations of remaining games for random 3/5/7-team tournaments, plus published 9-team maximum-unknown case','all_cases_seconds':elapsed};(D/'PUBLIC_CROSSCHECKS_BATCHz145.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

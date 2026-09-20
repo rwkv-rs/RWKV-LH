@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "7a4ae6dbba90f7496b7b9a3e58b6de7fec6eabaf8ff6ade0531b1edc54f5755e",
+  "solution_sha256": "6eb9ee50b516c2c7cfdc2e780781fcf2e3aca387b7e2444ef601a261288f8f8d",
+  "reasoning": "Because P=299993 is 1 modulo 4, choose i with i^2=-1. The invertible linear map u=x+i*y, v=x-i*y factors the product into F(u)*G(v), two univariate degree-N polynomials. Count their value frequencies over the field and combine by multiplicative inverses; Z=0 depends only on distinct roots. Evaluate each polynomial exactly using forward differences, advancing 256 disjoint contiguous blocks in parallel in packed integer lanes. Each lane holds a residue, with a guard bit above twice P; adding neighboring difference levels cannot spill between lanes. Adding guard-P identifies residues >=P, and subtracting P in only those lanes performs exact modular reduction. Initialize every block with direct Horner values, extract all P evaluations exactly once, and use arbitrary-precision counts for up to P^2 points.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

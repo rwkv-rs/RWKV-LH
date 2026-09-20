@@ -1,0 +1,25 @@
+from pathlib import Path
+import json,random,subprocess,itertools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCHz135.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+def cross(a,b):return a[0]*b[1]-a[1]*b[0]
+for trial in range(100):
+ target=[rng.randrange(5) for _ in range(3)]
+ if sum(target)==0:target[0]=1
+ active={};number=0;ops=[];answers=[]
+ for step in range(100):
+  if active and (len(active)>14 or rng.random()<.4):
+   i=rng.choice(list(active));ops.append(f'R {i}');del active[i]
+  else:
+   vector=[rng.randrange(10) for _ in range(3)]
+   if not sum(vector):vector[0]=1
+   number+=1;active[number]=vector;ops.append('A '+' '.join(map(str,vector)))
+  deviations=[(v[0]*sum(target)-target[0]*sum(v),v[1]*sum(target)-target[1]*sum(v)) for v in active.values()];answer=0
+  if (0,0) in deviations:answer=1
+  elif any(cross(a,b)==0 and a[0]*b[0]+a[1]*b[1]<0 for a,b in itertools.combinations(deviations,2)):answer=2
+  else:
+   for a,b,c in itertools.combinations(deviations,3):
+    signs=[cross(a,b),cross(b,c),cross(c,a)]
+    if all(x>0 for x in signs) or all(x<0 for x in signs):answer=3;break
+  answers.append(answer)
+ data=' '.join(map(str,target))+'\n'+str(len(ops))+'\n'+'\n'.join(ops)+'\n';actual=list(map(int,subprocess.check_output([str(R/'.venv/bin/python'),path],input=data.encode(),timeout=3).split()));assert actual==answers,(trial,actual,answers)
+(D/'PUBLIC_CROSSCHECKS_BATCHz135.json').write_text(json.dumps({'status':'passed','cases':{'871':100},'operations':10000,'seed':20260920,'private_cases_read':False,'oracle':'Enumerate all single bottles, opposite deviation pairs and origin-containing triangles after every addition/removal'},indent=2)+'\n');print('public passed')

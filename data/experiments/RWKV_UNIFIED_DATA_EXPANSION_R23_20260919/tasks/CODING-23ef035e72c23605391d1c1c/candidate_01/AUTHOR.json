@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "a5c2585e7671c33bf1bd5d460022d1c9da962a863b93f11f2574a2040a2c7676",
+  "solution_sha256": "4728145c5eda029e401049076dc071ae7dfb7cb730d5e675de0910fa5439822a",
+  "reasoning": "Reserve one highest pillar as the final right boundary. For every other pillar of height h, independently choose a water contribution H-h for any available remaining height H>=h, including zero. This independence preserves exactly the attainable total amounts: regard each positive contribution as an edge to a higher pillar. Whenever a wet pillar b has a child a and parent c, replace edges a->b and b->c by a->c, making b dry; the total contribution telescopes and stays unchanged. Repeating produces star groups with dry roots. Place those groups in increasing root height, each root followed by its wet leaves, then the reserved global maximum; each group traps exactly its assigned amount. Conversely any physical arrangement chooses water levels at pillar heights other than the reserved maximum. Boolean bitset knapsack multiplies the independent difference choices, with at most 500 pillars and 50 height values.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

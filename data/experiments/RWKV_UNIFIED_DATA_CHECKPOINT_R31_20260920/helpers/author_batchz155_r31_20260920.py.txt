@@ -1,0 +1,19 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+v=iter(map(int,sys.stdin.buffer.read().split()));n=next(v);goals=[0]+[next(v) for _ in range(n)];q=next(v);incoming=[0]*(n+1);milestones={};answer=sum(goals);out=[]
+for _ in range(q):
+ s=next(v);t=next(v);u=next(v);key=(s,t);old=milestones.pop(key,0)
+ if old:
+  if incoming[old]<=goals[old]:answer+=1
+  incoming[old]-=1
+ if u:
+  if incoming[u]<goals[u]:answer-=1
+  incoming[u]+=1;milestones[key]=u
+ out.append(str(answer))
+print('\\n'.join(out))
+'''
+note='Every milestone will eventually trigger because its threshold is strictly below its source goal. If resource i has indegree b_i in the milestone multigraph, at least max(a_i-b_i,0) units must be manually produced. These lower bounds are simultaneously achievable: after producing those units and propagating bonuses, suppose some resources remain unfinished. Their unresolved incoming bonuses total at least the remaining deficit, while each unfinished resource has strictly fewer untriggered outgoing milestones than its remaining deficit (thresholds are distinct and below its goal). Finished resources have no untriggered milestones. Summing gives a contradiction, so bonus propagation cannot deadlock even with cycles or self-milestones. Maintain the sum of lower bounds under each replacement by decrementing the old target indegree and incrementing the new target indegree; surplus bonuses beyond the goal do not improve the answer.'
+row=rows[742];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz155.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':742,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

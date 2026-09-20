@@ -1,0 +1,21 @@
+from pathlib import Path
+import json,subprocess,random,math,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz156.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+def track():
+ x=rng.randrange(-10,11);y=rng.randrange(-10,11);start=(x,y);moves=[]
+ for _ in range(rng.randrange(1,7)):
+  axis=rng.choice('XY');d=rng.choice([-4,-3,-2,-1,1,2,3,4]);moves.append((d,axis))
+  if axis=='X':x+=d
+  else:y+=d
+ if x!=start[0]:moves.append((start[0]-x,'X'))
+ if y!=start[1]:moves.append((start[1]-y,'Y'))
+ points=[];x,y=start
+ for d,axis in moves:
+  for _ in range(abs(d)):
+   points.append((x,y))
+   if axis=='X':x+=1 if d>0 else -1
+   else:y+=1 if d>0 else -1
+ return f'{start[0]} {start[1]} {len(moves)}\n'+'\n'.join(f'{d} {axis}' for d,axis in moves)+'\n',points
+for trial in range(220):
+ texta,a=track();textb,b=track();best=min((a[t%len(a)][0]-b[t%len(b)][0])**2+(a[t%len(a)][1]-b[t%len(b)][1])**2 for t in range(math.lcm(len(a),len(b))));expected=f'{math.sqrt(best):.2f}';r=subprocess.run([str(R/'.venv/bin/python'),p],input=texta+textb,text=True,capture_output=True,timeout=5);assert r.returncode==0,r.stderr;assert r.stdout.strip()==expected,(texta+textb,r.stdout,expected)
+out={'status':'passed','cases':{'722':220},'private_cases_read':False,'oracle':'Simulate both walkers at every integer time throughout the complete least-common-multiple period for random closed tracks'};(D/'PUBLIC_CROSSCHECKS_BATCHz156.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

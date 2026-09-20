@@ -1,0 +1,29 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+v=iter(map(int,sys.stdin.buffer.read().split()));tests=next(v);out=[]
+for _ in range(tests):
+ n=next(v);m=next(v);cats=[]
+ for i in range(n):
+  a=next(v);b=next(v);s=next(v);velocity=(b>a)-(b<a);cats.append((velocity,a-velocity*s,2*s,2*(s+abs(a-b))))
+ for _ in range(m):
+  c=next(v);d=next(v);r=next(v);velocity=(d>c)-(d<c);intercept=c-velocity*r;start=2*r;end=2*(r+abs(c-d));best=10**30;who=-1
+  for i,(speed,offset,begin,finish) in enumerate(cats,1):
+   lower=max(start,begin);upper=min(end,finish)
+   if lower>upper or lower>=best:continue
+   difference=speed-velocity
+   if difference:
+    numerator=2*(intercept-offset)
+    if numerator%difference:continue
+    meet=numerator//difference
+    if meet<lower or meet>upper:continue
+   elif intercept==offset:meet=lower
+   else:continue
+   if meet<best:best=meet;who=i
+  out.append(str(who))
+print('\\n'.join(out))
+'''
+note='Each awake/unhidden trajectory is a line position=v*time+offset on a closed time interval, with v in {-1,0,1}. For each rat check every cat for their first simultaneous meeting in the interval intersection. Unequal velocities yield a unique meeting time; equal velocities meet throughout the overlap only when offsets agree. Twice the meeting time is integral, so all calculations and boundary comparisons use exact integers. Choose the earliest cat; the source guarantees no simultaneous cat ties. Rats do not affect cat trajectories, so processing them independently is valid. This O(NM) solution meets the stated 1000-by-1000 bounds without floating-point errors or treating sleeping/hidden endpoints as active outside their intervals.'
+row=rows[258];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz150.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':258,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

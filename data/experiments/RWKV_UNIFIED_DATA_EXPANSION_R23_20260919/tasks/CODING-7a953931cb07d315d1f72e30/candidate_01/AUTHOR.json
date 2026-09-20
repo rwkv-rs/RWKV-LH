@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "af3aa9cf858c51cf7a70f54356a72daa2b0a95428e37036cfc05787670b2f3c8",
+  "solution_sha256": "fa07009f92102f7be74dbd262f900aefcfc399f74c129c45e285a0c4297bd89d",
+  "reasoning": "LCM(1..n) is determined by prime powers. To retain a prime power q in the suffix [m,n], m cannot exceed its last multiple floor(n/q)*q; minimizing this bound over every prime power is equivalent to considering only maximal powers. Start with the smallest prime power strictly above n/2. Find that power exactly by trying all feasible exponents and taking the next prime above the exact integer root, using deterministic 64-bit primality tests. Do not assume this first bound always settles the problem: for a possible improvement with quotient k>=2, q lies in (n/(k+1),n/k], and k<best/(n-best). Check every quotient under that rigorous bound using the same next-prime-power search. The n<=2 base has immediate exact answers and avoids a zero denominator. No floating roots or prime-gap guess is used.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

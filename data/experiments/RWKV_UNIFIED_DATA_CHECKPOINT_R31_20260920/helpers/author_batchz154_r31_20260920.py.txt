@@ -1,0 +1,27 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys,bisect
+from array import array
+v=list(map(int,sys.stdin.buffer.read().split()));queries=v[1:1+v[0]];digits=[0]*100000
+for i in range(1,100000):digits[i]=digits[i//10]+i%10
+rivers={i:array('Q',[i]) for i in (1,3,9)};out=[None]*len(queries)
+def advance(x):
+ y=x;value=x
+ while y:value+=digits[y%100000];y//=100000
+ return value
+for n,index in sorted((n,i) for i,n in enumerate(queries)):
+ river=9 if n%9==0 else 3 if n%3==0 else 1;sequence=rivers[river];x=n
+ while sequence[-1]<x:sequence.append(advance(sequence[-1]))
+ pos=bisect.bisect_left(sequence,x)
+ while sequence[pos]!=x:
+  if sequence[pos]<x:
+   pos+=1
+   if pos==len(sequence):sequence.append(advance(sequence[-1]))
+  else:x=advance(x)
+ out[index]=str(river)+' '+str(x)
+print('\\n'.join(out))
+'''
+note='For the river update f(x)=x+digit_sum(x), f(x) is congruent to 2x modulo 9. Hence the residue classes split into the disjoint invariant sets {0}, {3,6}, and {1,2,4,5,7,8}, corresponding to canonical starts 9,3,1. A query cannot intersect either of the other two canonical rivers. Merge its strictly increasing sequence with the selected canonical sequence, always advancing the smaller value, to find the first equality. Reuse canonical prefixes across sorted queries and binary-search their initial positions; never replace the actual digit-sum recurrence with a heuristic jump. A precomputed five-digit chunk sum accelerates exact arbitrary-size digit sums, and output order is restored.'
+row=rows[673];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz154.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':673,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')
