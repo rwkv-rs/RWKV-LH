@@ -1,0 +1,17 @@
+from pathlib import Path
+import json,html,tempfile,subprocess,sys
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_FULL_1000_AUDIT_R33_20260920';rs=json.loads((D/'PUBLIC_SAMPLE_AUDIT.json').read_text())['rows'];codes={r['index']:r['code'] for r in json.loads((D/'CODE_REVIEW.json').read_text())};out=[]
+for r in rs:
+ if r['status']!='needs_source_parser_or_candidate_review':continue
+ cs=[]
+ for c in r['cases']:
+  if c.get('passed'):continue
+  if 'input' not in c:continue
+  stdin=html.unescape(c['input']).replace('\\n','\n');expected=html.unescape(c['expected_public']).replace('\\n','\n')
+  if (stdin,expected)==(c['input'],c['expected_public']):continue
+  with tempfile.TemporaryDirectory(prefix='r33-transport-') as tmp:
+   p=Path(tmp)/'solution.py';p.write_text(codes[r['index']]);v=subprocess.run([sys.executable,'-I','-B',str(p)],input=stdin,text=True,capture_output=True,cwd=tmp,timeout=10)
+  cs.append({'case':c['case'],'passed':v.returncode==0 and v.stdout.split()==expected.split(),'exit_code':v.returncode,'decoded_input':stdin,'decoded_expected':expected,'actual':v.stdout,'stderr':v.stderr[:500]})
+ if cs:out.append({'index':r['index'],'sample_id':r['sample_id'],'cases':cs})
+(D/'PUBLIC_TRANSPORT_DIAGNOSTIC.json').write_text(json.dumps({'scope':'Diagnostic only: HTML entities and literal backslash-n decoding in sample blocks. Does not modify source/target/old scores and does not replace primary exact-output validation.','rows':out},ensure_ascii=False,indent=2)+'\n')
+for r in out:print(r['index'],[(c['case'],c['passed'],c['exit_code']) for c in r['cases']],[(c['decoded_expected'][:180],c['actual'][:180]) for c in r['cases'] if not c['passed']])

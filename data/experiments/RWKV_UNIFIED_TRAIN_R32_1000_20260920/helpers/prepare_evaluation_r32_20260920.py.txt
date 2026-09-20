@@ -1,0 +1,44 @@
+"""Freeze execution before candidate outcomes; keep original task/rubric controls."""
+from pathlib import Path
+import hashlib,json,shutil,subprocess,sys
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
+from rwkv_lh.inference.uploaded_sources import source_inventory,PROJECT_SCHEMA
+D=R/'data/experiments/RWKV_UNIFIED_TRAIN_R32_1000_20260920/evaluation'
+T=R/'data/experiments/RWKV_UNIFIED_TRAIN_R32_1000_20260920'
+P=R/'data/experiments/RWKV_PRODUCT_BASELINE_R27_20260919'
+remote='/home/chase/GitHub/RWKV-LH-unified-train-r32-1000-20260920/evaluation_r32'
+sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+def save(p,x):p.parent.mkdir(parents=True,exist_ok=True);assert not p.exists();p.write_text(json.dumps(x,ensure_ascii=False,indent=2)+'\n')
+D.mkdir(exist_ok=False);S=D/'source';S.mkdir()
+for name in ('rwkv_lh','scripts'):shutil.copytree(R/name,S/name,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
+for name in ('pyproject.toml','uv.lock'):shutil.copyfile(R/name,S/name)
+files=source_inventory(S)
+prior={r['path']:(r['sha256'],r['bytes']) for r in json.loads((T/'runtime/PROJECT_SOURCE.json').read_text())['files']}
+changed=sorted(k for k in set(files)|set(prior) if files.get(k)!=prior.get(k))
+assert changed==[]
+save(D/'PROJECT_SOURCE.json',{'schema_version':PROJECT_SCHEMA,'project_root':remote+'/source','source_root':'.','files':[{'path':p,'sha256':h,'bytes':n} for p,(h,n) in sorted(files.items())]})
+shutil.copytree(P/'tasks',D/'tasks');shutil.copyfile(P/'EXECUTION_TASKS.json',D/'EXECUTION_TASKS.json');shutil.copyfile(P/'SCORING_POLICY_ORIGINAL.json',D/'SCORING_POLICY_ORIGINAL.json')
+shutil.copytree(P/'preflight',D/'preflight')
+reg=json.loads((P/'REGISTRATION.json').read_text());reg.update(round='R32-evaluation-of-R32',purpose='Evaluate completed authorized1000 oneepoch State against freshly rerun zero controls; existing untrained development tasks, not finalholdout.',
+ source_manifest_sha256=sha(D/'PROJECT_SOURCE.json'),remote_root=remote,port=18266,model='rwkv-direct-r32-1000-r32-ctx24576',base_url='http://127.0.0.1:18266/v1',
+ arms=['zero-a','zero-b','candidate'],max_tasks=72,max_generation_calls=1224,training_calls=0,training_policy={'path':str(T/'TRAINING_POLICY.json'),'sha256':sha(T/'TRAINING_POLICY.json')},
+ current_source_local_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=R,text=True).strip(),
+ profiles_pending='Candidate identity is bound only to the completed registered training output, before any evaluation call.')
+reg.pop('restarts_invalid_comparison',None);reg['environment']={'RWKV_LH_EXECUTOR_MODEL':reg['model']}
+save(D/'PRE_REGISTRATION.json',reg)
+save(D/'EXECUTION_SOURCE_ADDENDUM.json',{'original_evaluation_policy':{'path':str(T/'EVALUATION_REGISTRATION.json'),'sha256':sha(T/'EVALUATION_REGISTRATION.json')},
+ 'training_source_manifest_sha256':sha(T/'runtime/PROJECT_SOURCE.json'),'evaluation_source_manifest_sha256':sha(D/'PROJECT_SOURCE.json'),'changed_files':changed,
+ 'reason':'Training and evaluation source bytes identical; task/rubric/sampling/budget controls unchanged. All72 evaluationtasks use the same new source; no R27/R6 task results substituted.',
+ 'candidate_evaluation_started':False,'candidate_task_results_seen':False})
+runner=(P/'run_baseline.py').read_text().replace('/home/chase/GitHub/RWKV-LH-product-baseline-r27-20260919',remote)
+needle="    then=time.monotonic();result=run_coding_job"
+replacement="    profile=reg['profiles'][arm];arm_config=replace(config,state_profile_id=profile['id'],state_profile_sha256=profile['sha256'])\n    then=time.monotonic();result=run_coding_job"
+assert needle in runner;runner=runner.replace(needle,replacement).replace('settings=config,session_factory=factory','settings=arm_config,session_factory=factory')
+runner=runner.replace("seal_run(out/'execution',out/'sealed',reg['model_sha256'])", "seal_run(out/'execution',out/'sealed',reg['model_sha256'],expected_state_profile=profile)")
+runner=runner.replace("'training_started':False", "'training_completed_before_evaluation':True")
+(D/'run_evaluation.py').write_text(runner)
+(D/'preflight.py').write_text((P/'preflight.py').read_text().replace('/home/chase/GitHub/RWKV-LH-product-baseline-r27-20260919',remote))
+launch=(P/'launch.sh').read_text().replace('/home/chase/GitHub/RWKV-LH-product-baseline-r27-20260919',remote).replace('--port 18265','--port 18266').replace('rwkv-direct-product-r27-ctx24576',reg['model']).replace(json.loads((P/'REGISTRATION.json').read_text())['source_manifest_sha256'],reg['source_manifest_sha256'])
+(D/'launch_base.sh').write_text(launch)
+save(D/'PREPARED_IDENTITY.json',{'runner_sha256':sha(D/'run_evaluation.py'),'pre_registration_sha256':sha(D/'PRE_REGISTRATION.json'),'cases_sha256':sha(D/'EXECUTION_TASKS.json'),'scoring_sha256':sha(D/'SCORING_POLICY_ORIGINAL.json'),'preflight_sha256':sha(D/'preflight.py'),'launch_base_sha256':sha(D/'launch_base.sh')})
+print('prepared',reg['max_tasks'],'tasks, source',reg['source_manifest_sha256'])

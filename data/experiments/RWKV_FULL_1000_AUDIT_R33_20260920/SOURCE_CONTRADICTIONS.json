@@ -1,0 +1,63 @@
+{
+  "public_only_oracles": {
+    "sprinkler_rectangles": 73,
+    "window_maxima_sums": [
+      17,
+      16,
+      13,
+      9,
+      5
+    ],
+    "crc_with_explicit_empty_message": [
+      "77 FD",
+      "00 00",
+      "0C 86"
+    ]
+  },
+  "rows": [
+    {
+      "index": 468,
+      "sample_id": "r23-12c-CODING-84bc96c3b04a83976df7592a",
+      "source_id": "CODING-84bc96c3b04a83976df7592a",
+      "source_sha256": "0f17e5946a54fae878487adf639eca6f48d66a5dbc51bb9569f0a9d1a0287b64",
+      "target_sha256": "31b6e7d993e70b25d5df7ad15feb8e25ac6d3f1cb9ac308c599e5391b02ba0bd",
+      "reason": "正文11T按数字相加、2b输出两个空格、3b输出三个空格；公开样例却把多空格压为一个，甚至把中间分隔空格移除。代码依正文展开，无法同时匹配样例。样例文本损坏，未改代码或模型输入。",
+      "decision": "quarantine_pending_source_reconciliation",
+      "candidate_code_known_wrong": false,
+      "raw_source_and_candidate_preserved": true
+    },
+    {
+      "index": 675,
+      "sample_id": "r23-41b-CODING-8482a27224f4ea0e2b690f18",
+      "source_id": "CODING-8482a27224f4ea0e2b690f18",
+      "source_sha256": "195cd5a944d31cec9cc3f548ea261182f8b0a1c3b200c77c28c776c0d3e5a6ef",
+      "target_sha256": "7ee0b86164ec0271b17d5809018cc7e81684f50ec544a15432f1fc3e654a134a",
+      "reason": "公开输入只有this is a test、A两个消息及终止符，输出却为三个CRC。中间00 00对应空消息，但源样例缺该空行；正文算法输出两行与代码一致。",
+      "decision": "quarantine_pending_source_reconciliation",
+      "candidate_code_known_wrong": false,
+      "raw_source_and_candidate_preserved": true
+    },
+    {
+      "index": 775,
+      "sample_id": "r23-56-CODING-797547459773d293d378e39c",
+      "source_id": "CODING-797547459773d293d378e39c",
+      "source_sha256": "9ae3bfd97622b0db03116f081d43416d325e051fd569c9e32194c9930a02d83b",
+      "target_sha256": "fe1a875ea157fdab935126f9531b313c4e647c17fe4edbdb44b375d6dcfc7697",
+      "reason": "正文要求n行各窗口长度最大值之和，n=5样例却仅给17一行。公开直接枚举应为17、16、13、9、5；代码一致，样例缺后四行。",
+      "decision": "quarantine_pending_source_reconciliation",
+      "candidate_code_known_wrong": false,
+      "raw_source_and_candidate_preserved": true
+    },
+    {
+      "index": 792,
+      "sample_id": "r23-59-CODING-cb1726cd951b92c22221dc86",
+      "source_id": "CODING-cb1726cd951b92c22221dc86",
+      "source_sha256": "7d046d667bad06aa928fa3c7e54e12ead0e1d7e267bc90143ccb5d2bcd18f3ea",
+      "target_sha256": "b9e01dccd0f81e8587716a6f68758b750228d116412b8859f63c7802a8e89c92",
+      "reason": "按正文同时被水和肥料覆盖的N×N格点单元规则，公开n=5实例直接枚举73个矩形；源样例为21。该歧义不能通过已通过的测试集解决，也不能私自改输入或认定样例21无效。",
+      "decision": "quarantine_pending_source_reconciliation",
+      "candidate_code_known_wrong": false,
+      "raw_source_and_candidate_preserved": true
+    }
+  ]
+}

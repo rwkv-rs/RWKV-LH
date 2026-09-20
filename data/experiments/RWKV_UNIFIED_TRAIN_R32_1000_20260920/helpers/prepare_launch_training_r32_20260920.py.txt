@@ -1,0 +1,8 @@
+from pathlib import Path
+p=Path('/home/chase/GitHub/RWKV-LH/temp/launch_training_r29_20260920.py')
+s=p.read_text().replace('RWKV_UNIFIED_TRAIN_R29_647_20260920','RWKV_UNIFIED_TRAIN_R32_1000_20260920').replace("F=R/'data/experiments/RWKV_TRAINING_TARGET_FORMAT_R28_20260920'","F=D").replace('r29-647','r32-1000').replace("F/'RESULT.json'","F/'DATA_RESULT.json'").replace("F/'FULL_TESTS.txt'","R/'data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920/PYTEST_RETRY.log'").replace('1907 passed','1910 passed').replace('validation_retry1','validation').replace('runtime_retry1','runtime').replace('frozen_corrected','frozen_eligible_1000').replace('==647','==1000').replace('steps=162','steps=250').replace("'expected_samples':647","'expected_samples':1000").replace("'expected_updates':162","'expected_updates':250")
+a=s.index("reg['limits_note']=");b=s.index('\nsave(',a)
+s=s[:a]+"reg['limits_note']='Owner authorizes 1000 eligible production-boundary corrections, fresh zero one epoch,250updates, target-only mask,seed20260914,accumulation4,LR1e-4,GPU0. Full1000 evidence refreeze,1910tests,independent evaluation exclusion and numerical compatibility required. R29 interrupted State deleted; no resume or automatic promotion.'"+s[b:]
+s=s.replace('LAUNCHED one epoch647,162plannedoptimizersteps','LAUNCHED one epoch1000,250plannedoptimizersteps')
+Path('/home/chase/GitHub/RWKV-LH/temp/launch_training_r32_20260920.py').write_text(s)
+compile(s,'launcher','exec')

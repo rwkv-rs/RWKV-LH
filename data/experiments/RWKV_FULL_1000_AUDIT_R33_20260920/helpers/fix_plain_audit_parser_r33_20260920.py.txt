@@ -1,0 +1,10 @@
+from pathlib import Path
+import json,hashlib,re
+R=Path('/home/chase/GitHub/RWKV-LH');p=R/'temp/audit_plain_samples_r33_20260920.py';s=p.read_text();D=R/'data/experiments/RWKV_FULL_1000_AUDIT_R33_20260920'
+old=re.compile(r'^\s*(?:#{1,6}\s*)?(?:(Sample|Example)\s+)?(Input|Output)(?:\s+(?:Sample|Example))?(?:\s*#?\s*\d+)?\s*:?[ \t]*$',re.I|re.M)
+new=re.compile(r'^[ \t]*(?:#{1,6}[ \t]*)?(?:(Sample|Example)[ \t]+)?(Input|Output)(?:[ \t]+(?:Sample|Example))?(?:[ \t]*#?[ \t]*\d+)?[ \t]*:?[ \t]*\r?$',re.I|re.M)
+fixture='Examples\n\nInput\n\n3\n1 1\n2 1\n1 7\n\nOutput\n\n0 1\n1 1\n0 7\n';om=next(old.finditer(fixture));nm=next(new.finditer(fixture));assert '3' in om.group();assert nm.group()=='Input'
+reg={'defect':'Supplemental audit parser used regex whitespace that consumed numeric first input/output lines as heading example numbers. Not a production/data target defect.','red':{'matched':om.group(),'lost_test_count':True},'green':{'matched':nm.group(),'following_data':fixture[nm.end():].lstrip().splitlines()[0]},'original_results':'PUBLIC_PLAIN_SAMPLE_AUDIT.json retained, invalid as candidate pass/fail evidence','new_results':'PUBLIC_PLAIN_SAMPLE_AUDIT_V2.json','training_or_source_modified':False}
+(D/'PLAIN_PARSER_RED_GREEN.json').write_text(json.dumps(reg,indent=2)+'\n')
+s=s.replace(old.pattern,new.pattern).replace("PUBLIC_PLAIN_SAMPLE_AUDIT.json","PUBLIC_PLAIN_SAMPLE_AUDIT_V2.json")
+p2=R/'temp/audit_plain_samples_r33_v2_20260920.py';p2.write_text(s);compile(s,str(p2),'exec');print('parser red/green recorded')

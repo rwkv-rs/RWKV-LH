@@ -1,0 +1,28 @@
+from pathlib import Path
+import json,re,sys,concurrent.futures,tempfile,subprocess,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_FULL_1000_AUDIT_R33_20260920';cs=json.loads((D/'CODE_REVIEW.json').read_text());audits=json.loads((D/'ROW_AUDIT.json').read_text());authority={r['index']:r['authority'] for r in audits}
+def cases(text):
+ found=[];pending=None
+ for m in re.finditer(r'```[^\n]*\n(.*?)```',text,re.S):
+  before=text[max(0,m.start()-240):m.start()].strip().splitlines();heading=next((s for s in reversed(before) if s.strip()),'');kind=heading.lower()
+  if re.search(r'(?:sample|example).*input|input.*(?:sample|example)|样例输入|输入样例',kind):pending=m.group(1)
+  elif re.search(r'(?:sample|example).*output|output.*(?:sample|example)|样例输出|输出样例',kind) and pending is not None:found.append((pending,m.group(1)));pending=None
+ return found
+jobs=[];results=[]
+for r in cs:
+ if authority[r['index']]!='verified_stdio':continue
+ cc=cases(r['task']);base={'index':r['index'],'sample_id':r['sample_id'],'public_cases':len(cc)}
+ if not cc:results.append({**base,'status':'no_unambiguous_fenced_public_pair','not_a_candidate_failure':True});continue
+ jobs.append((r,cc,base))
+def run(job):
+ r,cc,base=job;out=[]
+ with tempfile.TemporaryDirectory(prefix='r33-public-') as tmp:
+  p=Path(tmp)/'solution.py';p.write_text(r['code'])
+  for i,(stdin,expected) in enumerate(cc):
+   try:
+    a=time.monotonic();v=subprocess.run([sys.executable,'-I','-B',str(p)],input=stdin,text=True,capture_output=True,cwd=tmp,timeout=10);ok=v.returncode==0 and v.stdout.split()==expected.split();out.append({'case':i,'passed':ok,'exit_code':v.returncode,'seconds':time.monotonic()-a,'input':stdin,'expected_public':expected,'actual':v.stdout,'stderr':v.stderr[:2000]})
+   except subprocess.TimeoutExpired:out.append({'case':i,'passed':False,'termination':'timeout10sec'})
+ return {**base,'status':'passed' if all(x['passed'] for x in out) else 'needs_source_parser_or_candidate_review','cases':out}
+with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+ for result in pool.map(run,jobs):results.append(result)
+results.sort(key=lambda r:r['index']);(D/'PUBLIC_SAMPLE_AUDIT.json').write_text(json.dumps({'scope':'Visible source fenced sample pairs only; whitespace token comparison. Does not replace unchanged private exact-output validator. Unparsed sources kept explicit, not silently passed.','rows':results},ensure_ascii=False,indent=2)+'\n');print('PUBLIC_SAMPLE_AUDIT',len(results),'paired',len(jobs),'needsreview',[r['index'] for r in results if r['status']=='needs_source_parser_or_candidate_review'],flush=True)
