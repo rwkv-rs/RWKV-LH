@@ -1,0 +1,18 @@
+from pathlib import Path
+import json,subprocess,random,time,itertools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz167.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920);cases=0
+for trial in range(100):
+ n,m=rng.choice([(1,2),(1,4),(2,3),(3,2),(3,4),(4,3)]);priority=rng.sample(range(n*m),n*m);solutions=[]
+ for board in itertools.product((1,-1),repeat=n*m):
+  balances=[set() for _ in board];valid=True
+  for i in range(n):
+   for j in range(m):
+    index=i*m+j;before={0} if index==0 else (balances[index-m] if i else set())|(balances[index-1] if j else set());balances[index]={x+board[index] for x in before}
+    if min(balances[index])<0:valid=False;break
+   if not valid:break
+  if valid and balances[-1]=={0}:solutions.append(board)
+ order=sorted(range(n*m),key=priority.__getitem__);solutions.sort(key=lambda board:tuple(-board[i] for i in order));rank=rng.randrange(1,len(solutions)+1);expected=''.join('(' if x==1 else ')' for x in solutions[rank-1]);text=f'{n} {m} {rank}\n'+' '.join(str(x+1) for x in priority)+'\n';r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=3);assert r.returncode==0,r.stderr;assert ''.join(r.stdout.split())==expected,(text,r.stdout,expected);cases+=1
+n,m=99,100;priority=rng.sample(range(1,n*m+1),n*m);text=f'{n} {m} {10**18}\n'+' '.join(map(str,priority))+'\n';start=time.monotonic();r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=3);elapsed=time.monotonic()-start;assert r.returncode==0,r.stderr;board=r.stdout.split();assert len(board)==n and all(len(row)==m for row in board);word=board[0]+''.join(row[-1] for row in board[1:]);balance=0
+for ch in word:balance+=1 if ch=='(' else -1;assert balance>=0
+assert balance==0
+out={'status':'passed','cases':{'579':cases},'large_case_elapsed_seconds':elapsed,'private_cases_read':False,'oracle':'Exhaust all cell assignments and propagate balances of every monotone path independently; sort actual arrays by arbitrary cell priorities'};(D/'PUBLIC_CROSSCHECKS_BATCHz167.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

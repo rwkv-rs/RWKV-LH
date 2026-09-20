@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "4a95e22a6b404b9725dbc88e0dd13bb71a868bb5d521e7cbbca054278b4a9c17",
+  "solution_sha256": "18a67153e44277a1e08f312e5fcff3144f361b5f65c3da3feeb221a9b26648eb",
+  "reasoning": "For a fixed coloring each strip is an impartial game whose Grundy value at a cell is mex of the allowed previous one/two/three cell values, hence at most three. Retain the last three values; enumerate the finite reachable states from the first three cells, with an out-of-bounds sentinel excluded from mex. An uncolored cell sums three deterministic color transitions, including multiplicity when different colors lead to the same state. Binary-lift this transition matrix across arbitrarily long uncolored gaps and apply each specified color exactly at its real position. Matrix-vector and matrix-square operations use exact packed integer convolution with lanes wider than size*(MOD-1)^2, extracting only row dot products before modular reduction. Count the resulting final Grundy distribution for each strip, then XOR-convolve the four-value distributions; XOR zero is exactly a Bob win. Cache only identical length/fixed-color profiles.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

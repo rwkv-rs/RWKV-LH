@@ -1,0 +1,18 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];a=v[1:];b=[0]*n
+for i in range(1,n-1):b[i]=min(a[i],max(a[i-1],a[i+1]))
+size=(n+1)//2;plain=[0]*size;odd=[0]*size;x=y=0
+for d in range(size-1,-1,-1):
+ x=max(x,a[d],a[n-1-d]);y=max(y,b[d],b[n-1-d]);plain[d]=x;odd[d]=y
+out=[]
+for length in range(n,0,-1):
+ value=plain[0] if length==1 else plain[length//2-1] if length%2==0 else odd[length//2]
+ out.append(str(value))
+print(' '.join(out))
+'''
+note='For a remaining interval of even length, alternating max/min endpoint deletion starting with the maximizer has value equal to the maximum of the two central entries. For odd length at least three it has value min(center,max(left-neighbor,right-neighbor)); length one returns its entry. These identities follow by induction using the distributive min/max laws (equivalently threshold each entry to a Boolean and simplify alternating adjacent AND/OR). The k preliminary deletions can select any contiguous interval of length n-k. Its central entries range over a symmetric slice of the original array, so the optimum is a range maximum of either the original entries or the three-entry odd values. Precompute maxima of all nested symmetric slices in linear time and emit every k result without dynamic programming over quadratic intervals.'
+row=rows[796];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz157.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':796,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

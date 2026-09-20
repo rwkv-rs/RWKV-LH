@@ -1,0 +1,16 @@
+from pathlib import Path
+from collections import deque
+import json,subprocess,random,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz170.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+for trial in range(240):
+ n=rng.randrange(1,12);length=[rng.randrange(0,25) for _ in range(n)];a=rng.randrange(n);b=rng.randrange(n);x=rng.randrange(length[a]+1);y=rng.randrange(length[b]+1);queue=deque([(a,x,0)]);seen={(a,x)}
+ while queue:
+  row,col,d=queue.popleft()
+  if (row,col)==(b,y):expected=d;break
+  nexts=[(row,max(0,col-1)),(row,min(length[row],col+1))]
+  if row:nexts.append((row-1,min(col,length[row-1])))
+  if row+1<n:nexts.append((row+1,min(col,length[row+1])))
+  for u in nexts:
+   if u not in seen:seen.add(u);queue.append((*u,d+1))
+ text=f'{n}\n'+' '.join(map(str,length))+f'\n{a+1} {x+1} {b+1} {y+1}\n';r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=3);assert r.returncode==0,r.stderr;assert int(r.stdout)==expected,(text,r.stdout,expected)
+out={'status':'passed','cases':{'823':240},'private_cases_read':False,'oracle':'Uncompressed unit-edge BFS over every physical cursor position, including empty lines and detours'};(D/'PUBLIC_CROSSCHECKS_BATCHz170.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

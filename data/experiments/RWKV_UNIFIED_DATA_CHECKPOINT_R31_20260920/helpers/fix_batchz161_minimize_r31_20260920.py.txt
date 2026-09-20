@@ -1,0 +1,20 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';obj=json.loads((D/'AUTHORED_BATCHz161.json').read_text());r=obj['candidates'][0];old=Path(r['candidate_path']);code=old.read_text();needle="size=len(states);transitions=";insert='''labels=[state[0] for state in states]
+while True:
+ lookup={};new=[]
+ for state in states:
+  key=(state[0],tuple(labels[index[step(state,c)]] for c in range(3)))
+  if key not in lookup:lookup[key]=len(lookup)
+  new.append(lookup[key])
+ if new==labels:break
+ labels=new
+representatives=[None]*len(set(labels))
+for state,label in zip(states,labels):representatives[label]=state
+index={state:label for state,label in zip(states,labels)};states=representatives
+size=len(states);transitions='''
+assert needle in code;code=code.replace(needle,insert).replace('for state,count in prefix.items():vector[index[state]]=count','for state,count in prefix.items():vector[index[state]]=(vector[index[state]]+count)%MOD');folder=old.parent.parent/'candidate_02';folder.mkdir(exist_ok=False);p=folder/'solution.py';p.write_text(code);note=r['review_note']+' Minimize the reachable deterministic Moore machine before lifting: states with the same current Grundy output and indistinguishable next blocks under every color are merged to a fixed point. This preserves every future colored-word output and color multiplicity, reducing the measured 42-state example to 30. Aggregate initial prefix counts when several concrete states map to one block.'
+author=json.loads((old.parent/'AUTHOR.json').read_text());author.update(solution_sha256=hashlib.sha256(p.read_bytes()).hexdigest(),reasoning=note);(folder/'AUTHOR.json').write_text(json.dumps(author,indent=2)+'\n');r.update(candidate_path=str(p),review_note=note);(D/'AUTHORED_BATCHz161a.json').write_text(json.dumps(obj,indent=2)+'\n')
+for name in ['check_batchz161_public_r31_20260920.py','check_batchz161_powers_r31_20260920.py']:
+ source=R/'temp'/name;target=source.with_name(name.replace('z161','z161a'));target.write_text(source.read_text().replace('z161','z161a'))
+(D/'PUBLIC_PERFORMANCE_RED_BATCHz161.json').write_text(json.dumps({'status':'performance_failure_preserved','candidate':str(old),'max_public_seconds':json.loads((D/'PUBLIC_CROSSCHECKS_BATCHz161.json').read_text())['max_n_m_smoke_seconds'],'source_time_limit_seconds':5,'fixed_stdio_budget_seconds':3,'semantic_public_checks':'passed','repair':'Exact Moore-state minimization; no change to task, output, original trace or verification budget','before_sha256':hashlib.sha256(old.read_bytes()).hexdigest(),'after_sha256':hashlib.sha256(p.read_bytes()).hexdigest()},indent=2)+'\n')

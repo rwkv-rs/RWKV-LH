@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "ea924dd9c77715c9929b5fcbfa121a3703d758cd8d5f68010f385dae4b774a68",
+  "solution_sha256": "3ad2575655351acbd70a166d8339462f5eba44d77be9447092050195bc1e2e95",
+  "reasoning": "Parse with an explicit operator stack: all unary and binary operators are right-associative at the same precedence, and only parentheses force reductions. Classify minus by whether a term is expected, preserving A-B operand order. Keep scalars as modular integers and vectors as polynomials evaluated componentwise at X; scalar/vector broadcasting becomes polynomial arithmetic. A fold evaluates a vector polynomial using cached exact modular power sums of the supplied X entries, then returns a scalar. Preserve the vector/scalar type even for constant polynomials, and impose no silent polynomial degree truncation. The iterative parser avoids recursion depth failure on the allowed long expression. The stated low polynomial complexity controls arithmetic cost, while power sums are computed only to the highest degree actually needed.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

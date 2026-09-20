@@ -1,0 +1,15 @@
+from functools import lru_cache
+from pathlib import Path
+import random,json
+rng=random.Random(20260920)
+for _ in range(1000):
+ n=rng.randrange(1,12);a=[rng.randrange(20) for _ in range(n)]
+ @lru_cache(None)
+ def f(l,r,turn):
+  if l==r:return a[l]
+  values=(f(l+1,r,1-turn),f(l,r-1,1-turn));return max(values) if turn==0 else min(values)
+ for l in range(n):
+  for r in range(l,n):
+   length=r-l+1;mid=(l+r)//2;guess=a[l] if length==1 else max(a[mid],a[mid+1]) if length%2==0 else min(a[mid],max(a[mid-1],a[mid+1]));actual=f(l,r,0)
+   assert actual==guess,(a,l,r,actual,guess)
+print('1000 random arrays, all subintervals: exact minimax identity passed')

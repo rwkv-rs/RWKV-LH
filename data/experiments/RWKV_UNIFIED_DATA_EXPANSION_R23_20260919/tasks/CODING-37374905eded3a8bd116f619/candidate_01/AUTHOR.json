@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "494dcbfe0502f9f1cbdb49c3f9671a5ae429ed3b62bccf122fe6472c1c2d0891",
+  "solution_sha256": "d81fc3a3c903d7f45b84a192a32353d3d7e550499a7a6a880ab64a4f5082f907",
+  "reasoning": "Subdivide each original road to represent half-road positions as integer vertices. Rest-stop reachability components are unions of closed balls of radius k in this doubled tree: overlapping balls correspond to original rest-stop distance at most k roads. Multi-source BFS fills these balls and DSU merges touching territories; because rest vertices have even mutual distance, adjacent radius-k territories cannot introduce a forbidden odd-distance rest connection. For a query at distance at most k original roads no rest is needed. Otherwise trim k doubled edges from both ends of its unique path. Travel with rests is possible exactly when both remaining endpoints lie in the same ball-union component. Necessity follows by tracing the connected union of rest balls along any feasible rest chain; sufficiency follows from the first/last intersecting balls and the unique tree path, yielding end-to-rest distances at most k roads. Binary lifting implements the path trims. No private outputs or speculative tool results are included.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

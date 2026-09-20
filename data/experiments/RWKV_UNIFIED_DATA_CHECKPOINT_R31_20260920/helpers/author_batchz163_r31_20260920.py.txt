@@ -1,0 +1,39 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+from collections import deque
+sys.setrecursionlimit(20000)
+v=iter(map(int,sys.stdin.buffer.read().split()));n=next(v);a=next(v);parents=[next(v)-1 for _ in range(a-1)];x=[next(v)-1 for _ in range(n)];b=next(v);other=[next(v)-1 for _ in range(b-1)];y=[next(v)-1 for _ in range(n)];source=a+b;sink=source+1;graph=[[] for _ in range(sink+1)];INF=a+b+1
+
+def add(u,v,capacity):graph[u].append([v,len(graph[v]),capacity]);graph[v].append([u,len(graph[u])-1,0])
+for child,parent in enumerate(parents,1):add(child,parent,INF);add(child,sink,1)
+for child,parent in enumerate(other,1):add(a+parent,a+child,INF);add(source,a+child,1)
+for left,right in zip(x,y):add(a+right,left,INF)
+flow=0
+while True:
+ level=[-1]*len(graph);level[source]=0;queue=deque([source])
+ while queue:
+  u=queue.popleft()
+  for w,rev,capacity in graph[u]:
+   if capacity and level[w]<0:level[w]=level[u]+1;queue.append(w)
+ if level[sink]<0:break
+ current=[0]*len(graph)
+ def dfs(u,amount):
+  if u==sink:return amount
+  while current[u]<len(graph[u]):
+   edge=graph[u][current[u]];w,rev,capacity=edge
+   if capacity and level[w]==level[u]+1:
+    sent=dfs(w,min(amount,capacity))
+    if sent:edge[2]-=sent;graph[w][rev][2]+=sent;return sent
+   current[u]+=1
+  return 0
+ while True:
+  sent=dfs(source,INF)
+  if not sent:break
+  flow+=sent
+print(a+b-2-flow)
+'''
+note='Minimize retained wires instead of maximizing removed ones. A powered nonroot node costs one retained parent wire and forces its ancestors powered. Represent powered main-tree nodes on the source side of a cut and powered reserve-tree nodes on the sink side. Infinite main child->parent and reserve parent->child edges enforce ancestor closure. Unit main node->sink and source->reserve node edges charge exactly the retained wires. For each device, an infinite reserve-leaf->main-leaf edge prohibits both leaves being unpowered, while allowing either or both powered. Roots have no wire cost. Thus minimum cut is exactly minimum retained wires; subtract it from a+b-2. Dinic handles the sparse network without assuming parents precede children or relying on a particular planar drawing.'
+row=rows[678];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz163.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':678,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "00d469c57c986cc5cc4733db193ff0fcff22c02a36feb870cc820889c7e145d3",
+  "solution_sha256": "49e4fa7df683f44d115d57d14f1e50103a35f9f512ae42b4ffc013e496e2daaa",
+  "reasoning": "The defined OR-of-XOR product is not assumed associative, so ordinary matrix exponentiation would be invalid. Work independently per bit and per evolving row. An output bit at column j is zero exactly when the entire current row bit vector equals original column j; otherwise it is one. Group equal original columns by their exact integer bit vectors. One multiplication maps any row to the complement of one column-equivalence-class mask, or the all-one mask if no column matches. Hence after the first multiplication every row belongs to a closed set of at most n+1 states. Build its deterministic transition and binary-lift m-2 further applications, starting from the actual first row transition. Recombine the bit planes exactly. The specified left-associated recurrence, including m=1, is preserved.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

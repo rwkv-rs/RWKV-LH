@@ -1,0 +1,17 @@
+from pathlib import Path
+import json,subprocess,random,itertools,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz162.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920);MOD=998244353
+
+def run(a):
+ r=subprocess.run([str(R/'.venv/bin/python'),p],input=str(len(a))+'\n'+' '.join(map(str,a)),text=True,capture_output=True,timeout=30);assert r.returncode==0,r.stderr;return int(r.stdout)
+for n in range(2,7):
+ edges=list(itertools.combinations(range(n),2));cross=[(i,j) for i,(a,b) in enumerate(edges) for j,(c,d) in enumerate(edges[:i]) if a<c<b<d or c<a<d<b];counts=[0]*len(edges);total=0
+ for mask in range(1<<len(edges)):
+  if any(mask>>i&1 and mask>>j&1 for i,j in cross):continue
+  total+=1
+  for i in range(len(edges)):counts[i]+=mask>>i&1
+ for trial in range(24):
+  a=[rng.randrange(100) for _ in range(n)];expected=sum(count*a[i]*a[j] for count,(i,j) in zip(counts,edges))*pow(total,MOD-2,MOD)%MOD;actual=run(a);assert actual==expected,(a,actual,expected)
+assert run([1,1,4,5,1,4,1,9,1,9,8,1,0])==748867567
+start=time.monotonic();answer=run([10**6]*100000);elapsed=time.monotonic()-start
+out={'status':'passed','cases':{'909':121},'private_cases_read':False,'oracle':'Enumerate every simple graph on up to six cyclic vertices, reject every alternating-endpoint crossing, and directly sum edge weights over valid graphs; published 13-vertex sample','max_n_smoke_seconds':elapsed,'max_n_answer':answer};(D/'PUBLIC_CROSSCHECKS_BATCHz162.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

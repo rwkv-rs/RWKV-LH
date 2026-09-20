@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "556655183afc89736f88d8003e51b9ffe22d4bb5ad415c754e4308296d3b64b0",
+  "solution_sha256": "420eea894d13ced2eb5c5a8eb1f9b1a64e69a41c8d3ad80c4dd0eb824a1a29dc",
+  "reasoning": "Minimize retained wires instead of maximizing removed ones. A powered nonroot node costs one retained parent wire and forces its ancestors powered. Represent powered main-tree nodes on the source side of a cut and powered reserve-tree nodes on the sink side. Infinite main child->parent and reserve parent->child edges enforce ancestor closure. Unit main node->sink and source->reserve node edges charge exactly the retained wires. For each device, an infinite reserve-leaf->main-leaf edge prohibits both leaves being unpowered, while allowing either or both powered. Roots have no wire cost. Thus minimum cut is exactly minimum retained wires; subtract it from a+b-2. Dinic handles the sparse network without assuming parents precede children or relying on a particular planar drawing.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

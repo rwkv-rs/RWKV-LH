@@ -1,0 +1,25 @@
+from pathlib import Path
+import json,subprocess,random,re,itertools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';a=json.loads((D/'AUTHORED_BATCHz174.json').read_text())['candidates'][0];p=a['candidate_path'];rng=random.Random(20260920)
+def run(text,expected):
+ r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=3);assert r.returncode==0,r.stderr;assert r.stdout.rstrip('\n')==expected.rstrip('\n'),(text,r.stdout,expected)
+task=(R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917/tasks'/a['id']/'TASK.md').read_text();sample=re.findall(r'```\n(.*?)\n```',task,re.S);run(sample[-2]+'\n',sample[-1]+'\n')
+subjects=['I','you','Joe','New'];swapped=['you','I','Joe','New'];allfacts=[(i,sign) for i in range(5) for sign in (False,True)];cases=[];expected=[]
+for trial in range(120):
+ facts=rng.sample(allfacts,rng.randrange(0,10));worlds=list(itertools.product((False,True),repeat=4));lines=[];out=[f'Dialogue #{trial+1}:']
+ for i,sign in facts:
+  if i==4:sentence='everybody runs.' if sign else 'nobody runs.';worlds=[w for w in worlds if all(x==sign for x in w)]
+  else:
+   s=subjects[i];sentence=s+' '+(('run' if i<2 else 'runs') if sign else ("don't run" if i<2 else "doesn't run"))+'.';worlds=[w for w in worlds if w[i]==sign]
+  lines.append(sentence)
+  for j,s in enumerate(subjects):
+   question=('do' if j<2 else 'does')+' '+s+' run?';lines.append(question)
+   if not worlds:answer='I am abroad.'
+   elif all(w[j] for w in worlds):answer='yes, '+swapped[j]+(' run.' if j<2 else ' runs.')
+   elif all(not w[j] for w in worlds):answer='no, '+swapped[j]+(" don't run." if j<2 else " doesn't run.")
+   else:answer='maybe.'
+   out.extend([question,answer,''])
+ lines.append('end!');out.extend(['end!','']);cases.extend(lines);expected.extend(out)
+run('120\n'+'\n'.join(cases)+'\n','\n'.join(expected)+'\n')
+run("1\nI run.\nyou run.\nJoe runs.\nwho runs?\nI don't like tea, coffee.\nwhat do I do?\nend!\n","Dialogue #1:\nwho runs?\nyou, I and Joe run.\n\nwhat do I do?\nyou run, and don't like tea, coffee.\n\nend!\n\n")
+out={'status':'passed','cases':{'211':122},'private_cases_read':False,'oracle':'Published full dialogue, exhaustive possible-world entailment for randomized sequential statements, and explicit pronoun/list/object-punctuation formatting'};(D/'PUBLIC_CROSSCHECKS_BATCHz174.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

@@ -1,0 +1,21 @@
+from pathlib import Path
+import json,subprocess,random,itertools,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz161.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+def run(lengths,fixed,rules):
+ text=str(len(lengths))+'\n'+' '.join(map(str,lengths))+'\n'+str(len(fixed))+'\n'+'\n'.join(f'{i+1} {j+1} {c+1}' for (i,j),c in fixed.items())+'\n'+'\n'.join(' '.join(map(str,row)) for row in rules)+'\n';r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=60);assert r.returncode==0,r.stderr;return int(r.stdout)
+for trial in range(110):
+ n=rng.randrange(1,4);lengths=[rng.randrange(1,6) for _ in range(n)];positions=[(i,j) for i,l in enumerate(lengths) for j in range(l)];rng.shuffle(positions);unknown=positions[:min(7,len(positions)-1)];fixed={pos:rng.randrange(3) for pos in positions[len(unknown):]};rules=[[rng.randrange(2) for _ in range(3)] for _ in range(3)];expected=0
+ for assignment in itertools.product(range(3),repeat=len(unknown)):
+  colors={**fixed,**dict(zip(unknown,assignment))};xor=0
+  for i,l in enumerate(lengths):
+   grundy=[]
+   for j in range(l):
+    children={grundy[j-d] for d in range(1,4) if j>=d and rules[colors[i,j]][d-1]};g=0
+    while g in children:g+=1
+    grundy.append(g)
+   xor^=grundy[-1]
+  expected+=xor==0
+ actual=run(lengths,fixed,rules);assert actual==expected,(lengths,fixed,rules,actual,expected)
+assert run([3,4,5],{(0,0):0,(1,1):1},[[1,1,1],[1,0,0],[0,1,1]])==14346
+lengths=[rng.randrange(10**8,10**9+1) for _ in range(1000)];fixed={(i,rng.randrange(lengths[i])):rng.randrange(3) for i in range(1000)};start=time.monotonic();answer=run(lengths,fixed,[[1,1,1],[1,0,0],[0,1,1]]);elapsed=time.monotonic()-start
+out={'status':'passed','cases':{'979':111},'private_cases_read':False,'oracle':'Enumerate all unknown-cell colorings and directly calculate every cell Grundy value, plus published mixed-strip sample','max_n_m_smoke_seconds':elapsed,'max_n_answer':answer};(D/'PUBLIC_CROSSCHECKS_BATCHz161.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

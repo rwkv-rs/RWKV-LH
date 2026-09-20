@@ -1,0 +1,17 @@
+from pathlib import Path
+import json,subprocess,random,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz168.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+for trial in range(180):
+ h=rng.randrange(1,6);w=rng.randrange(1,6);edges=[(i,j,i+di,j+dj) for i in range(h) for j in range(w) for di,dj in ((1,0),(0,1)) if i+di<h and j+dj<w];rng.shuffle(edges);usedr=set();usedc=set();initial=[]
+ for a,b,c,d in edges:
+  if not ({a,c}&usedr or {b,d}&usedc) and rng.randrange(5)==0:initial.append((a,b,c,d));usedr|={a,c};usedc|={b,d}
+ possible=[e for e in edges if not ({e[0],e[2]}&usedr or {e[1],e[3]}&usedc)]
+ def dfs(i,rs,cs):
+  answer=1
+  for j in range(i,len(possible)):
+   a,b,c,d=possible[j]
+   if not ({a,c}&rs or {b,d}&cs):answer+=dfs(j+1,rs|{a,c},cs|{b,d})
+  return answer
+ expected=dfs(0,set(),set());text=f'{h} {w} {len(initial)}\n'+''.join(' '.join(str(x+1) for x in e)+'\n' for e in initial);r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=3);assert r.returncode==0,r.stderr;assert int(r.stdout)==expected,(text,r.stdout,expected)
+start=time.monotonic();r=subprocess.run([str(R/'.venv/bin/python'),p],input='3600 3600 0\n',text=True,capture_output=True,timeout=5);elapsed=time.monotonic()-start;assert r.returncode==0,r.stderr
+out={'status':'passed','cases':{'790':180},'max_dimensions_elapsed_seconds':elapsed,'private_cases_read':False,'oracle':'Enumerate all legal subsets of adjacent-cell domino placements on small grids, maintaining occupied row and column sets'};(D/'PUBLIC_CROSSCHECKS_BATCHz168.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

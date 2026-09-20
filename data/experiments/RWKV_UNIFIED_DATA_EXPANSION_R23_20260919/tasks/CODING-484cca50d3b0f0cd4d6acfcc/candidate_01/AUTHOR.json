@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "b415916c9d28c8f470fd3874eaf665396e9c8c8577b9451b0684834fdfe6a904",
+  "solution_sha256": "3d6f5e04dde71468a4859a2accb8bbd3091f53334111aef04928046f30665efe",
+  "reasoning": "Build a suffix array, LCP array, and compressed suffix trie. Each edge of length d represents d distinct nonempty substrings; lexicographic DFS visits these implicit prefix nodes before child subtrees. Record the exact ascending rank at every explicit node and total distinct substrings, so descending rank is total+1-ascending. For a fixed starting position, extending the substring strictly increases ascending rank and never decreases the nonnegative importance sum; hence equality has at most one endpoint. Follow the suffix leaf ancestors by binary lifting to locate the unique edge where sum+ascending first reaches total+1. Within one compressed edge, ascending rank increases by exactly one per character, reducing equality to binary search in the strictly increasing array prefix_weight[t]+t. Repeated substrings share trie ranks but different starting positions use their own weight sums. Output endpoints naturally sorted by start.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

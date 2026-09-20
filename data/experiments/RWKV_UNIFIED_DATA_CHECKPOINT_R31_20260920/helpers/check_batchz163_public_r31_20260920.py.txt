@@ -1,0 +1,23 @@
+from pathlib import Path
+import json,subprocess,random
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz163.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+def tree(n):
+ parents=[-1];leaves=[]
+ def visit(count,parent):
+  node=len(parents);parents.append(parent)
+  if count==1:leaves.append(node);return
+  split=rng.randrange(1,count);visit(split,node);visit(count-split,node)
+ visit(n,0)
+ for _ in range(rng.randrange(4)):
+  child=rng.randrange(1,len(parents));old=parents[child];parents[child]=len(parents);parents.append(old)
+ order=[0]+rng.sample(list(range(1,len(parents))),len(parents)-1);mapping={old:new for new,old in enumerate(order)};new=[-1]+[mapping[parents[old]] for old in order[1:]];return new,[mapping[x] for x in leaves]
+for trial in range(240):
+ n=rng.randrange(1,10);pa,x=tree(n);pb,y=tree(n);a=len(pa);b=len(pb);best=a+b
+ for mask in range(1<<n):
+  keepa=set();keepb=set()
+  for i in range(n):
+   node=x[i] if mask>>i&1 else y[i];parent=pa if mask>>i&1 else pb;seen=keepa if mask>>i&1 else keepb
+   while node:seen.add(node);node=parent[node]
+  best=min(best,len(keepa)+len(keepb))
+ expected=a+b-2-best;text=f'{n}\n{a}\n'+' '.join(str(i+1) for i in pa[1:])+'\n'+' '.join(str(i+1) for i in x)+f'\n{b}\n'+' '.join(str(i+1) for i in pb[1:])+'\n'+' '.join(str(i+1) for i in y)+'\n';r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=5);assert r.returncode==0,r.stderr;actual=int(r.stdout);assert actual==expected,(text,actual,expected)
+out={'status':'passed','cases':{'678':240},'private_cases_read':False,'oracle':'Enumerate every assignment of devices to main or reserve power and explicitly union required ancestor wires in two randomly renumbered ordered trees'};(D/'PUBLIC_CROSSCHECKS_BATCHz163.json').write_text(json.dumps(out,indent=2)+'\n');print(out)
