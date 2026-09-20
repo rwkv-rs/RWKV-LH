@@ -1,0 +1,67 @@
+from pathlib import Path
+import json,subprocess,sys,random,itertools,collections,functools,math
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';tag=sys.argv[1] if len(sys.argv)>1 else '60';rows=json.loads((D/f'AUTHORED_BATCH{tag}.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,inp,want,tol=None):
+ r=subprocess.run([sys.executable,by[k]['candidate_path']],input=inp,text=True,capture_output=True,timeout=20);assert r.returncode==0,(k,inp,r.stderr)
+ assert all(abs(float(a)-b)<tol for a,b in zip(r.stdout.split(),want)) if tol else r.stdout.split()==str(want).split(),(k,inp,r.stdout,want)
+ counts[k]+=1
+rng=random.Random(20260920)
+for _ in range(55):
+ n,m=rng.randrange(3,9),rng.randrange(3,9);grid=[[rng.randrange(1000) for j in range(m)] for i in range(n)];a=[row[:] for row in grid];ops=[]
+ for step in range(30):
+  for attempt in range(100):
+   h,w=rng.randrange(1,n),rng.randrange(1,m);r1,r2=rng.randrange(n-h+1),rng.randrange(n-h+1);c1,c2=rng.randrange(m-w+1),rng.randrange(m-w+1);one={(i,j) for i in range(r1,r1+h) for j in range(c1,c1+w)};two={(i,j) for i in range(r2,r2+h) for j in range(c2,c2+w)}
+   if not any((i+di,j+dj) in two for i,j in one for di,dj in [(0,0),(1,0),(-1,0),(0,1),(0,-1)]):break
+  else:continue
+  ops.append((r1+1,c1+1,r2+1,c2+1,h,w))
+  for i in range(h):
+   for j in range(w):a[r1+i][c1+j],a[r2+i][c2+j]=a[r2+i][c2+j],a[r1+i][c1+j]
+ run(606,f'{n} {m} {len(ops)}\n'+'\n'.join(' '.join(map(str,row)) for row in grid)+'\n'+'\n'.join(' '.join(map(str,op)) for op in ops),'\n'.join(' '.join(map(str,row)) for row in a))
+for n in (2,3):
+ @functools.lru_cache(None)
+ def win(board,turn):
+  own,other=('W','B') if turn==0 else ('B','W')
+  for i,c in enumerate(board):
+   if c==other:
+    if not win(board[:i]+'.'+board[i+1:],1-turn):return True
+   if c==own and i>=n and board[i-n]=='.':
+    new=list(board);new[i]='.';new[i-n]=own
+    if not win(''.join(new),1-turn):return True
+  return False
+ boards=[''.join(x) for x in itertools.product('.WB',repeat=n*n)] if n==2 else [''.join(rng.choice('.WB') for i in range(n*n)) for _ in range(50)]
+ for board in boards:run(630,str(n)+'\n'+'\n'.join(board[i*n:(i+1)*n] for i in range(n)),'Takahashi' if win(board,0) else 'Snuke')
+for _ in range(100):
+ n=rng.randrange(2,50);a=sorted(rng.sample(range(1,400),n));xs=[rng.randrange(1,450) for j in range(30)];answers=[]
+ for x in xs:
+  left=a[:];score=0
+  while left:
+   score+=left.pop()
+   if left:left.remove(min(left,key=lambda y:(abs(y-x),y)))
+  answers.append(score)
+ run(686,f'{n} {len(xs)}\n'+' '.join(map(str,a))+'\n'+'\n'.join(map(str,xs)),'\n'.join(map(str,answers)))
+run(642,'1\nA: I am divine.\n1\nA: I am lying.\n1\nA: I am evil.\n3\nA: B is human.\nB: A is evil.\nA: B is evil.\n0','Conversation #1\nNo facts are deducible.\nConversation #2\nThis is impossible.\nConversation #3\nA is human.\nIt is night.\nConversation #4\nA is evil.\nB is divine.')
+# An independent constraint enumerator derives utterance values from concrete world tables.
+for _ in range(50):
+ statements=[];spoken=[]
+ for j in range(rng.randrange(1,10)):
+  speaker,subject=rng.randrange(5),rng.randrange(6);pred=rng.choice(['divine','evil','human','lying']) if subject<5 else rng.choice(['day','night']);neg=rng.randrange(2) if subject<5 else 0
+  statements.append((speaker,subject,pred,neg));spoken.append(chr(65+speaker)+': '+(chr(65+subject)+' is '+('not ' if neg else '')+pred if subject<5 else 'It is '+pred)+'.')
+ worlds=[]
+ for types in itertools.product(['divine','evil','human'],repeat=5):
+  for time in ['day','night']:
+   lies=[x=='evil' or (x=='human' and time=='night') for x in types];valid=True
+   for sp,su,pred,neg in statements:
+    proposition=(time==pred) if su==5 else (lies[su] if pred=='lying' else types[su]==pred)
+    if bool(proposition)^bool(neg)^bool(lies[sp]) is not True:valid=False;break
+   if valid:worlds.append((*types,time))
+ facts=[]
+ if not worlds:facts=['This is impossible.']
+ else:
+  for i in range(6):
+   if len({w[i] for w in worlds})==1:facts.append((chr(65+i)+' is ' if i<5 else 'It is ')+worlds[0][i]+'.')
+  if not facts:facts=['No facts are deducible.']
+ run(642,str(len(spoken))+'\n'+'\n'.join(spoken)+'\n0','Conversation #1\n'+'\n'.join(facts))
+for _ in range(25):
+ x,y,z=rng.randrange(1,100),rng.randrange(100),rng.randrange(1,100);run(681,f'1\n{x} {y} {z}',(3*z,1.5*math.hypot(x,y)),.0011)
+run(681,'2\n0 0 10\n1 0 1',(10,10/9),.0011)
+(D/f'PUBLIC_CROSSCHECKS_BATCH{tag}.json').write_text(json.dumps({'status':'passed','counts':counts,'seed':20260920,'private_cases_read':False},indent=2)+'\n');print(counts)

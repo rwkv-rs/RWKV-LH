@@ -1,0 +1,6 @@
+from pathlib import Path
+import json
+D=Path('/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919');x=json.loads((D/'AUTHORED_BATCH61.json').read_text())
+for row in x['candidates']:
+ if row['ordinal']==544:row['checkpoint_override']='CP-b3da7029856445d4'
+(D/'AUTHORED_BATCH61a.json').write_text(json.dumps(x,ensure_ascii=False,indent=2)+'\n');(D/'BOUNDARY_LENGTH_REJECTION_BATCH61.json').write_text(json.dumps({'ordinal':544,'old_total':39376,'limit':24576,'replacement_checkpoint':'CP-b3da7029856445d4','complete_task_visible':True,'truncation':False,'private_cases_read':False},indent=2)+'\n')

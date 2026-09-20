@@ -1,0 +1,29 @@
+For a given number _n_ give all almost square factorisations of _n_,
+
+so where _n=(a^2-1)\*(b^2-1)_ and _1<a<=b_.
+
+## Input Format
+
+The first line contains the number of test cases _T_, where _T<=1000_. Each of the following _T_ lines contains one integer _0<n<2^62_.
+
+## Output Format
+
+For each test case print the case number then on a new line the factorisations in increasing order of _a_ value. If there is no such factorisation then print an error message, see the sample input/output for the correct format!
+
+## Sample Input and Output
+
+### Sample Input #1
+
+```
+\n4\n546939993600\n100\n172569415200\n3467754019458593280\n\n
+```
+
+### Sample Output #1
+
+```
+\nCase #1:\n546939993600=(31^2-1)*(23869^2-1)=(34^2-1)*(21761^2-1)[do not break the line here]\n=(271^2-1)*(2729^2-1)=(351^2-1)*(2107^2-1)=(701^2-1)*(1055^2-1)\nCase #2:\nFor n=100 there is no almost square factorisation.\nCase #3:\n172569415200=(456^2-1)*(911^2-1)\nCase #4:\n3467754019458593280=(20513^2-1)*(90781^2-1)
+```
+
+The input will be given via stdin and the output should be printed to stdout by your code.
+
+Now solve the problem by providing the code.

@@ -1,0 +1,126 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+462:('''import sys
+v=sys.stdin.buffer.read().split();H,W=map(int,v[:2]);g=v[2:];dp=[[10**9]*W for _ in range(H)];dp[0][0]=int(g[0][0]==35)
+for r in range(H):
+ for c in range(W):
+  if r:dp[r][c]=min(dp[r][c],dp[r-1][c]+int(g[r][c]==35 and g[r-1][c]!=35))
+  if c:dp[r][c]=min(dp[r][c],dp[r][c-1]+int(g[r][c]==35 and g[r][c-1]!=35))
+print(dp[-1][-1])
+''','Any monotone path intersects an axis-aligned rectangle in one contiguous path interval. Making all its cells white requires one interval inversion per black run, achievable by rectangles spanning those runs. Dynamic programming minimizes the number of entries into black runs, including a black start. Costs depend on transitions, not total black cells.'),
+478:('''import sys,math
+r,g=map(int,sys.stdin.buffer.read().split());h=(math.isqrt(1+8*(r+g))-1)//2;total=h*(h+1)//2;r,g=min(r,g),max(r,g);MOD=1000000007;dp=[0]*(r+1);dp[0]=1;used=0
+for level in range(1,h+1):
+ used+=level
+ for x in range(min(r,used),level-1,-1):
+  value=dp[x]+dp[x-level];dp[x]=value-MOD if value>=MOD else value
+print(sum(dp[max(0,total-g):])%MOD)
+''','Maximum height follows the total triangular block requirement. Count subsets of level sizes assigned to the scarcer color using descending0/1 subset-sum DP; accept only sums whose complement fits the other color. Entire levels stay monochromatic and zero supply is handled. Integer square root avoids a rounded height.'),
+496:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];a=v[1:];left=[0]*n;right=[n]*n;stack=[]
+for i,x in enumerate(a):
+ while stack and a[stack[-1]]<=x:stack.pop()
+ left[i]=stack[-1] if stack else -1;stack.append(i)
+stack=[]
+for i in range(n-1,-1,-1):
+ while stack and a[stack[-1]]<a[i]:stack.pop()
+ right[i]=stack[-1] if stack else n;stack.append(i)
+slope=[0]*(n+2);intercept=[0]*(n+2)
+def add(l,r,k,b):
+ if l<=r:slope[l]+=k;slope[r+1]-=k;intercept[l]+=b;intercept[r+1]-=b
+for i,x in enumerate(a):
+ l=i-left[i];r=right[i]-i;l,r=min(l,r),max(l,r);add(1,l,x,0);add(l+1,r,0,x*l);add(r+1,l+r-1,-x,x*(l+r))
+k=b=0;out=[]
+for length in range(1,n+1):k+=slope[length];b+=intercept[length];out.append(str(k*length+b))
+print('\\n'.join(out))
+''','Assign each interval maximum uniquely using previous strictly-greater and next greater-or-equal barriers. For an element with left/right reach L,R, its contribution across lengths has triangular/constant/triangular multiplicities. Three affine range additions per element plus one prefix pass compute all window-size sums in linear time, including duplicate maxima.'),
+519:('''import sys,bisect
+lines=sys.stdin.buffer.read().splitlines();ops=[];students=[None]
+for line in lines[1:]:
+ v=line.split()
+ if not v:continue
+ if v[0]==b'D':A,B=map(int,v[1:]);students.append((B,A));ops.append((0,len(students)-1))
+ else:ops.append((1,int(v[1])))
+ordered=sorted(students[1:]);index={p:i for i,p in enumerate(ordered)};size=1
+while size<len(ordered):size*=2
+maximum=[-1]*(size*2);ids=[0]*len(ordered)
+def activate(i,A,ident):
+ ids[i]=ident;p=size+i;maximum[p]=A;p//=2
+ while p:maximum[p]=max(maximum[p*2],maximum[p*2+1]);p//=2
+def find(p,l,r,start,threshold):
+ if r<start or maximum[p]<threshold:return -1
+ if l==r:return l
+ mid=(l+r)//2;answer=find(p*2,l,mid,start,threshold)
+ return answer if answer>=0 else find(p*2+1,mid+1,r,start,threshold)
+out=[]
+for kind,ident in ops:
+ B,A=students[ident];i=index[B,A]
+ if kind==0:activate(i,A,ident)
+ else:
+  j=find(1,0,size-1,i+1,A);out.append(str(ids[j]) if j>=0 else 'NE')
+print('\\n'.join(out))
+''','Offline coordinate compression orders all distinct ability pairs by(B,A), but only arrived students activate leaves. Any eligible helper other than self lies strictly after self in this ordering. Segment-tree maxA prunes ranges below the required A; leftmost feasible active leaf implements minimumB then minimumA tie-breaking. Future arrivals remain invisible.'),
+542:('''import sys
+from collections import deque
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];a=v[1:]
+if max(a)<=2*min(a):print(*([-1]*n));raise SystemExit
+b=a*3;q=deque();right=0;answer=[]
+for left in range(n):
+ while right<len(b) and (not q or 2*b[right]>=b[q[0]]):
+  while q and b[q[-1]]<=b[right]:q.pop()
+  q.append(right);right+=1
+ answer.append(right-left)
+ if q and q[0]==left:q.popleft()
+print(*answer)
+''','A window is valid exactly when no later track is less than half its earlier maximum. Removing its first track preserves validity, so a monotone deque and nondecreasing right pointer find each first failure in three copies of the cycle. If global max<=2*min there is never a failure. Integer comparison preserves the strict half threshold.'),
+598:('''import sys,math,bisect
+v=list(map(int,sys.stdin.buffer.read().split()));values=v[1:];maximum=max(values);powers=set();primes=[p for p in range(3,61,2) if all(p%d for d in range(2,math.isqrt(p)+1))]
+for p in primes:
+ base=2
+ while True:
+  value=base**p
+  if value>maximum:break
+  if math.isqrt(base)**2!=base:powers.add(value)
+  base+=1
+powers=sorted(powers)
+print('\\n'.join(str(n-math.isqrt(n)-bisect.bisect_right(powers,n)) for n in values))
+''','Non-elegant integers are precisely perfect powers. Count squares by exact isqrt. Every remaining perfect power has an odd prime exponent; precompute all such powers up to largest query, excluding square bases and deduplicating overlaps. For n<=1e18 only bases up to1e6 and prime exponents<=59 are needed. Answer n-floor(sqrt(n))-count(nonsquare powers) already excludes1.'),
+483:('''import sys
+from array import array
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];values=v[1:n+1];parents=v[n+1:];head=array('i',[-1])*n;following=array('i',[-1])*n
+for i,p in enumerate(parents,1):following[i]=head[p-1];head[p-1]=i
+order=[0]
+for u in order:
+ c=head[u]
+ while c>=0:order.append(c);c=following[c]
+L=array('i',[0]);R=array('i',[0]);parity=bytearray([0]);xor=array('i',[0]);roots=array('i',[0])*n;BITS=(max(values)+n).bit_length()
+def node():L.append(0);R.append(0);parity.append(0);xor.append(0);return len(L)-1
+def pull(p):parity[p]=parity[L[p]]^parity[R[p]];xor[p]=(xor[L[p]]<<1)^(xor[R[p]]<<1)^parity[R[p]]
+def insert(p,value,depth):
+ if not p:p=node()
+ if not depth:parity[p]^=1;return p
+ if value&1:R[p]=insert(R[p],value>>1,depth-1)
+ else:L[p]=insert(L[p],value>>1,depth-1)
+ pull(p);return p
+def increment(p,depth):
+ if not p or not depth:return
+ L[p],R[p]=R[p],L[p];increment(L[p],depth-1);pull(p)
+def merge(a,b,depth):
+ if not a or not b:return a or b
+ if not depth:parity[a]^=parity[b];return a
+ L[a]=merge(L[a],L[b],depth-1);R[a]=merge(R[a],R[b],depth-1);pull(a);return a
+answer=0
+for u in reversed(order):
+ root=0;c=head[u]
+ while c>=0:
+  other=roots[c];increment(other,BITS);root=merge(root,other,BITS);c=following[c]
+ root=insert(root,values[u],BITS);roots[u]=root;answer+=xor[root]
+print(answer)
+''','A low-bit-first binary trie stores subtree values with multiplicity parity and XOR. Moving a child subtree one edge upward increments every stored value: swap low-bit branches and propagate carry only through the old1 branch. Destructive trie merge combines child multisets, then insert local value. Aggregate XOR yields val(u); iterative tree order and compact arrays support deep trees without graph recursion.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH56.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

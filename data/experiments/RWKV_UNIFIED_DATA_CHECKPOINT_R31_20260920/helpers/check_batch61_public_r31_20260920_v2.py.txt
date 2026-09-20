@@ -1,0 +1,64 @@
+from pathlib import Path
+import json,subprocess,sys,random,itertools,collections,functools,math
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH61.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,inp,want):
+ r=subprocess.run([sys.executable,by[k]['candidate_path']],input=inp,text=True,capture_output=True,timeout=30);assert r.returncode==0,(k,inp,r.stderr);assert r.stdout.split()==str(want).split(),(k,inp,r.stdout,want);counts[k]+=1
+sys.setrecursionlimit(10000)
+rng=random.Random(20260920)
+for _ in range(60):
+ values=set();ops=[];out=[]
+ for i in range(100):
+  if not values or rng.randrange(2):x=rng.randrange(1,200);values.add(x);ops.append(f'1 {x}')
+  else:
+   x,k,s=rng.randrange(1,200),rng.randrange(1,30),rng.randrange(1,400);eligible=[v for v in values if math.gcd(x,v)%k==0 and x+v<=s];out.append(max(eligible,key=lambda v:v^x) if eligible else -1);ops.append(f'2 {x} {k} {s}')
+ run(465,str(len(ops))+'\n'+'\n'.join(ops),'\n'.join(map(str,out)))
+cases=list(range(1,21));out=[]
+for n in cases:
+ answer=0
+ for mask in range(1<<n):
+  if all(not(mask>>(i-1)&1) or all(j>n or not(mask>>(j-1)&1) for j in (2*i,3*i)) for i in range(1,n+1)):answer+=1
+ out.append(answer)
+run(509,str(len(cases))+'\n'+'\n'.join(map(str,cases)),'\n'.join(map(str,out)))
+run(509,'5\n3\n1\n10\n20\n39','5\n2\n198\n43776\n971827200')
+MOD=1000000007
+for _ in range(50):
+ n=rng.randrange(1,65);parents=[0]+[rng.randrange(i) for i in range(1,n)];depth=[0]*n
+ for i in range(1,n):depth[i]=depth[parents[i]]+1
+ a=[0]*n;ops=[];answers=[];fib=[0,1]
+ for j in range(300):fib.append((fib[-1]+fib[-2])%MOD)
+ for step in range(100):
+  x=rng.randrange(n)
+  if rng.randrange(2):
+   k=rng.randrange(1,100);ops.append(f'U {x+1} {k}')
+   for u in range(n):
+    node=u
+    while depth[node]>depth[x]:node=parents[node]
+    if node==x:a[u]=(a[u]+fib[k+depth[u]-depth[x]])%MOD
+  else:
+   y=rng.randrange(n);ops.append(f'Q {x+1} {y+1}');answer=0
+   while x!=y:
+    if depth[x]<depth[y]:x,y=y,x
+    answer+=a[x];x=parents[x]
+   answers.append((answer+a[x])%MOD)
+ run(544,f'{n} {len(ops)}\n'+'\n'.join(str(x+1) for x in parents[1:])+'\n'+'\n'.join(ops),'\n'.join(map(str,answers)))
+for _ in range(100):
+ n=rng.randrange(2,1000);a=rng.randrange(1,min(n,20));b=rng.randrange(1,12)
+ if a**b>=n:continue
+ @functools.lru_cache(None)
+ def finite(x,y):
+  return any(not finite(xx,yy) for xx,yy in [(x+1,y),(x,y+1)] if xx**yy<n)
+ @functools.lru_cache(None)
+ def outcome(x,y):
+  if x>=2:return 1 if finite(x,y) else -1
+  if 2**y>=n:return 0
+  children=[outcome(2,y),outcome(1,y+1)]
+  return 1 if -1 in children else 0 if 0 in children else -1
+ value=outcome(a,b);run(546,f'{a} {b} {n}','Masha' if value==1 else 'Stas' if value==-1 else 'Missing')
+for _ in range(70):
+ n=rng.randrange(1,16);m=rng.randrange(2,350);dp=[[0]*n for _ in range(m)];dp[0][0]=1
+ for col in range(1,m):
+  for jump in range(1,col+1,2):
+   for r in range(n):dp[col][r]+=sum(dp[col-jump][j] for j in range(max(0,r-1),min(n,r+2)))
+  dp[col]=[x%30011 for x in dp[col]]
+ run(585,f'{n} {m}',dp[-1][-1])
+(D/'PUBLIC_CROSSCHECKS_BATCH61.json').write_text(json.dumps({'status':'passed','counts':counts,'seed':20260920,'private_cases_read':False},indent=2)+'\n');print(counts)

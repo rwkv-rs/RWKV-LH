@@ -1,0 +1,71 @@
+from pathlib import Path
+import json,subprocess,sys,random,itertools,collections,heapq
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH57.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,inp,want):
+ r=subprocess.run([sys.executable,by[k]['candidate_path']],input=inp,text=True,capture_output=True,timeout=20);assert r.returncode==0,(k,r.stderr);assert r.stdout.split()==str(want).split(),(k,inp,r.stdout,want);counts[k]+=1
+rng=random.Random(20260920)
+cases=[];out=[]
+for n in range(1,10):
+ for m in range(1,10):
+  ways=[[0]*(m+1) for _ in range(n+1)];score=[[0]*(m+1) for _ in range(n+1)];ways[0][0]=score[0][0]=1
+  for x in range(n+1):
+   for y in range(m+1):
+    if x==y==0:continue
+    for i in range(x+1):
+     for j in range(y+1):
+      if i==x and j==y:continue
+      ways[x][y]+=ways[i][j];score[x][y]+=score[i][j]+ways[i][j]
+  cases.append((n,m));out.append(score[n][m]%1000000007)
+cases.append((100,100));out.append(886336572);run(302,str(len(cases))+'\n'+'\n'.join(f'{n} {m}' for n,m in cases),'\n'.join(map(str,out)))
+for _ in range(70):
+ n=rng.randrange(2,70);strings=[''];parents=[];used=set()
+ for i in range(1,n+1):
+  while True:
+   p=rng.randrange(i);c=rng.choice('abcdef')
+   if (p,c) not in used:break
+  used.add((p,c));parents.append((p,c));strings.append(strings[p]+c)
+ chosen=rng.sample(range(1,n+1),rng.randrange(1,n+1));cost=[10**9]*(n+1);cost[0]=0
+ for u in range(n+1):
+  for j,(p,c) in enumerate(parents,1):
+   if p==u:cost[j]=min(cost[j],cost[u]+1)
+  menu=sorted((strings[j],j) for j in chosen if strings[j].startswith(strings[u]))
+  for rank,(s,j) in enumerate(menu,1):cost[j]=min(cost[j],cost[u]+rank)
+ run(308,str(n)+'\n'+'\n'.join(f'{p} {c}' for p,c in parents)+'\n'+str(len(chosen))+'\n'+' '.join(map(str,chosen)),' '.join(str(cost[j]) for j in chosen))
+for _ in range(65):
+ r,c=2,3;a=[rng.randrange(4) for i in range(r*c)];rm=[max(a[i*c:(i+1)*c]) for i in range(r)];cm=[max(a[i*c+j] for i in range(r)) for j in range(c)];best=sum(a)
+ for b in itertools.product(*(range(1,min(rm[i//c],cm[i%c])+1) if x else [0] for i,x in enumerate(a))):
+  if [max(b[i*c:(i+1)*c]) for i in range(r)]==rm and [max(b[i*c+j] for i in range(r)) for j in range(c)]==cm:best=min(best,sum(b))
+ run(309,f'{r} {c}\n'+' '.join(map(str,a)),sum(a)-best)
+for _ in range(100):
+ c=rng.randrange(1,35);targets=set(rng.sample(range(-c,c+1),rng.randrange(1,2*c+2)));s=''.join(rng.choice('LFR') for i in range(c));best=0
+ for i in range(c):
+  for ch in 'LFR':
+   z=s[:i]+ch+s[i+1:];x=0;hit=set()
+   for op in z:
+    if op=='F':
+     if x in targets:hit.add(x)
+    else:x+=1 if op=='R' else -1
+   best=max(best,len(hit))
+ run(316,f'{len(targets)} {c}\n'+' '.join(map(str,targets))+'\n'+s,best)
+for _ in range(70):
+ n=rng.randrange(9);m=rng.randrange(1,8);cats=[(rng.randrange(-10,11),rng.randrange(1,8),rng.randrange(1,8)) for i in range(n)];bowls=rng.sample(range(-10,11),m);best=10**9
+ for mask in range(1,1<<m):
+  chosen=[b for i,b in enumerate(bowls) if mask>>i&1];loads=collections.Counter()
+  for x,y,c in cats:loads[min(chosen,key=lambda b:((b-x)**2+y*y,b))]+=c
+  best=min(best,max(loads.values(),default=0))
+ run(318,f'{n} {m}\n'+'\n'.join(f'{x} {y} {c}' for x,y,c in cats)+'\n'+'\n'.join(map(str,bowls))+'\n0 0',best)
+for _ in range(70):
+ n,m=rng.randrange(1,7),rng.randrange(1,7);g=[[rng.choice('LRUD.') for j in range(m)] for i in range(n)];cells={(i,j):g[i][j] for i in range(n) for j in range(m) if g[i][j]!='.'}
+ if not cells:continue
+ best=count=0
+ for start in cells:
+  left=set(cells);pos=start;score=0
+  while pos is not None:
+   i,j=pos;di,dj={'L':(0,-1),'R':(0,1),'U':(-1,0),'D':(1,0)}[cells[pos]];left.remove(pos);score+=1;pos=None;i+=di;j+=dj
+   while 0<=i<n and 0<=j<m:
+    if (i,j) in left:pos=i,j;break
+    i+=di;j+=dj
+  if score>best:best=score;count=1
+  elif score==best:count+=1
+ run(323,f'{n} {m}\n'+'\n'.join(''.join(row) for row in g),f'{best} {count}')
+(D/'PUBLIC_CROSSCHECKS_BATCH57.json').write_text(json.dumps({'status':'passed','counts':counts,'seed':20260920,'private_cases_read':False},indent=2)+'\n');print(counts)

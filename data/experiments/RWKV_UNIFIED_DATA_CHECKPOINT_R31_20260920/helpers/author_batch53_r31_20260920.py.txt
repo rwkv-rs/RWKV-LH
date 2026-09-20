@@ -1,0 +1,153 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+814:('''import sys,heapq
+from array import array
+it=iter(map(int,sys.stdin.buffer.read().split()));n,m=next(it),next(it);g=[[] for _ in range(n)];tree=[[] for _ in range(n)];dsu=list(range(n));special=set()
+def find(x):
+ while dsu[x]!=x:dsu[x]=dsu[dsu[x]];x=dsu[x]
+ return x
+for _ in range(m):
+ u,v,w=next(it)-1,next(it)-1,next(it);g[u].append((v,w));g[v].append((u,w));a,b=find(u),find(v)
+ if a!=b:dsu[a]=b;tree[u].append((v,w));tree[v].append((u,w))
+ else:special.add(u)
+parent=array('i',[-1])*n;depth=array('i',[0])*n;distance=[0]*n;parent[0]=0;order=[0]
+for u in order:
+ for v,w in tree[u]:
+  if v!=parent[u]:parent[v]=u;depth[v]=depth[u]+1;distance[v]=distance[u]+w;order.append(v)
+up=[parent]
+for _ in range(n.bit_length()):old=up[-1];up.append(array('i',(old[old[i]] for i in range(n))))
+def lca(a,b):
+ if depth[a]<depth[b]:a,b=b,a
+ delta=depth[a]-depth[b];k=0
+ while delta:
+  if delta&1:a=up[k][a]
+  delta>>=1;k+=1
+ if a==b:return a
+ for row in reversed(up):
+  if row[a]!=row[b]:a,b=row[a],row[b]
+ return parent[a]
+q=next(it);queries=[(next(it)-1,next(it)-1) for _ in range(q)];answer=[distance[a]+distance[b]-2*distance[lca(a,b)] for a,b in queries]
+for s in special:
+ dist=[10**30]*n;dist[s]=0;heap=[(0,s)]
+ while heap:
+  d,u=heapq.heappop(heap)
+  if d!=dist[u]:continue
+  for v,w in g[u]:
+   z=d+w
+   if z<dist[v]:dist[v]=z;heapq.heappush(heap,(z,v))
+ for i,(a,b) in enumerate(queries):answer[i]=min(answer[i],dist[a]+dist[b])
+print('\\n'.join(map(str,answer)))
+''','A spanning tree supplies LCA path upper bounds. Every shorter route uses a non-tree edge and hence contains a selected endpoint of one of at most21 extra edges. Run Dijkstra once per selected endpoint and minimize dist(s,u)+dist(s,v) for each query. Store only one distance vector at a time to avoid O(42n) Python integer memory.'),
+816:('''import sys,math
+values=list(map(int,sys.stdin.buffer.read().split()));out=[]
+for a,b,c,d in zip(values[::4],values[1::4],values[2::4],values[3::4]):
+ if a*d==b*c:
+  g=math.gcd(abs(a),abs(b));x,y=a//g,b//g;h=c//x if x else d//y;out.append(str(math.gcd(g,abs(h))*(abs(x)+abs(y))));continue
+ u=(a,b);v=(c,d)
+ while True:
+  nu=u[0]*u[0]+u[1]*u[1];nv=v[0]*v[0]+v[1]*v[1]
+  if nv<nu:u,v=v,u;nu,nv=nv,nu
+  dot=u[0]*v[0]+u[1]*v[1]
+  if 2*abs(dot)<=nu:break
+  k=(2*dot+nu)//(2*nu);v=(v[0]-k*u[0],v[1]-k*u[1])
+ answer=min(abs(i*u[0]+j*v[0])+abs(i*u[1]+j*v[1]) for i in range(-2,3) for j in range(-2,3) if i or j);out.append(str(answer))
+print('\\n'.join(out))
+''','Handle collinear generators by primitive-direction gcd. Otherwise perform exact two-dimensional Gauss lattice reduction with integer dot products. Reduced basis satisfies |projection|<=1/2 and perpendicular height>=sqrt(3)/2 times shortest length. Any L1 improvement over u has Euclidean norm<=sqrt(2)*|u|, bounding both integer coefficients within2; enumerate that finite neighborhood exactly.'),
+818:('''import sys,math
+MOD=1000000007;tokens=list(map(int,sys.stdin.buffer.read().split()));out=[];fac=[1]*51
+for i in range(1,51):fac[i]=fac[i-1]*i%MOD
+invfac=[pow(x,MOD-2,MOD) for x in fac];inverse=[0]+[pow(i,MOD-2,MOD) for i in range(1,51)]
+for N,M,K in zip(tokens[::3],tokens[1::3],tokens[2::3]):
+ if math.comb(M+K-1,K-1)<N:out.append('0');continue
+ powers=[0]*(N+1);coef=[1]*(M+1);mult=1
+ for j in range(1,N+1):
+  coef=[x*y%MOD for x,y in zip(coef,invfac)];mult=mult*fac[M]%MOD;dp=[1]+[0]*M
+  for _ in range(K):
+   new=[0]*(M+1)
+   for a in range(M+1):
+    if not dp[a]:continue
+    for b in range(M-a+1):new[a+b]=(new[a+b]+dp[a]*coef[b])%MOD
+   dp=new
+  powers[j]=dp[M]*mult%MOD
+ elementary=[1]+[0]*N
+ for i in range(1,N+1):elementary[i]=sum((1 if j&1 else -1)*elementary[i-j]*powers[j] for j in range(1,i+1))*inverse[i]%MOD
+ out.append(str(elementary[N]*fac[N]%MOD))
+print('\\n'.join(out))
+''','Group row strings by their count vector; group weight is its multinomial multiplicity. Beautiful formations are ordered selections of N distinct groups weighted by these multiplicities, N! times an elementary symmetric polynomial. Compute power sums by coefficient extraction of (sum x^c/(c!)^j)^K times(M!)^j, then Newton identities. This preserves row order and within-row permutations.'),
+825:('''import sys
+it=iter(map(int,sys.stdin.buffer.read().split()));n,K=next(it),next(it);a=[next(it) for _ in range(n)];prev=[0]*n;last={}
+for i,x in enumerate(a):prev[i]=last.get(x,-1)+1;last[x]=i
+negative=-10**9;dp=[0]+[negative]*n
+for box in range(1,K+1):
+ maximum=[negative]*(4*n);lazy=[0]*(4*n)
+ def build(p,l,r):
+  if l==r:maximum[p]=dp[l];return
+  mid=(l+r)//2;build(p*2,l,mid);build(p*2+1,mid+1,r);maximum[p]=max(maximum[p*2],maximum[p*2+1])
+ def add(p,l,r,L,R):
+  if L<=l and r<=R:maximum[p]+=1;lazy[p]+=1;return
+  mid=(l+r)//2
+  if L<=mid:add(p*2,l,mid,L,R)
+  if R>mid:add(p*2+1,mid+1,r,L,R)
+  maximum[p]=lazy[p]+max(maximum[p*2],maximum[p*2+1])
+ def query(p,l,r,R):
+  if r<=R:return maximum[p]
+  mid=(l+r)//2;z=query(p*2,l,mid,R)
+  if R>mid:z=max(z,query(p*2+1,mid+1,r,R))
+  return z+lazy[p]
+ build(1,0,n-1);new=[negative]*(n+1)
+ for i in range(n):add(1,0,n-1,prev[i],i);new[i+1]=query(1,0,n-1,i)
+ dp=new
+print(dp[n])
+''','DP over exact number of nonempty boxes. For each right endpoint, the arriving type increases distinct-count scores only for last-cut positions after its previous occurrence. A lazy range-add/max segment tree stores previous-layer score plus current distinct count, and prefix query excludes empty last boxes. O(K*n*log n), no greedy independent packing.'),
+803:('''import sys
+classes={'5':'2','9':'6'};out=[]
+def kind(c):return classes.get(c,c)
+for token in sys.stdin.read().split():
+ if token=='.':break
+ digits=token.replace('.','');counts={};answer=None
+ for i in range(len(digits)-1,-1,-1):
+  c=kind(digits[i]);counts[c]=counts.get(c,0)+1
+  for x in range(int(digits[i])+1,10):
+   k=kind(str(x))
+   if counts.get(k,0):
+    counts[k]-=1;suffix=''.join(c*counts[c] for c in sorted(counts));s=digits[:i]+str(x)+suffix;answer=s[:-1]+'.'+s[-1];break
+  if answer is not None:break
+ out.append(answer if answer else 'The price cannot be raised.')
+print('\\n'.join(out))
+''','Treat2/5 and6/9 as shared physical tile classes. Scan the first differing digit from right to left, holding exact prefix fixed and restoring suffix tile counts. At the first feasible pivot choose smallest larger displayed digit, then fill suffix with sorted minimal displays of remaining classes. Fixed digit count and one decimal position preserved; increased first digit cannot introduce leading zero.'),
+851:('''import sys
+xp,yp,xv,yv=map(int,sys.stdin.buffer.read().split())
+print('Polycarp' if (xp<=xv and yp<=yv) or xp+yp<=max(xv,yv) else 'Vasiliy')
+''','Polycarp wins if his Manhattan arrival time is no later than Vasiliy Chebyshev arrival time, including first-move tie. He also wins when coordinatewise southwest, using blocking to prevent the diagonal player passing him. Otherwise Vasiliy has both a strict timing advantage and a free axis to bypass. Both nonnegative boundaries and skip moves are included in independent finite-state game checks.'),
+917:('''import sys,math
+n,m,p=map(int,sys.stdin.buffer.read().split());inverse=[0]+[pow(i,p-2,p) for i in range(1,n+1)];gcd=[[math.gcd(i,j) for j in range(n+1)] for i in range(n+1)];counts=[0]*(n+1);parts=[];answer=0;powers=[1]
+for _ in range(n*(n-1)//2):powers.append(powers[-1]*m%p)
+def visit(rem,minimum,orbits,weight):
+ global answer
+ if not rem:answer=(answer+weight*powers[orbits])%p;return
+ for length in range(minimum,rem+1):
+  extra=length//2+sum(gcd[length][old] for old in parts);counts[length]+=1;parts.append(length);visit(rem-length,length,orbits+extra,weight*inverse[length]%p*inverse[counts[length]]%p);parts.pop();counts[length]-=1
+visit(n,1,0,1);print(answer)
+''','Burnside average grouped by permutation cycle partitions. One length-l cycle yields floor(l/2) internal edge orbits; two cycles yield gcd(lengths) cross-edge orbits. A partition contributes m^orbits divided by product(length^count*count!). Recursion updates both orbit count and reciprocal multiplicity, valid since prime modulus exceeds n. Colors remain labeled; vertices are quotiented.'),
+828:('''import sys,math
+values=list(map(int,sys.stdin.buffer.read().split()))[1:];out=[]
+for n in values:
+ even=odd=0;p=2
+ while p*p<=n:
+  if n%p==0:
+   exponent=0
+   while n%p==0:n//=p;exponent+=1
+   if exponent%2:odd+=1
+   else:even+=1
+  p=3 if p==2 else p+2
+ if n>1:odd+=1
+ out.append('Psycho Number' if even>odd else 'Ordinary Number')
+print('\\n'.join(out))
+''','Factor each positive integer exactly, counting prime exponents by parity rather than counting multiplicities. Remaining prime after trial division contributes one odd exponent; number1 has no exponents and is Ordinary. Strictly more even exponents is required, ties remain Ordinary. No unstated bounded-primality shortcut.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH53.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

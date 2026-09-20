@@ -1,0 +1,69 @@
+from pathlib import Path
+import json,subprocess,sys,random,itertools,collections,functools,heapq
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH59.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,inp,want):
+ r=subprocess.run([sys.executable,by[k]['candidate_path']],input=inp,text=True,capture_output=True,timeout=20);assert r.returncode==0,(k,r.stderr);assert r.stdout.split()==str(want).split(),(k,inp,r.stdout,want);counts[k]+=1
+rng=random.Random(20260920)
+for _ in range(65):
+ n=rng.randrange(2,12);s,t=rng.randrange(n),rng.randrange(n);d=[rng.randrange(1,30) for i in range(n)];edges=[(i,j) for i in range(n) for j in range(n) if i!=j and rng.randrange(4)==0];edges.append((s,t));adj=[[] for i in range(n)]
+ for i,j in edges:adj[i].append(j)
+ dist={(s,s):0};heap=[(0,s,s)];answer=None
+ while heap:
+  cost,u,highest=heapq.heappop(heap)
+  if cost!=dist[u,highest]:continue
+  if u==t:answer=cost;break
+  for w in list(range(u))+adj[u]:
+   new=cost+(d[w] if w>highest else 0);state=w,max(w,highest)
+   if new<dist.get(state,10**9):dist[state]=new;heapq.heappush(heap,(new,*state))
+ run(795,f'{n} {len(edges)} {s+1} {t+1}\n'+' '.join(map(str,d))+'\n'+'\n'.join(f'{i+1} {j+1}' for i,j in edges),answer)
+for _ in range(70):
+ n=rng.randrange(1,9);a=rng.sample(range(n),n);good=[[any(i<=x and a[i]<=y for i in range(n)) and any(i>=x and a[i]>=y for i in range(n)) for y in range(n)] for x in range(n)];answer=0
+ for x1 in range(n):
+  for x2 in range(x1,n):
+   for y1 in range(n):
+    for y2 in range(y1,n):answer+=all(good[x][y] for x in range(x1,x2+1) for y in range(y1,y2+1))
+ run(836,str(n)+'\n'+'\n'.join(f'{i} {y}' for i,y in enumerate(a)),answer)
+cases=[(rng.randrange(1,80),rng.randrange(1,1000),rng.randrange(1,500)) for _ in range(200)];answer=[sum(pow(x,A,2*K+1)==B%(2*K+1) for x in range(2*K+1)) for A,B,K in cases];run(753,str(len(cases))+'\n'+'\n'.join(f'{a} {b} {k}' for a,b,k in cases),'\n'.join(map(str,answer)))
+losing=[]
+for n in range(1,10000):
+ g=[0]*(n+1)
+ for i in range(n,0,-1):
+  options=set();j=i*2
+  while j<=n:options.add(g[j]);j*=2
+  while g[i] in options:g[i]+=1
+ result=0
+ for x in g:result^=x
+ if result==0:losing.append(n)
+ if len(losing)>=60:break
+for k,n in enumerate(losing,1):run(715,str(k),n)
+for _ in range(55):
+ n=rng.randrange(1,9);c1,c2=rng.randrange(1,30),rng.randrange(1,30);edges=[(i,rng.randrange(i)) for i in range(1,n)];adj=[set() for i in range(n)]
+ for i,j in edges:adj[i].add(j);adj[j].add(i)
+ best=10**9
+ for assignment in itertools.product(range(3),repeat=n):
+  cost=sum((0,c1,c2)[x] for x in assignment)
+  if cost>=best:continue
+  if all(assignment[i] or assignment[j] or any(assignment[z]==2 for z in adj[i]|adj[j]) for i,j in edges):best=cost
+ run(772,f'{n} {c1} {c2}\n'+'\n'.join(f'{i+1} {j+1}' for i,j in edges)+'\n0 0 0',best)
+for _ in range(100):
+ m=rng.randrange(1,6);a=[rng.randrange(1,5) for i in range(m)];S=sum(a);sequence=[];state=[0]*m
+ for day in range(1,rng.randrange(1,S*2)+1):
+  choices=[]
+  for i in range(m):
+   new=state[:];new[i]+=1
+   if all(day*x-S<c*S<day*x+S for c,x in zip(new,a)):choices.append(i)
+  if not choices:break
+  i=rng.choice(choices);sequence.append(i);state[i]+=1
+ k=len(sequence);end=(k//S+1)*S
+ @functools.lru_cache(None)
+ def solve(state):
+  day=sum(state)
+  if day==end:return 10**9
+  best=day
+  for i in range(m):
+   new=list(state);new[i]+=1
+   if all((day+1)*x-S<c*S<(day+1)*x+S for c,x in zip(new,a)):best=max(best,solve(tuple(new)))
+  return best
+ value=solve(tuple(state));want='forever' if value>=10**9 else str(value-k)
+ run(756,f'{m} {k}\n'+' '.join(map(str,a))+'\n'+' '.join(str(x+1) for x in sequence),want)
+(D/'PUBLIC_CROSSCHECKS_BATCH59.json').write_text(json.dumps({'status':'passed','counts':counts,'seed':20260920,'private_cases_read':False},indent=2)+'\n');print(counts)

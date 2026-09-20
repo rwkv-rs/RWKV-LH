@@ -1,0 +1,124 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+858:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n,k,A=v[:3];level=v[3::2];loyalty=[x//10 for x in v[4::2]];size=1<<n;payoff=[0.0]*size
+for mask in range(size):
+ if mask.bit_count()>n//2:payoff[mask]=1.0
+ else:payoff[mask]=A/(A+sum(level[i] for i in range(n) if not(mask>>i&1)))
+best=0.0
+prob=[0.0]*n
+def solve(i,left):
+ global best
+ if i==n:
+  weights=[1.0]
+  for p in prob:weights=[x*(1-p) for x in weights]+[x*p for x in weights]
+  best=max(best,sum(x*y for x,y in zip(weights,payoff)));return
+ for give in range(min(left,10-loyalty[i])+1):prob[i]=(loyalty[i]+give)/10;solve(i+1,left-give)
+solve(0,k);print('%.10f'%best)
+''','Enumerate all candy allocations within each loyalty cap and total budget. For each allocation compute exact independent vote-mask probabilities; strict-majority masks succeed outright, other masks use A/(A+sum of dissenting levels). At most8 senators/candies makes exhaustive allocation practical and preserves the distinction between voting and appeal.'),
+862:('''import sys
+from array import array
+v=sys.stdin.buffer.read().split();n,k=map(int,v[:2]);s=v[2];MOD=1000000007
+if 2*k>n:print(0);raise SystemExit
+def avoid(text,letter):
+ f=array('i',[0])*(n+1);first=array('i',[0])*(n+1);f[0]=1;streak=0
+ for i,ch in enumerate(text,1):
+  allowed=ch in (letter,88);streak=streak+1 if allowed else 0;new=0
+  if streak>=k:
+   if i==k:new=1
+   elif text[i-k-1]!=letter:new=f[i-k-1]
+  first[i]=new;f[i]=((2 if ch==88 else 1)*f[i-1]-new)%MOD
+ return f,first
+_,first=avoid(s,66);reverse=s[::-1];white,_=avoid(reverse,87);total=array('i',[1])*(n+1)
+for i,ch in enumerate(reverse,1):total[i]=total[i-1]*(2 if ch==88 else 1)%MOD
+print(sum(first[i]*(total[n-i]-white[n-i]) for i in range(k,n-k+1))%MOD)
+''','Partition assignments by the earliest completion of a length-k black run. Linear avoidance DP subtracts only assignments where a first run just appears; its preceding character must be opposite or the start of the string. Count suffix assignments containing a white k-run by total assignments minus reverse white-run avoidance. The suffix starts after the first black run, ensuring disjointness without double-counting.'),
+881:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n,m,k=v[:3];points=list(zip(v[3::2],v[4::2]));index={p:i for i,p in enumerate(points)};parent=list(range(k));flags=[int(x==0 or y==m-1)+2*int(y==0 or x==n-1) for x,y in points]
+def find(a):
+ while parent[a]!=a:parent[a]=parent[parent[a]];a=parent[a]
+ return a
+def union(a,b):
+ a,b=find(a),find(b)
+ if a!=b:parent[b]=a;flags[a]|=flags[b]
+for i,(x,y) in enumerate(points):
+ for dx in (-1,0,1):
+  for dy in (-1,0,1):
+   j=index.get((x+dx,y+dy))
+   if j is not None:union(i,j)
+if any(flags[find(i)]==3 for i in range(k)):print(0);raise SystemExit
+candidates={(0,1),(1,0),(n-2,m-1),(n-1,m-2)}
+for x,y in points:
+ for dx in (-1,0,1):
+  for dy in (-1,0,1):candidates.add((x+dx,y+dy))
+for x,y in candidates:
+ if not(0<=x<n and 0<=y<m) or (x,y) in index or (x,y) in ((0,0),(n-1,m-1)):continue
+ flag=int(x==0 or y==m-1)+2*int(y==0 or x==n-1)
+ for dx in (-1,0,1):
+  for dy in (-1,0,1):
+   j=index.get((x+dx,y+dy))
+   if j is not None:flag|=flags[find(j)]
+ if flag==3:print(1);raise SystemExit
+print(2)
+''','Planar grid duality turns a four-neighbor route separator into an eight-connected obstacle chain between the two boundary arcs separated by start/end. Union existing obstacles and propagate boundary flags. If no existing separator, test one added rock at every neighboring cell and endpoint neighbor; any one-rock separator must lie there. Two rocks always isolate the start because both dimensions are at least2. Endpoints are never candidates.'),
+951:('''import sys,bisect
+from array import array
+v=list(map(int,sys.stdin.buffer.read().split()));m,q=v[:2];primes=sorted(set(v[2:2+m]));queries=v[2+m:];limit=max(queries)
+if primes[-1]>limit:print('\\n'.join('1' for _ in queries));raise SystemExit
+largest=array('i',[0])*(limit+1)
+for p in primes:
+ for x in range(p,limit+1,p):largest[x]=p
+frontiers=[0];reach=primes[-1]-1;scanned=0
+while reach>frontiers[-1]:
+ frontiers.append(min(reach,limit))
+ if reach>=limit:break
+ old=reach
+ while scanned<=old:
+  reach=max(reach,scanned+largest[scanned]-1);scanned+=1
+print('\\n'.join(str(bisect.bisect_left(frontiers,n)) if n<=frontiers[-1] else 'oo' for n in queries))
+''','Reverse reachability after each number of operations is an interval[0,R]: every rounding map is monotone. A multiple x of an allowed prime p can reach all values through x+p-1 in reverse. Sieve the largest allowed prime divisor per x, scan each newly reachable x once, and grow BFS interval frontiers. Stalling certifies impossibility, otherwise binary-search each query first reachable frontier.'),
+947:('''import sys
+from array import array
+v=list(map(int,sys.stdin.buffer.read().split()));n,m=v[:2];A=v[2:2+n];B=v[2+n:2+n+m];p=2+n+m;size=1<<n;demand=array('q',[0])*size;masks=[0]*m
+for i in range(n):
+ for j in range(m):
+  if v[p]:masks[j]|=1<<i
+  p+=1
+for mask,b in zip(masks,B):demand[mask]+=b
+for bit in range(n):
+ step=1<<bit
+ for base in range(0,size,2*step):
+  for j in range(base+step,base+2*step):demand[j]+=demand[j-step]
+supply=array('i',[0])*size;minimum=sum(A)
+for mask in range(1,size):
+ low=mask&-mask;supply[mask]=supply[mask-low]+A[low.bit_length()-1]
+ if demand[mask]:minimum=min(minimum,supply[mask]-demand[mask])
+if minimum<0:print(0,1);raise SystemExit
+X=minimum+1;marked=bytearray(size)
+for mask in range(1,size):
+ if demand[mask] and supply[mask]-demand[mask]==minimum:marked[mask]=1
+for bit in range(n):
+ step=1<<bit
+ for base in range(0,size,2*step):
+  for j in range(base,base+step):marked[j]|=marked[j+step]
+MOD=998244353;total=sum(A);f=array('i',[1])*(total+1);g=array('i',[1])*(total+1)
+for i in range(1,total+1):f[i]=f[i-1]*i%MOD
+g[total]=pow(f[total],MOD-2,MOD)
+for i in range(total,0,-1):g[i-1]=g[i]*i%MOD
+ways=array('i',[0])*size;factor=g[X]
+for mask in range(size):
+ a=supply[mask]
+ if a>=X:ways[mask]=f[a]*factor%MOD*g[a-X]%MOD
+for bit in range(n):
+ step=1<<bit
+ for base in range(0,size,2*step):
+  for j in range(base+step,base+2*step):ways[j]=(ways[j]-ways[j-step])%MOD
+print(X,sum(w for w,mark in zip(ways,marked) if mark)%MOD)
+''','Hall feasibility requires supply(S)>=demand of all clients whose allowed brands lie in S. Subset zeta transform computes those demands. Minimum positive removal count is minimum slack+1; if already infeasible the unique empty removal suffices. For optimal removals, all eaten heads lie in some minimum-slack set. Downward closure identifies admissible brand supports; binomial counts followed by subset Mobius inversion count exact nonempty supports once, avoiding overlapping-cut double counts.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH58.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

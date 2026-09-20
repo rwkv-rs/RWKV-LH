@@ -1,0 +1,76 @@
+from pathlib import Path
+import json,subprocess,sys,random,itertools,collections,math,functools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH56.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,inp,want):
+ r=subprocess.run([sys.executable,by[k]['candidate_path']],input=inp,text=True,capture_output=True,timeout=20);assert r.returncode==0,(k,r.stderr);assert r.stdout.strip()==str(want).strip(),(k,inp,r.stdout,want);counts[k]+=1
+rng=random.Random(20260920)
+# Exhaustively solve all3x3 grids by real rectangle-inversion BFS to any white monotone path.
+H=W=3;N=9;rectangles=[]
+for a in range(H):
+ for b in range(a,H):
+  for c in range(W):
+   for d in range(c,W):rectangles.append(sum(1<<(r*W+x) for r in range(a,b+1) for x in range(c,d+1)))
+def good(mask):
+ reachable=set()
+ for r in range(H):
+  for c in range(W):
+   if not(mask>>(r*W+c)&1) and ((r,c)==(0,0) or (r-1,c) in reachable or (r,c-1) in reachable):reachable.add((r,c))
+ return (H-1,W-1) in reachable
+dist={mask:0 for mask in range(1<<N) if good(mask)};queue=collections.deque(dist)
+while queue:
+ mask=queue.popleft()
+ for rect in rectangles:
+  new=mask^rect
+  if new not in dist:dist[new]=dist[mask]+1;queue.append(new)
+for mask in rng.sample(range(1<<N),90):run(462,'3 3\n'+'\n'.join(''.join('#' if mask>>(r*W+c)&1 else '.' for c in range(W)) for r in range(H)),dist[mask])
+for _ in range(90):
+ r,g=rng.randrange(40),rng.randrange(40)
+ if r+g==0:continue
+ h=0
+ while (h+1)*(h+2)//2<=r+g:h+=1
+ answer=sum(sum(i+1 for i in range(h) if mask>>i&1)<=r and sum(i+1 for i in range(h) if not(mask>>i&1))<=g for mask in range(1<<h));run(478,f'{r} {g}',answer)
+for _ in range(70):
+ n=rng.randrange(1,80);a=[rng.randrange(20) for i in range(n)];out=[sum(max(a[i:i+k]) for i in range(n-k+1)) for k in range(1,n+1)];run(496,str(n)+'\n'+' '.join(map(str,a)),'\n'.join(map(str,out)))
+for _ in range(65):
+ students=[];used=set();ops=[];out=[]
+ for j in range(100):
+  if not students or rng.randrange(2):
+   while True:
+    pair=rng.randrange(1,40),rng.randrange(1,40)
+    if pair not in used:break
+   used.add(pair);students.append(pair);ops.append(f'D {pair[0]} {pair[1]}')
+  else:
+   i=rng.randrange(len(students));A,B=students[i];ops.append(f'P {i+1}');options=[(b,a,j+1) for j,(a,b) in enumerate(students) if j!=i and a>=A and b>=B];out.append(str(min(options)[2]) if options else 'NE')
+ run(519,str(len(ops))+'\n'+'\n'.join(ops),'\n'.join(out))
+for _ in range(100):
+ n=rng.randrange(2,50);a=[rng.randrange(1,40) for i in range(n)];out=[]
+ for start in range(n):
+  biggest=0;answer=-1
+  for d in range(3*n):
+   x=a[(start+d)%n]
+   if 2*x<biggest:answer=d;break
+   biggest=max(biggest,x)
+  out.append(answer)
+ run(542,str(n)+'\n'+' '.join(map(str,a)),' '.join(map(str,out)))
+maximum=20000;count=[0]*(maximum+1)
+for n in range(2,maximum+1):
+ x=n;p=2;common=0
+ while p*p<=x:
+  exponent=0
+  while x%p==0:x//=p;exponent+=1
+  if exponent:common=math.gcd(common,exponent)
+  p+=1
+ if x>1:common=1
+ count[n]=count[n-1]+(common==1)
+values=list(range(2,100))+[rng.randrange(2,maximum+1) for _ in range(100)];run(598,str(len(values))+'\n'+'\n'.join(map(str,values)),'\n'.join(str(count[n]) for n in values))
+for _ in range(100):
+ n=rng.randrange(1,80);values=[rng.randrange(1,1000) for i in range(n)];parents=[rng.randrange(i) for i in range(1,n)];answer=0
+ for root in range(n):
+  total=0
+  for u in range(n):
+   node=u;depth=0
+   while node!=root and node>0:node=parents[node-1];depth+=1
+   if node==root:total^=values[u]+depth
+  answer+=total
+ run(483,str(n)+'\n'+' '.join(map(str,values))+'\n'+' '.join(str(p+1) for p in parents),answer)
+p=D/'PUBLIC_CROSSCHECKS_BATCH56.json';assert not p.exists();p.write_text(json.dumps({'seed':20260920,'independent_public_crosschecks':counts,'hidden_cases_read':False},indent=2)+'\n');print(counts)

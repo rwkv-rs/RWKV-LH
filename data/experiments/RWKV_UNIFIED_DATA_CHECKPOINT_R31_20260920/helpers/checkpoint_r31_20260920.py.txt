@@ -15,7 +15,7 @@ save(D/'STATUS.json',{'status':'in_progress_not_complete','formal_rows':len(rows
 owner=['rwkv_lh/controller.py','rwkv_lh/model.py','rwkv_lh/supervisor_openai.py','tests/test_hybrid_supervisor.py','tests/test_supervisor_openai.py'];identity={str(p.relative_to(R)):sha(p) for folder in ('rwkv_lh','scripts','tests') for p in sorted((R/folder).rglob('*.py'))};log=O/'PYTEST_RETRY.log';assert '1910 passed, 1 warning' in log.read_text()
 save(O/'SOURCE_AND_TESTS.json',{'local_head':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'source_identity':identity,'owner_file_sha256':{p:sha(R/p) for p in owner},'pytest':{'passed':1910,'skipped':0,'warnings':1,'seconds':351.37,'log_sha256':sha(log)},'original_pytest':{'exit_code':0,'log_lost':True,'reason':'pytest basetemp cleanup unlinked logfile; rerun saved outside basetemp'},'producer_sha256':{str(p.relative_to(R)):sha(p) for p in [R/'temp/prepare_authored_batch_wire_r31_20260920.py',R/'temp/freeze_expansion_batch_r23_wire_r28_20260920.py']},'phase_note':'Post-R28 canonical function/params producer; R30 production change was separately tested and real zero-profile replays verified. No production edits during this expansion.'})
 helpers=O/'helpers';helpers.mkdir(exist_ok=True)
-for pattern in ['author_batch*_20260920.py','check_batch*_20260920.py','prepare_authored_batch_wire_r31_20260920.py','freeze_expansion_batch_r23_wire_r28_20260920.py','checkpoint_r31_20260920.py']:
+for pattern in ['author_batch*20260920*.py','check_batch*20260920*.py','fix_*r31_20260920.py','prepare_*r31_20260920.py','check_bob_theorem_r31_20260920.py','prepare_authored_batch_wire_r31_20260920.py','freeze_expansion_batch_r23_wire_r28_20260920.py','checkpoint_r31_20260920.py']:
  for p in (R/'temp').glob(pattern):shutil.copyfile(p,helpers/(p.name+'.txt'))
 report=f'''# R31 数据扩量检查点（非目标完成）
 
@@ -29,7 +29,7 @@ report=f'''# R31 数据扩量检查点（非目标完成）
 
 核验入口：INVENTORY.json（每包路径与SHA）、SOURCE_AND_TESTS.json、R23各批PRE_REGISTRATION/TARGETS/validation/RESULT。未把格式修复后的旧647计作新增收益。
 ''';(O/'REPORT.zh-CN.md').write_text(report)
-h=R/'docs/HANDOFF.zh-CN.md';text=h.read_text();prefix=f'''# 当前 R31 进行中：正式{len(rows)}条，满1000后训练（2026-09-20）
+h=R/'docs/HANDOFF.zh-CN.md';text=h.read_text();text=re.sub(r'^# 当前 R31 进行中：.*?(?=^# Owner最新顺序：)', '', text, count=1, flags=re.S|re.M);prefix=f'''# 当前 R31 进行中：正式{len(rows)}条，满1000后训练（2026-09-20）
 
 最新owner要求不中断完成“真实格式1000→StateTune→独立测试→缺陷总结”。当前正式{len(rows)}条，仍差{1000-len(rows)}；尚未启动新训练，不恢复R29中断State。R28 corrected647为基座，仅累加35以后已通过加载器批次。公开验证候选不计数。1910工程回归全绿、0跳过；无子代理、教师API、未push，owner五处修改保持。准确库存与SHA见 `data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920/INVENTORY.json`；R23 STATUS已同步。此为工作中检查点，任务尚未完成；下方旧数量为历史。
 

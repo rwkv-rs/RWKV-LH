@@ -1,0 +1,93 @@
+from pathlib import Path
+import json,subprocess,sys,random,itertools,collections,math,functools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH55a.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,inp,want):
+ r=subprocess.run([sys.executable,by[k]['candidate_path']],input=inp,text=True,capture_output=True,timeout=20);assert r.returncode==0,(k,r.stderr);assert r.stdout.strip()==str(want).strip(),(k,inp,r.stdout,want);counts[k]+=1
+rng=random.Random(20260920)
+run(346,'4\n1 + 1 * 2 =\n29 / 5 =\n103 * 103 * 5 =\n50 * 40 * 250 + 791 =','4\n5\n53045\n500791')
+for _ in range(50):
+ value=rng.randrange(-100,101);expression=str(value)
+ for i in range(10):
+  op=rng.choice('+-*/');x=rng.randrange(1,20);expression+=op+str(x)
+  if op=='+':value+=x
+  elif op=='-':value-=x
+  elif op=='*':value*=x
+  else:value=math.trunc(value/x)
+ run(346,'1\n'+expression+'=',value)
+for _ in range(45):
+ n=rng.randrange(1,80);K=rng.randrange(1,n+1);a=[rng.randrange(100) for i in range(n)];queries=[];out=[]
+ for j in range(4):
+  q=rng.randrange(100);b=a[:]
+  if rng.randrange(2):i=rng.randrange(n);d=rng.randrange(100);queries.append((1,q,i+1,d));b[i]=d
+  else:
+   l=rng.randrange(n);r=rng.randrange(l,n);d=rng.randrange(100);queries.append((2,q,l+1,r+1,d))
+   for i in range(l,r+1):b[i]+=d
+  dp=[1]+[0]*K
+  for x in b:
+   for k in range(K,0,-1):dp[k]=(dp[k]+(q-x)*dp[k-1])%998244353
+  out.append(str(dp[K]))
+ run(350,f'{n}\n{K}\n'+' '.join(map(str,a))+f'\n{len(queries)}\n'+'\n'.join(' '.join(map(str,q)) for q in queries),'\n'.join(out))
+for _ in range(65):
+ n,m=rng.randrange(1,9),rng.randrange(1,9);grid=[''.join(rng.choice('0111') for c in range(m)) for r in range(n)];k=rng.randrange(1,n*m+1);answer=0
+ for top in range(n):
+  for bottom in range(top,n):
+   for left in range(m):
+    for right in range(left,m):
+     stars=sum(all(grid[a][b]=='1' for a,b in ((r,c),(r-1,c),(r+1,c),(r,c-1),(r,c+1))) for r in range(top+1,bottom) for c in range(left+1,right));answer+=stars>=k
+ run(412,f'{n} {m} {k}\n'+'\n'.join(grid),answer)
+run(414,'4 7\nABCDEFG\nHIJKLMN\nOPQRSTU\nVWXYZ**\nCONTEST',30)
+run(414,'2 19\nABCDEFGHIJKLMNOPQZY\nX*****************Y\nAZAZ',19)
+run(414,'6 4\nAXYB\nBBBB\nKLMB\nOPQB\nDEFB\nGHI*\nAB',7)
+for _ in range(45):
+ r,c=rng.randrange(1,6),rng.randrange(2,6);alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789*';grid=alphabet[:r*c-1]+'*';text=''.join(rng.choice(grid[:-1]) for j in range(12));start=(0,0);queue=collections.deque([(0,0,0)]);seen={start};answer=None
+ while queue:
+  p,i,d=queue.popleft()
+  if i==len(text)+1:answer=d;break
+  target=(text+'*')[i];successors=[]
+  if grid[p]==target:successors.append((p,i+1))
+  x,y=divmod(p,c)
+  for dx,dy in ((-1,0),(1,0),(0,-1),(0,1)):
+   a,b=x+dx,y+dy
+   while 0<=a<r and 0<=b<c and grid[a*c+b]==grid[p]:a+=dx;b+=dy
+   if 0<=a<r and 0<=b<c:successors.append((a*c+b,i))
+  for state in successors:
+   if state not in seen:seen.add(state);queue.append((*state,d+1))
+ run(414,f'{r} {c}\n'+'\n'.join(grid[i*c:(i+1)*c] for i in range(r))+'\n'+text,answer)
+limit=300000;sieve=bytearray(b'\1')*(limit+1);sieve[:2]=b'\0\0'
+for p in range(2,math.isqrt(limit)+1):
+ if sieve[p]:sieve[p*p::p]=b'\0'*((limit-p*p)//p+1)
+values=[2,10,11,12,99,100,101,666]+[rng.randrange(2,limit+1) for _ in range(100)];pal=[n for n in range(2,limit+1) if sieve[n] and str(n)==str(n)[::-1]];run(415,str(len(values))+'\n'+'\n'.join(map(str,values)),'\n'.join(str(max(p for p in pal if p<=n)) for n in values))
+inputs=[];out=[]
+for p in range(1,6):
+ for x in range(1,10):
+  inputs.append((p,x));answer=None
+  for n in range(10**(p-1),10**p):
+   s=str(n)
+   if int(s[-1]+s[:-1])==n*x:answer=str(n);break
+  out.append(answer or 'Impossible')
+run(429,str(len(inputs))+'\n'+'\n'.join(f'{p} {x}' for p,x in inputs),'\n'.join(out))
+for _ in range(35):
+ n=rng.randrange(1,7);x=rng.randrange(1,6);weights=[rng.randrange(1,6) for i in range(x+1)];total=sum(weights);dp={0:1}
+ for i in range(n):
+  new=collections.defaultdict(int)
+  for old,count in dp.items():
+   for j,w in enumerate(weights):new[old^j]+=count*w
+  dp=new
+ answer=1-dp.get(0,0)/total**n;inp=f'{n} {x}\n'+' '.join(f'{w/total:.15f}' for w in weights);result=subprocess.run([sys.executable,by[413]['candidate_path']],input=inp,text=True,capture_output=True);assert result.returncode==0 and abs(float(result.stdout)-answer)<1e-6;counts[413]+=1
+run(439,'3\n3\nABA\nCBC\n3\nBAA\nCCB\n3\nBBB\nBAB','Case #1: 3\nCase #2: 3\nCase #3: 2')
+# Independent forward painting BFS on all2x3 binary goals, starting unpainted.
+n=3;initial=(2,)*(2*n);distance={initial:0};queue=collections.deque([initial]);rects=[]
+for l in range(n):
+ for r in range(l,n):
+  for rows in ((0,),(1,),(0,1)):rects.append([row*n+c for row in rows for c in range(l,r+1)])
+while queue:
+ state=queue.popleft()
+ for rect in rects:
+  for color in (0,1):
+   new=list(state)
+   for i in rect:new[i]=color
+   new=tuple(new)
+   if new not in distance:distance[new]=distance[state]+1;queue.append(new)
+for goal in itertools.product((0,1),repeat=6):
+ chars=''.join('AB'[x] for x in goal);run(439,'1\n3\n'+chars[:3]+'\n'+chars[3:],f'Case #1: {distance[goal]}')
+p=D/'PUBLIC_CROSSCHECKS_BATCH55a.json';assert not p.exists();p.write_text(json.dumps({'seed':20260920,'independent_public_crosschecks':counts,'hidden_cases_read':False},indent=2)+'\n');print(counts)

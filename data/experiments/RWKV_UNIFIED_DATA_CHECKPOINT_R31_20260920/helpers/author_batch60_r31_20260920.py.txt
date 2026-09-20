@@ -1,0 +1,136 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+606:('''import sys
+from array import array
+v=list(map(int,sys.stdin.buffer.read().split()));n,m,q=v[:3];stride=m+2;size=(n+2)*stride;right=array('i',range(1,size+1));down=array('i',range(stride,size+stride));value=array('i',[0])*size
+for i in range(n):value[(i+1)*stride+1:(i+1)*stride+m+1]=array('i',v[3+i*m:3+(i+1)*m])
+def at(r,c):
+ u=0
+ for _ in range(r):u=down[u]
+ for _ in range(c):u=right[u]
+ return u
+def boundary(a,b,h,w):
+ u=at(a-1,b-1);top=[];left=[];x=u
+ for _ in range(w):x=right[x];top.append(x)
+ x=u
+ for _ in range(h):x=down[x];left.append(x)
+ x=left[-1];bottom=[]
+ for _ in range(w):x=right[x];bottom.append(x)
+ x=top[-1];side=[]
+ for _ in range(h):x=down[x];side.append(x)
+ return top,bottom,left,side
+p=3+n*m
+for _ in range(q):
+ a,b,c,d,h,w=v[p:p+6];p+=6;one=boundary(a,b,h,w);two=boundary(c,d,h,w)
+ for edge in range(4):
+  links=down if edge<2 else right
+  for x,y in zip(one[edge],two[edge]):links[x],links[y]=links[y],links[x]
+out=[];start=0
+for i in range(n):
+ start=down[start];u=start;line=[]
+ for j in range(m):u=right[u];line.append(str(value[u]))
+ out.append(' '.join(line))
+print('\\n'.join(out))
+''','Represent the matrix with right/down linked cells and fixed dummy boundaries. Rectangle exchange changes only outgoing pointers on the four borders. Collect both complete border lists before any mutation, so later walks cannot follow already-swapped links. The non-touching guarantee keeps exchanged interfaces distinct; final row traversals read unchanged cell values in their new positions.'),
+630:('''import sys,functools
+from fractions import Fraction
+v=sys.stdin.buffer.read().split();n=int(v[0]);grid=v[1:]
+@functools.lru_cache(None)
+def value(column):
+ left=[];right=[]
+ for i,c in enumerate(column):
+  if c==46:continue
+  removed=column[:i]+bytes([46])+column[i+1:]
+  (left if c==66 else right).append(value(removed))
+  if i and column[i-1]==46:
+   moved=column[:i-1]+bytes([c,46])+column[i+1:];(left if c==87 else right).append(value(moved))
+ low=max(left) if left else None;high=min(right) if right else None
+ if low is None and high is None:return Fraction(0)
+ if low is None:return Fraction(min(0,(high.numerator-1)//high.denominator))
+ if high is None:return Fraction(max(0,low.numerator//low.denominator+1))
+ assert low<high
+ scale=1
+ while True:
+  first=(low.numerator*scale)//low.denominator+1;last=(high.numerator*scale-1)//high.denominator
+  if first<=last:return Fraction(min(max(0,first),last),scale)
+  scale*=2
+total=sum((value(bytes(grid[i][j] for i in range(n))) for j in range(n)),Fraction(0));print('Takahashi' if total>0 else 'Snuke')
+''','Columns are independent short partizan number games. Recursively enumerate exactly the legal left/white and right/black moves, including eating opposite pieces, and assign the simplest dyadic number strictly between option bounds. Memoization covers at most3^8 column states; exact rational addition combines columns without rounding. Positive total favors the first player, while zero or negative favors Snuke.'),
+681:('''import sys,math
+v=sys.stdin.buffer.read().split();p=0;out=[]
+while p<len(v):
+ n=int(v[p]);p+=1;points=[];zmax=0.0
+ for _ in range(n):x,y,z=map(float,v[p:p+3]);p+=3;points.append((math.hypot(x,y),z));zmax=max(zmax,z)
+ def radius(h):return max(r*h/(h-z) for r,z in points)
+ def objective(h):r=radius(h);return r*r*h
+ low=zmax;high=3*zmax
+ for _ in range(140):
+  a=(2*low+high)/3;b=(low+2*high)/3
+  if objective(a)<=objective(b):high=b
+  else:low=a
+ h=(low+high)/2;out.append('%.3f %.3f'%(h,radius(h)))
+print('\\n'.join(out))
+''','For height h above the highest point, the minimum radius is max(rho_i*h/(h-z_i)). Each point imposes a convex volume factor rho_i^2*h^3/(h-z_i)^2, minimized at3z_i; their maximum is convex and no optimum exceeds3max(z). Ternary search this domain, then recompute the enclosing radius and output height/radius to the required precision.'),
+686:('''import sys,bisect
+v=list(map(int,sys.stdin.buffer.read().split()));n,q=v[:2];a=v[2:2+n];queries=v[2+n:];prefix=[0];parity=[0,0];alternate=[0]*(n+1)
+for i,x in enumerate(a):prefix.append(prefix[-1]+x);parity[i%2]+=x;alternate[i+1]=parity[i%2]
+out=[]
+for x in queries:
+ low,high=0,n//2
+ while low<high:
+  k=(low+high+1)//2;j=n-k
+  if a[j]>=x and j-bisect.bisect_left(a,2*x-a[j],0,j)>=k:low=k
+  else:high=k-1
+ k=low;answer=prefix[n]-prefix[n-k]
+ if not k:out.append(str(alternate[n]));continue
+ l,r=0,n-k
+ while l<r:
+  mid=(l+r)//2
+  if x-a[mid]>a[mid+k]-x:l=mid+1
+  else:r=mid
+ end=l+k-1
+ if end==n-k-1:answer+=alternate[l]
+ else:answer+=a[n-k-1]+(alternate[l-1] if l else 0)
+ out.append(str(answer))
+print('\\n'.join(out))
+''','Until the two taken regions meet, Takahashi takes a suffix and Aoki takes a contiguous block of globally closest values. Binary-search the largest k for which the k closest cards avoid the top k suffix, using the distance to its smallest card and lower-value tie preference. Locate that closest block by binary search. At collision there is either no gap or one Takahashi card; the remaining smaller prefix is then taken alternately and answered from parity prefix sums.'),
+642:('''import sys,itertools
+lines=iter(sys.stdin.read().splitlines());out=[];case=0;names=('divine','evil','human')
+for line in lines:
+ if not line.strip():continue
+ n=int(line)
+ if n==0:break
+ case+=1;statements=[]
+ for _ in range(n):
+  text=next(lines).strip().rstrip('.');speaker=ord(text[0])-65;words=text[3:].split();negative='not' in words
+  if words[0]=='It':statements.append((speaker,-1,words[-1],negative))
+  else:statements.append((speaker,speaker if words[0]=='I' else ord(words[0])-65,words[-1],negative))
+ valid=[]
+ for types in itertools.product(range(3),repeat=5):
+  for day in (False,True):
+   truthful=[kind==0 or (kind==2 and day) for kind in types];good=True
+   for speaker,subject,predicate,negative in statements:
+    if subject<0:claim=day if predicate=='day' else not day
+    elif predicate=='lying':claim=not truthful[subject]
+    else:claim=names[types[subject]]==predicate
+    if negative:claim=not claim
+    if claim!=truthful[speaker]:good=False;break
+   if good:valid.append((types,day))
+ out.append('Conversation #'+str(case))
+ if not valid:out.append('This is impossible.');continue
+ facts=[]
+ for i in range(5):
+  values={types[i] for types,day in valid}
+  if len(values)==1:facts.append(chr(65+i)+' is '+names[values.pop()]+'.')
+ days={day for types,day in valid}
+ if len(days)==1:facts.append('It is '+('day' if days.pop() else 'night')+'.')
+ out.extend(facts or ['No facts are deducible.'])
+print('\\n'.join(out))
+''','Enumerate all3^5 resident-type assignments and both day/night states. Each utterance must equal the truth-telling status of its speaker; lying predicates refer to the subject under the same assignment. Retain all consistent models, then report only facts common to every model in person order followed by time. Distinguish contradiction from lack of a determinate fact and parse optional negation/self-reference.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH60.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))
