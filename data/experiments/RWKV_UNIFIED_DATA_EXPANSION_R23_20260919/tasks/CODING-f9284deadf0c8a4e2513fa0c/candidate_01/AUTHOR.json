@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "ba2c64417da91379bd9dd7c920a2dae9880b8bf27b377d6f53147cbca49255bc",
+  "solution_sha256": "6acce6540f62a48afcbd574ffb6ee4e3a82f82454edeb310942814c054889515",
+  "reasoning": "With maximum degree2 and no loops, each component is an isolated vertex, a simple path, a cycle of length>=3, or a two-vertex double-edge cycle. Exactly n-m components are paths, including isolated vertices. Their exponential generating function is A=x+(x^2+...+x^L)/2; cycles contribute B=x^2/2+sum(x^s/(2s),s=3..L). The bounded-size count is n!*[x^n]A^(n-m)/(n-m)!*exp(B). Remove the x^(n-m) factor, truncate to degree m, compute the path power by convolution and cycle coefficients from the logarithmic-derivative identity. Subtract bounds L and L-1 to enforce the maximum exactly, preserving the double-edge coefficient.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

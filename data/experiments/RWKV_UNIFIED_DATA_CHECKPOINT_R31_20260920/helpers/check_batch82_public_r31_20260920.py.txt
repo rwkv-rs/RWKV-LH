@@ -1,0 +1,33 @@
+from pathlib import Path
+import json,subprocess,random,itertools,math
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';paths={x['ordinal']:x['candidate_path'] for x in json.loads((D/'AUTHORED_BATCH82.json').read_text())['candidates']};rng=random.Random(20260920)
+def run(o,s):return subprocess.check_output([str(R/'.venv/bin/python'),paths[o]],input=s.encode(),timeout=20).decode().strip()
+for trial in range(150):
+ events=[];t=0
+ for _ in range(rng.randrange(1,30)):
+  t+=rng.randrange(1,10);events.append((rng.choice('+-'),t,rng.randrange(1,8)))
+ stocks=list(range(31));expected=[]
+ for stock in stocks:
+  queue=[];total=0
+  for sign,t,k in events:
+   if sign=='+':
+    while k and queue:total+=t-queue.pop(0);k-=1
+    stock+=k
+   else:
+    used=min(stock,k);stock-=used;queue.extend([t]*(k-used))
+  expected.append('INFINITY' if queue else str(total))
+ inp=f'{len(events)} {len(stocks)}\n'+''.join(f'{s} {t} {k}\n' for s,t,k in events)+' '.join(map(str,stocks))+'\n'
+ assert run(195,inp).splitlines()==expected,(trial,inp)
+cases=[];expected=[]
+for trial in range(45):
+ n=rng.randrange(2,7);segments=[[(rng.randrange(-5,6),rng.randrange(-5,6)) for _ in range(2)] for _ in range(n)];best=math.inf
+ for order in itertools.permutations(range(n)):
+  # Exhaust all orientations, not the subset-DP recurrence.
+  for directions in itertools.product(range(2),repeat=n):
+   value=sum(math.dist(segments[order[i-1]][1-directions[i-1]],segments[order[i]][directions[i]]) for i in range(1,n));best=min(best,value)
+ best+=sum(math.dist(*seg) for seg in segments);expected.append(best);cases.append(str(n)+'\n'+''.join(' '.join(str(c) for point in seg for c in point)+'\n' for seg in segments))
+actual=run(192,''.join(cases)+'0\n').splitlines()
+assert len(actual)==len(expected)
+for i,(line,value) in enumerate(zip(actual,expected),1):assert line==f'Case {i}: {value:.5f}',(line,value)
+assert run(192,'4\n0 1 0 9\n10 1 10 9\n1 0 9 0\n1 10 9 10\n2\n1.2 3.4 5.6 7.8\n5.6 3.4 1.2 7.8\n0\n')=='Case 1: 36.24264\nCase 2: 16.84508'
+(D/'PUBLIC_CROSSCHECKS_BATCH82.json').write_text(json.dumps({'status':'passed','cases':{'195':150,'192':47},'seed':20260920,'private_cases_read':False,'oracles':{'195':'Explicit per-person FIFO queue simulation for31 stock levels','192':'All segment permutations and orientations, plus published examples'}},indent=2)+'\n');print('public passed')

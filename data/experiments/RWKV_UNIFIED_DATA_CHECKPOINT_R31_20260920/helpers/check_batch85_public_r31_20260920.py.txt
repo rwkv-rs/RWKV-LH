@@ -1,0 +1,31 @@
+from pathlib import Path
+import json,subprocess,random,itertools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';paths={x['ordinal']:x['candidate_path'] for x in json.loads((D/'AUTHORED_BATCH85.json').read_text())['candidates']};rng=random.Random(20260920)
+def run(o,s):return subprocess.check_output([str(R/'.venv/bin/python'),paths[o]],input=s.encode(),timeout=20).decode().strip()
+for trial in range(150):
+ target=rng.randrange(2,18);initial=rng.randrange(1,target+2);peons=[(rng.randrange(1,initial+1),rng.randrange(1,8)) for _ in range(rng.randrange(1,5))];states={(initial,0)};elapsed=0
+ while not any(m>=target for m,r in states):
+  queue=list(states)
+  for money,rate in queue:
+   for price,gain in peons:
+    if price<=money:
+     candidate=(money-price,min(target,rate+gain))
+     if candidate not in states:states.add(candidate);queue.append(candidate)
+  states={(money+rate,rate) for money,rate in states};elapsed+=1
+ inp=f'{len(peons)} {initial} {target}\n'+''.join(f'{a} {b}\n' for a,b in peons);assert int(run(929,inp))==elapsed,(trial,inp,elapsed)
+cases=[];expected=[]
+for n in range(1,8):
+ routes=[]
+ for a in range(1,n+1):
+  for b in range(a,n+1):
+   u=a;w=b;path=[]
+   while u!=w:
+    if u>w:path.append(u-1);u//=2
+    else:path.append(w-1);w//=2
+   path.append(u-1);routes.append(path)
+ for m in range(1,4):
+  total=sum(sum(max(values[i] for i in route) for route in routes) for values in itertools.product(range(1,m+1),repeat=n));cases.append((n,m));expected.append(total%998244353)
+actual=list(map(int,run(954,str(len(cases))+'\n'+''.join(f'{n} {m}\n' for n,m in cases)).split()));assert actual==expected,(actual,expected)
+assert run(954,'5\n3 1\n2 2\n10 9\n43 20\n154 147\n')=='6\n19\n583217643\n68816635\n714002110'
+assert int(run(954,'1\n1000000000000000000 1\n'))==(10**18*(10**18+1)//2)%998244353
+(D/'PUBLIC_CROSSCHECKS_BATCH85.json').write_text(json.dumps({'status':'passed','cases':{'929':150,'954':27},'seed':20260920,'private_cases_read':False,'oracles':{'929':'Enumerate all distinct money/rate states and instantaneous purchase closures without dominance pruning','954':'Enumerate all vertex-label assignments and explicit heap paths through7 vertices, published examples and maximum-n singleton-label identity'}},indent=2)+'\n');print('public passed')

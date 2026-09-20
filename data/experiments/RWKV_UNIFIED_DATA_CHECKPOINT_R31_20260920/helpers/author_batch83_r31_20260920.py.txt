@@ -1,0 +1,58 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={394:('''import sys
+from array import array
+from collections import deque
+v=sys.stdin.buffer.read().split();n,m=map(int,v[:2]);length=array('i',[0]);link=array('i',[-1]);edges=[array('i',[-1]) for _ in range(3)];last=0
+for text in v[2:2+m]:
+ for c in (*text,50):
+  c-=48;cur=len(length);length.append(length[last]+1);link.append(0)
+  for edge in edges:edge.append(-1)
+  p=last
+  while p>=0 and edges[c][p]<0:edges[c][p]=cur;p=link[p]
+  if p>=0:
+   q=edges[c][p]
+   if length[p]+1==length[q]:link[cur]=q
+   else:
+    clone=len(length);length.append(length[p]+1);link.append(link[q])
+    for edge in edges:edge.append(edge[q])
+    while p>=0 and edges[c][p]==q:edges[c][p]=clone;p=link[p]
+    link[q]=link[cur]=clone
+  last=cur
+out=[]
+for text in v[2+m:2+m+n]:
+ matched=[0];state=0;current=0
+ for c in text:
+  c-=48
+  while state and edges[c][state]<0:state=link[state];current=length[state]
+  if edges[c][state]>=0:state=edges[c][state];current+=1
+  else:current=0
+  matched.append(current)
+ size=len(text)
+ def feasible(minimum):
+  dp=[0]*(size+1);queue=deque()
+  for i in range(1,size+1):
+   j=i-minimum
+   if j>=0:
+    score=dp[j]-j
+    while queue and dp[queue[-1]]-queue[-1]<=score:queue.pop()
+    queue.append(j)
+   start=i-matched[i]
+   while queue and queue[0]<start:queue.popleft()
+   dp[i]=dp[i-1]
+   if queue:dp[i]=max(dp[i],i+dp[queue[0]]-queue[0])
+  return dp[size]*10>=9*size
+ lo=0;hi=max(matched)+1
+ while lo+1<hi:
+  mid=(lo+hi)//2
+  if feasible(mid):lo=mid
+  else:hi=mid
+ out.append(str(lo))
+print('\\n'.join(out))
+''','Construct a suffix automaton for all library strings separated by a nonbinary symbol, so binary queries cannot cross library boundaries. For each essay position compute the longest matching suffix. For fixed minimum familiar length L, maximize covered characters with disjoint familiar substrings: dp[i]=max(dp[i-1],i+max(dp[j]-j)), where i-match[i]<=j<=i-L. Matching left endpoints are nondecreasing, allowing an exact monotone deque. Binary search the monotone feasibility predicate10*covered>=9*essay_length, using integer arithmetic and allowing unfamiliar gaps. Compact integer arrays bound automaton memory.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH83.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

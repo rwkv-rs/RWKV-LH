@@ -1,0 +1,62 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={640:('''import sys
+from array import array
+it=iter(map(int,sys.stdin.buffer.read().split()));n=next(it);k=next(it);head=array('i',[-1])*(n+1);to=array('I');nxt=array('i')
+for _ in range(n-1):
+ a=next(it);b=next(it);to.append(b);nxt.append(head[a]);head[a]=len(to)-1;to.append(a);nxt.append(head[b]);head[b]=len(to)-1
+del it
+parent=array('I',[0])*(n+1);stack=[n]
+while stack:
+ u=stack.pop();e=head[u]
+ while e>=0:
+  v=to[e]
+  if v!=parent[u]:parent[v]=u;stack.append(v)
+  e=nxt[e]
+del head,to,nxt,stack
+up=[parent]
+for _ in range(1,n.bit_length()):
+ previous=up[-1];up.append(array('I',(previous[previous[i]] for i in range(n+1))))
+selected=bytearray(n+1);selected[n]=1;budget=n-k-1
+for v in range(n-1,0,-1):
+ if selected[v]:continue
+ u=v;cost=1
+ for j in range(len(up)-1,-1,-1):
+  ancestor=up[j][u]
+  if ancestor and not selected[ancestor]:u=ancestor;cost+=1<<j
+ if cost<=budget:
+  budget-=cost;u=v
+  while not selected[u]:selected[u]=1;u=parent[u]
+print(' '.join(str(v) for v in range(1,n+1) if not selected[v]))
+''','Weights2^i impose lexicographic preference from largest vertex downward. Root at n and maintain a connected selected subtree containing it; any connected optimum can include n. For each remaining vertex in descending order, its entire unselected path to the selected subtree is mandatory. Include it exactly when that path fits the remaining vertex budget. Binary lifting locates the highest unselected ancestor in logarithmic time, preventing quadratic scans on rejected paths; each admitted vertex is marked once. Integer arrays keep the million-vertex ancestor table compact.'),755:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];a=v[1:n+1];differences=[a[i+1]-a[i] for i in range(n-1)];p=n+1;m=v[p];p+=1;size=1
+while size<max(1,n-1):size*=2
+length=[1]*(2*size);first=[0]*(2*size);last=[0]*(2*size);prefix=[0]*(2*size);suffix=[0]*(2*size);best=[0]*(2*size)
+def merge(i):
+ l=2*i;r=l+1;length[i]=length[l]+length[r];first[i]=first[l];last[i]=last[r]
+ connect=last[l]!=0 and first[r]!=0 and not(last[l]<0 and first[r]>0)
+ prefix[i]=prefix[l];suffix[i]=suffix[r];best[i]=max(best[l],best[r])
+ if connect:
+  best[i]=max(best[i],suffix[l]+prefix[r])
+  if prefix[l]==length[l]:prefix[i]+=prefix[r]
+  if suffix[r]==length[r]:suffix[i]+=suffix[l]
+for i,d in enumerate(differences):
+ j=size+i;first[j]=last[j]=(d>0)-(d<0);prefix[j]=suffix[j]=best[j]=int(d!=0)
+for i in range(size-1,0,-1):merge(i)
+def change(i,delta):
+ differences[i]+=delta;d=differences[i];j=size+i;first[j]=last[j]=(d>0)-(d<0);prefix[j]=suffix[j]=best[j]=int(d!=0);j//=2
+ while j:merge(j);j//=2
+out=[]
+for _ in range(m):
+ l,r,d=v[p:p+3];p+=3
+ if l>1:change(l-2,d)
+ if r<n:change(r-1,-d)
+ out.append(str(best[1]+1))
+print('\\n'.join(out))
+''','A strict hill corresponds to a contiguous difference-sign string of zero or more positive signs followed by zero or more negative signs. Zero differences and a negative-to-positive transition are the only forbidden joins. Range addition changes only the two boundary differences, so maintain longest valid sign substring, valid prefix/suffix, endpoint signs and length in a segment tree. Merging checks the actual boundary signs before joining suffix and prefix; equal-height plateaus split hills and singleton hills remain valid.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH87.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

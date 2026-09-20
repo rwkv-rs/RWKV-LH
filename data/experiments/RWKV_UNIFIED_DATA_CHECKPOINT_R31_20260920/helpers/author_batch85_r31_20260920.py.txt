@@ -1,0 +1,63 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={929:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n,initial,target=v[:3]
+if initial>=target:print(0);raise SystemExit
+best={}
+for price,rate in zip(v[3::2],v[4::2]):
+ if price<target:best[price]=max(best.get(price,0),min(rate,target))
+peons=[];maximum=-1
+for price,rate in sorted(best.items()):
+ if rate>maximum:peons.append((price,rate));maximum=rate
+dp=[-1]*target;dp[initial]=0;elapsed=0
+while True:
+ for money in range(target-1,-1,-1):
+  rate=dp[money]
+  if rate<0:continue
+  for price,gain in peons:
+   if price>money:break
+   remaining=money-price;newrate=min(target,rate+gain)
+   if newrate>dp[remaining]:dp[remaining]=newrate
+ nextdp=[-1]*target;elapsed+=1
+ for money,rate in enumerate(dp):
+  if rate<0:continue
+  after=money+rate
+  if after>=target:print(elapsed);raise SystemExit
+  if rate>nextdp[after]:nextdp[after]=rate
+ dp=nextdp
+''','At each integer time, keep the greatest total production rate achievable for each resource balance; a lower rate with the same balance is dominated. Purchases are instantaneous and reduce balance, so descending-balance relaxations exhaust every possible purchase sequence before the next harvest. Advance all states by one discrete harvest and stop at the first target-reaching time. Prune only globally dominated peon types with no lower price and no higher efficiency; cap production at the target because any such rate reaches it at the next harvest.'),954:('''import sys
+from functools import lru_cache
+MOD=998244353
+@lru_cache(None)
+def shape(n):
+ if n==0:return (),()
+ if n==1:return (1,),(1,)
+ h=n.bit_length()-1;half=1<<(h-1);left=half-1+min(n-((1<<h)-1),half);right=n-1-left
+ a,x=shape(left);b,y=shape(right);depth=[1]+[0]*max(len(a),len(b));paths=[0]*max(len(x),len(y),len(a)+len(b)+1);paths[0]=1
+ for i,value in enumerate(x):paths[i]=(paths[i]+value)%MOD
+ for i,value in enumerate(y):paths[i]=(paths[i]+value)%MOD
+ for i,value in enumerate(a):depth[i+1]+=value;paths[i+1]=(paths[i+1]+value)%MOD
+ for i,value in enumerate(b):depth[i+1]+=value;paths[i+1]=(paths[i+1]+value)%MOD
+ for i,u in enumerate(a):
+  for j,w in enumerate(b):paths[i+j+2]=(paths[i+j+2]+u*w)%MOD
+ return tuple(depth),tuple(paths)
+v=list(map(int,sys.stdin.buffer.read().split()));out=[]
+for n,m in zip(v[1::2],v[2::2]):
+ _,counts=shape(n);degree=len(counts);sums=[0]*(degree+1)
+ for value in range(1,m):
+  power=value
+  for length in range(1,degree+1):sums[length]=(sums[length]+power)%MOD;power=power*value%MOD
+ inverse=pow(m,MOD-2,MOD);factor=pow(m,n,MOD);answer=0
+ for distance,count in enumerate(counts):
+  factor=factor*inverse%MOD;length=distance+1
+  maximum_sum=(m*pow(m,length,MOD)-sums[length])%MOD
+  answer=(answer+count*maximum_sum*factor)%MOD
+ out.append(str(answer))
+print('\\n'.join(out))
+''','Group all unordered paths including singleton vertices by their number of vertices. A heap-indexed complete binary tree splits into two complete subtrees whose sizes are determined exactly by the last level; memoized shape recursion combines depth counts and cross-root path counts without enumerating up to10^18 vertices. For a path of length L, summing its maximum over all m^L assignments gives m*m^L-sum(t^L,t=0..m-1); the n-L other vertices contribute m^(n-L). Accumulate path multiplicities modulo998244353. The same formula includes m=1 and n=1.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH85.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

@@ -1,0 +1,10 @@
+from pathlib import Path
+import json,subprocess,random,itertools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCH84.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920);cases=[];expected=[]
+for trial in range(180):
+ n=rng.randrange(1,6);m=rng.randrange(1,6);deadlines=[rng.randrange(1,12) for _ in range(n)];items=[(rng.randrange(n),rng.randrange(1,12),rng.randrange(1,6)) for _ in range(m)];best=0
+ for counts in itertools.product(*(range((deadlines[0]-1)//t+1) for r,v,t in items)):
+  if all(sum(c*t for c,(r,v,t) in zip(counts,items) if r>=door)<deadlines[door] for door in range(n)):best=max(best,sum(c*v for c,(r,v,t) in zip(counts,items)))
+ expected.append(best);cases.append(f'{n} {m}\n'+' '.join(map(str,deadlines))+'\n'+''.join(f'{r} {v} {t}\n' for r,v,t in items))
+actual=list(map(int,subprocess.check_output([str(R/'.venv/bin/python'),path],input=''.join(cases).encode(),timeout=10).split()));assert actual==expected,next((i,a,b,cases[i]) for i,(a,b) in enumerate(zip(actual,expected)) if a!=b)
+(D/'PUBLIC_CROSSCHECKS_BATCH84.json').write_text(json.dumps({'status':'passed','cases':{'943':180},'seed':20260920,'private_cases_read':False,'oracles':{'943':'Enumerate every item-count vector and independently check all strict door-exit time constraints'}},indent=2)+'\n');print('public passed')

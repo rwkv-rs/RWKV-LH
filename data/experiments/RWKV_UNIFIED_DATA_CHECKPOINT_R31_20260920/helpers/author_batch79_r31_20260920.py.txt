@@ -1,0 +1,25 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+327:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];a=v[1:];print('Bob' if a.count(min(a))>n//2 else 'Alice')
+''','Let k=n/2. Losing positions are exactly those where the minimum pile size occurs more than k times. From such a nonterminal position every move must touch a minimum pile; the new smaller minimum can occur only among the k changed piles, so the result is winning. From any other position, at least k piles exceed the minimum; reduce exactly k of them to that minimum, creating a losing position. When the minimum is zero and occurs more than k times, fewer than k nonempty piles remain and no move exists. This proves the criterion by induction on the total stones.'),
+326:('''import sys
+from collections import Counter
+v=sys.stdin.buffer.read().split();out=[]
+for word in v[1:]:
+ permutation=[x-65 for x in word];seen=set();cycles=Counter()
+ for i in range(26):
+  if i in seen:continue
+  size=0;u=i
+  while u not in seen:seen.add(u);size+=1;u=permutation[u]
+  cycles[size]+=1
+ out.append('Yes' if all(size%2 or number%2==0 for size,number in cycles.items()) else 'No')
+print('\\n'.join(out))
+''','Squaring an odd-length permutation cycle preserves one cycle of that length, while squaring an even-length cycle produces two cycles of half its length. Consequently every even cycle length in the target permutation must occur an even number of times. This is also sufficient: take an internal square root for each odd cycle and interleave each pair of equal even cycles into one twice-long cycle. Count cycles, including fixed points, and check exactly this parity condition.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH79.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

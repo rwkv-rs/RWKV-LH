@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "0644c866ffa45b44d78df0b52610076a902151f74091b8233a463d7a25273fd7",
+  "solution_sha256": "c24230a603a32e618f56040a71fd6220840574a1a41f6120a7b3765b94a3584f",
+  "reasoning": "A fixed-point transformation partitions positions and values into the same consecutive blocks. Each block is one permutation cycle and begins with its largest value; a block of size s>=2 has(s-2)! possibilities. Count compositions with these block weights, then unrank by the first block maximum. Within a block, assign remaining permutation entries lexicographically while disallowing a premature cycle: partial edges form disjoint directed paths, and joining the remaining path components into one cycle has a factorial number of completions. DSU detects premature closure; the final edge is allowed to close the full cycle. Exact integers avoid saturation errors for ranks up to10^18.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

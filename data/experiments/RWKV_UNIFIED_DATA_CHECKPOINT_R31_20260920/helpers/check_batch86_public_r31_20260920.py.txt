@@ -1,0 +1,38 @@
+from pathlib import Path
+import json,subprocess,random,itertools,collections
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';paths={x['ordinal']:x['candidate_path'] for x in json.loads((D/'AUTHORED_BATCH86.json').read_text())['candidates']};rng=random.Random(20260920)
+def run(o,s):return subprocess.check_output([str(R/'.venv/bin/python'),paths[o]],input=s.encode(),timeout=20).decode().strip()
+for n in range(2,11):
+ labels=run(981,f'{n}\n{1<<n}\n'+' '.join(map(str,range(1,(1<<n)+1)))+'\n').splitlines();assert labels[0]=='X';assert len(labels)==1<<n
+ for power in range(n):assert sum((1 if label=='X' else -1)*pow(i,power) for i,label in enumerate(labels,1))==0
+for trial in range(100):
+ rows=rng.randrange(1,4);cols=rng.randrange(1,5);board=[''.join('.' if rng.randrange(4) else rng.choice('KQBNRP') for _ in range(cols)) for _ in range(rows)];empty=[(i,j) for i in range(rows) for j in range(cols) if board[i][j]=='.'];best=0
+ for mask in range(1<<len(empty)):
+  if mask.bit_count()<=best:continue
+  selected={empty[i] for i in range(len(empty)) if mask>>i&1};valid=True
+  for i,j in selected:
+   for di,dj in ((1,1),(1,-1),(-1,1),(-1,-1)):
+    x=i+di;y=j+dj
+    while 0<=x<rows and 0<=y<cols:
+     if board[x][y]!='.' or (x,y) in selected:valid=False;break
+     x+=di;y+=dj
+  if valid:best=len(selected)
+ assert int(run(984,f'{rows} {cols}\n'+'\n'.join(board)+'\n'))==best,(board,best)
+count=0
+for n in range(2,6):
+ edges=list(itertools.combinations(range(n),2))
+ for m in range(1,n+1):
+  totals=collections.Counter()
+  for chosen in itertools.combinations_with_replacement(range(len(edges)),m):
+   degree=[0]*n;parent=list(range(n))
+   def root(x):
+    while parent[x]!=x:x=parent[x]
+    return x
+   for index in chosen:
+    u,v=edges[index];degree[u]+=1;degree[v]+=1;parent[root(u)]=root(v)
+   if max(degree)>2:continue
+   size=collections.Counter(root(i) for i in range(n));totals[max(size.values())]+=1
+  for limit in range(1,n+1):
+   assert int(run(996,f'{n} {m} {limit}\n'))==totals[limit],(n,m,limit,totals);count+=1
+assert run(996,'300 290 140\n')=='211917445'
+(D/'PUBLIC_CROSSCHECKS_BATCH86.json').write_text(json.dumps({'status':'passed','cases':{'981':9,'984':100,'996':count+1},'seed':20260920,'private_cases_read':False,'oracles':{'981':'Check every power moment of each generated grouping through1024 scores','984':'Enumerate bishop subsets and ray-scan every attack','996':'Enumerate all multigraph edge multisets through5 vertices and classify connected-component maxima; large published example'}},indent=2)+'\n');print('public passed')

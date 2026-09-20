@@ -1,0 +1,25 @@
+from pathlib import Path
+import json,random,subprocess,sys,itertools,collections
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH81.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,s,want):
+ p=subprocess.run([sys.executable,by[k]['candidate_path']],input=s,text=True,capture_output=True,timeout=30);assert p.returncode==0,p.stderr;assert p.stdout.split()==str(want).split(),(k,s,p.stdout,want);counts[k]+=1
+rng=random.Random(20260920)
+for _ in range(130):
+ n=1;edges=[]
+ for step in range(rng.randrange(1,10)):
+  root=rng.randrange(n);amount=rng.randrange(1,6);vertices=[root]+list(range(n,n+amount));n+=amount;edges.extend(zip(vertices,vertices[1:]))
+  if amount>=2:edges.append((vertices[-1],root))
+ labels=list(range(n));rng.shuffle(labels);edges=[(labels[a],labels[b]) for a,b in edges];g=[[] for _ in range(n)]
+ for a,b in edges:g[a].append(b);g[b].append(a)
+ answer=0
+ for root in range(n):
+  distance={root:0};queue=[root]
+  for u in queue:
+   for w in g[u]:
+    if w not in distance:distance[w]=distance[u]+1;queue.append(w)
+  answer=max(answer,max(distance.values()))
+ run(367,f'{n} {len(edges)}\n'+'\n'.join(f'2 {a+1} {b+1}' for a,b in edges),answer)
+for m in range(1,13):
+ for dimension in range(1,min(m+2,8)):
+  answer=sum(sum(a!=b for a,b in zip(bits,bits[1:]))<=dimension for bits in itertools.product(range(2),repeat=m));run(497,f'{m} {dimension}',answer)
+(D/'PUBLIC_CROSSCHECKS_BATCH81.json').write_text(json.dumps({'status':'passed','cases':counts,'seed':20260920,'private_cases_read':False,'oracles':{'367':'All-pairs unweighted BFS on random tree-of-cycle-block cacti with shuffled labels','497':'Enumerate moment-curve hyperplane sign patterns by polynomial sign changes through12 planes'}},indent=2)+'\n');print(counts)

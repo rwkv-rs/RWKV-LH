@@ -1,0 +1,44 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+367:('''import sys
+from collections import deque
+v=list(map(int,sys.stdin.buffer.read().split()));n,m=v[:2];p=2;graph=[[] for _ in range(n)];edgecount=0
+for _ in range(m):
+ k=v[p];p+=1;path=[x-1 for x in v[p:p+k]];p+=k
+ for a,b in zip(path,path[1:]):graph[a].append((b,edgecount));graph[b].append((a,edgecount));edgecount+=1
+parent=[-1]*n;pe=[-1]*n;depth=[-1]*n;depth[0]=0;order=[0];stack=[(0,iter(graph[0]))];cyclic=set();cycles=[[] for _ in range(n)]
+while stack:
+ u,it=stack[-1]
+ try:w,e=next(it)
+ except StopIteration:stack.pop();continue
+ if e==pe[u]:continue
+ if depth[w]<0:parent[w]=u;pe[w]=e;depth[w]=depth[u]+1;order.append(w);stack.append((w,iter(graph[w])))
+ elif depth[w]<depth[u]:
+  cycle=[w];cyclic.add(e);x=u
+  while x!=w:cycle.append(x);cyclic.add(pe[x]);x=parent[x]
+  cycles[w].append(cycle)
+height=[0]*n;answer=0
+for u in reversed(order):
+ for w,e in graph[u]:
+  if parent[w]==u and e not in cyclic:answer=max(answer,height[u]+height[w]+1);height[u]=max(height[u],height[w]+1)
+ for cycle in cycles[u]:
+  length=len(cycle);values=[height[x] for x in cycle];queue=deque();half=length//2
+  for j in range(2*length):
+   while queue and queue[0]<j-half:queue.popleft()
+   if queue:answer=max(answer,values[j%length]+j+values[queue[0]%length]-queue[0])
+   score=values[j%length]-j
+   while queue and values[queue[-1]%length]-queue[-1]<=score:queue.pop()
+   queue.append(j)
+  height[u]=max(values[j]+min(j,length-j) for j in range(length))
+print(answer)
+''','Extract the cactus cycles with iterative DFS; each tree edge belongs to at most one extracted cycle. Process the resulting blocks bottom-up. A bridge combines two branch heights normally. In a cycle, two attached branches have shortest-path distance equal to their heights plus the smaller circular separation; a doubled-array monotone deque tests every pair with separation at most half the cycle in linear time. Update the attachment-root height using shortest circular distances, preserving previously combined branches at shared articulation vertices.'),
+497:('''import sys,math
+m,n=map(int,sys.stdin.buffer.read().split());print(2*sum(math.comb(m-1,i) for i in range(min(n,m-1)+1)))
+''','The maximum distinct membership patterns equals the number of cells formed by m generic central hyperplanes on an n-dimensional sphere:2*sum_{i=0..n}C(m-1,i). The central-arrangement recurrence follows by adding one great sphere and counting the cells cut on it. Stereographic projection maps these great spheres to ordinary sphere boundaries in R^n; flipping an individual inside/outside bit if needed preserves the number of patterns. For n=1 the two unbounded interval components share one pattern, correctly giving2m rather than2m+1. Use exact integers and cap the binomial index when n>=m-1.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH81.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

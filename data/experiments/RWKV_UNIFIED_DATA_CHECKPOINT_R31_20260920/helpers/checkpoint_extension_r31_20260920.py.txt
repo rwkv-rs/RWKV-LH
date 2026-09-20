@@ -1,0 +1,9 @@
+from pathlib import Path
+import json,hashlib,shutil
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';O=R/'data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920';records=[]
+for batch,task in [('85','CODING-e6845c3bc9ecfa652b6a0e68'),('86','CODING-f482db738fe922d78f553e13')]:
+ p=D/'batches'/batch/'validation'/task/'VALIDATION.json';v=json.loads(p.read_text());cases=v.get('after',{}).get('cases',[]);records.append({'batch':batch,'source_id':task,'status':v['status'],'case_count':len(cases),'passed_case_count':sum(x.get('passed') is True for x in cases),'nonzero_exit_count':sum(x.get('exit_code') not in (None,0) for x in cases),'validation_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'private_inputs_expected_read':False,'root_cause':'not established; excluded without rescoring'})
+p=O/'CANDIDATE_REJECTIONS_BATCH85_86.json';p.write_text(json.dumps(records,indent=2)+'\n')
+for pattern in ('bind_early_batch*r31_20260920.py','checkpoint_extension_r31_20260920.py','document_existing_changes_r31_20260920.py'):
+ for src in (R/'temp').glob(pattern):shutil.copyfile(src,O/'helpers'/(src.name+'.txt'))
+print(json.dumps(records,indent=2))

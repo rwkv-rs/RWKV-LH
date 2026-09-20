@@ -1,0 +1,31 @@
+from pathlib import Path
+import json,random,subprocess,sys,itertools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH80.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,s,want):
+ p=subprocess.run([sys.executable,by[k]['candidate_path']],input=s,text=True,capture_output=True,timeout=30);assert p.returncode==0,p.stderr;assert p.stdout.split()==str(want).split(),(k,s,p.stdout,want);counts[k]+=1
+rng=random.Random(20260920)
+for _ in range(130):
+ n=rng.randrange(1,9);start,goal=rng.randrange(n),rng.randrange(n);snow=rng.randrange(5);budget=rng.randrange(30);heights=[rng.randrange(15) for i in range(n)];limits=[rng.randrange(30) for i in range(n)];g=[[] for _ in range(n)];edges=[]
+ for a,b in itertools.combinations(range(n),2):
+  if rng.random()<.4:
+   w=rng.randrange(8);g[a].append((b,w));g[b].append((a,w));edges.append((a,b,w))
+ def search(u,time,seen):
+  if u==goal:return time
+  answer=10**9
+  for w,length in g[u]:
+   arrival=time+length
+   if not seen>>w&1 and arrival<=budget and (w in (start,goal) or heights[w]+snow*arrival<=limits[w]):answer=min(answer,search(w,arrival,seen|1<<w))
+  return answer
+ answer=search(start,0,1<<start);expected=answer if answer<=budget else 'wtnap wa kotori no oyatsu desu!';run(384,f'{n} {len(edges)} {start+1} {goal+1} {budget} {snow}\n'+'\n'.join(f'{h} {l}' for h,l in zip(heights,limits))+'\n'+'\n'.join(f'{a+1} {b+1} {w}' for a,b,w in edges),expected)
+for _ in range(100):
+ m=rng.randrange(1,10);n=rng.randrange(1,min(m,4)+1);centers=rng.sample(range(1,m+1),n);scopes=[rng.randrange(m+1) for _ in range(n)];cover=[]
+ for x,s in zip(centers,scopes):cover.append([sum(1<<(p-1) for p in range(1,m+1) if abs(x-p)<=s+extra) for extra in range(m+1)])
+ answer=m
+ for extra in itertools.product(range(m+1),repeat=n):
+  cost=sum(extra)
+  if cost>=answer:continue
+  mask=0
+  for i,e in enumerate(extra):mask|=cover[i][e]
+  if mask==(1<<m)-1:answer=cost
+ run(363,f'{n} {m}\n'+'\n'.join(f'{x} {s}' for x,s in zip(centers,scopes)),answer)
+(D/'PUBLIC_CROSSCHECKS_BATCH80.json').write_text(json.dumps({'status':'passed','cases':counts,'seed':20260920,'private_cases_read':False,'oracles':{'384':'Enumerate all simple routes with exact arrival-time snow checks','363':'Enumerate all antenna radius increment vectors and actual integer coverage'}},indent=2)+'\n');print(counts)

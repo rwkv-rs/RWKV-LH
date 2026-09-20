@@ -1,0 +1,23 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');O=R/'data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920';e=json.loads((O/'SOURCE_AND_TESTS.json').read_text());files=e['owner_file_sha256']
+for p,h in files.items():assert hashlib.sha256((R/p).read_bytes()).hexdigest()==h
+text='''# 接手时已有的五处修改说明
+
+“五处修改”是本轮接手工作区时已经存在的未提交差异；这不是作者身份判断，不能由此称为 owner 亲自编写的修改。本轮未覆盖、回退或重写这五个文件。
+
+- `rwkv_lh/controller.py`：强模型在线协助的每个已提交微任务绑定一次新 Actor State；限定本轮待注入观察，恢复时避免重复初始化。
+- `rwkv_lh/model.py`：实现微任务 Actor State 初始化，带入明确选择的真实执行事实，登记旧 checkpoint 与未继承 Actor State 的关系，并拒绝未决选择等不合法边界。
+- `rwkv_lh/supervisor_openai.py`：校验强模型响应顶层结构；不合规响应留痕并在预算内重新请求模型，配套明确计划、审核与指令提示。
+- `tests/test_hybrid_supervisor.py`：微任务 State、事实隔离及恢复幂等测试。
+- `tests/test_supervisor_openai.py`：强模型不合规响应拒绝与重试测试。
+
+本地差异合计619行新增、79行删除。该内容涉及强模型协助路径，与R28训练目标外层 function/params 格式修复不是同一改动。数据扩充期间只保留这些差异，不将其混入本轮数据提交。它们已经包含在当前源码冻结清单与1910项完整工程回归中；保留不等于跳过验证，也不能由单元回归推导线上任务验收通过。
+
+逐文件SHA如下（与上述完整回归的源码身份再次比较一致）：
+
+'''
+for p,h in files.items():text+=f'- `{p}`：`{h}`\n'
+(O/'PREEXISTING_CHANGES.zh-CN.md').write_text(text)
+helper=R/'temp/checkpoint_r31_20260920.py';s=helper.read_text().replace('owner五处修改保留','接手时已有五处修改保留').replace('owner五处修改保持','接手时已有五处修改保持');helper.write_text(s)
+print('documented five unchanged pre-existing files')
