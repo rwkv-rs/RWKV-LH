@@ -1,0 +1,20 @@
+from pathlib import Path
+import json,random,subprocess,functools,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCHz126.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+for trial in range(100):
+ n=rng.randrange(1,5);blocked={i for i in range(n*n) if rng.random()<.2};values=[rng.randrange(12) if (i//n+i%n)%2 and i not in blocked else 0 for i in range(n*n)];limit=rng.randrange(n*n//3+1);pieces=[]
+ for u in range(n*n):
+  if u in blocked:continue
+  r,c=divmod(u,n)
+  for dr in (-1,1):
+   for dc in (-1,1):
+    if 0<=r+dr<n and 0<=c+dc<n:
+     cells=[u,(r+dr)*n+c,r*n+c+dc]
+     if not any(x in blocked for x in cells):pieces.append((sum(1<<x for x in cells),values[u]))
+ @functools.lru_cache(None)
+ def best(occupied,left):
+  if left==0:return 0
+  return max([0]+[gain+best(occupied|mask,left-1) for mask,gain in pieces if not mask&occupied])
+ expected=sum(values)-best(0,limit);data=f'{n} {limit} {len(blocked)}\n'+' '.join(map(str,values))+'\n'+''.join(f'{i//n+1} {i%n+1}\n' for i in blocked);actual=int(subprocess.check_output([str(R/'.venv/bin/python'),path],input=data.encode(),timeout=3));assert actual==expected,(data,actual,expected)
+n=50;values=[rng.randrange(1000001) if (i//n+i%n)%2 else 0 for i in range(n*n)];data=f'{n} {n*n//3} 0\n'+' '.join(map(str,values))+'\n';start=time.monotonic();actual=int(subprocess.check_output([str(R/'.venv/bin/python'),path],input=data.encode(),timeout=30));elapsed=time.monotonic()-start
+(D/'PUBLIC_CROSSCHECKS_BATCHz126.json').write_text(json.dumps({'status':'passed','cases':{'314':100},'seed':20260920,'private_cases_read':False,'oracle':'Enumerate every geometric L orientation, including zero-valued corners, and exhaust all disjoint placements within M','max_size_smoke_seconds':elapsed,'max_size_answer':actual},indent=2)+'\n');print('public passed, max size seconds',elapsed)

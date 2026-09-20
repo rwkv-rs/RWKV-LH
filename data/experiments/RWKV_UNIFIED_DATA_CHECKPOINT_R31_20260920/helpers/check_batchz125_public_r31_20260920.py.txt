@@ -1,0 +1,19 @@
+from pathlib import Path
+import json,random,subprocess,math,functools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCHz125.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+for trial in range(180):
+ n=rng.randrange(1,7);a=[rng.randrange(1,25) for _ in range(n)];b=[rng.randrange(1,3) for _ in range(n)];c=[rng.randrange(-5,6) for _ in range(n)];items=[(a[i],c[i]) for i in range(n) for _ in range(b[i])];edges={}
+ for i,(x,w) in enumerate(items):
+  for j,(y,z) in enumerate(items[:i]):
+   high,low=max(x,y),min(x,y);q=high//low
+   if high%low==0 and q>=2 and all(q%d for d in range(2,math.isqrt(q)+1)):edges[j,i]=w*z
+ @functools.lru_cache(None)
+ def solve(mask):
+  if not mask:return {0:0}
+  i=(mask&-mask).bit_length()-1;rest=mask^(1<<i);best=dict(solve(rest))
+  for j in range(i+1,len(items)):
+   if rest>>j&1 and (i,j) in edges:
+    for k,value in solve(rest^(1<<j)).items():best[k+1]=max(best.get(k+1,-10**9),value+edges[i,j])
+  return best
+ expected=max(k for k,value in solve((1<<len(items))-1).items() if value>=0);data=str(n)+'\n'+'\n'.join(' '.join(map(str,row)) for row in (a,b,c))+'\n';actual=int(subprocess.check_output([str(R/'.venv/bin/python'),path],input=data.encode(),timeout=3));assert actual==expected,(data,actual,expected)
+(D/'PUBLIC_CROSSCHECKS_BATCHz125.json').write_text(json.dumps({'status':'passed','cases':{'691':180},'seed':20260920,'private_cases_read':False,'oracle':'Expand every individual copy, enumerate all disjoint matchings by bitmask recursion and maximize count among nonnegative total values'},indent=2)+'\n');print('public passed')

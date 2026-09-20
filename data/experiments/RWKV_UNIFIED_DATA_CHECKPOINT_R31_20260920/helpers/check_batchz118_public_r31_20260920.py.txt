@@ -1,0 +1,10 @@
+from pathlib import Path
+import json,random,subprocess,math,itertools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCHz118.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920);primes=[2,3,5,7,11,13,17,19,23,29];count=0
+for trial in range(220):
+ n=rng.randrange(2,10);m=rng.randrange(1,11);days=[set(rng.sample(range(n),rng.randrange(1,n))) for _ in range(m)];values=[math.prod(primes[j] for j,s in enumerate(days) if i in s) for i in range(n)]
+ construct=all(math.lcm(*(values[i] for i in s))>math.lcm(*(values[i] for i in range(n) if i not in s)) for s in days)
+ certificate=any(a.isdisjoint(b) for a,b in itertools.combinations(days,2));assert construct!=certificate
+ data=f'{m} {n}\n'+''.join(str(len(s))+' '+' '.join(str(i+1) for i in sorted(s))+'\n' for s in days)
+ actual=subprocess.check_output([str(R/'.venv/bin/python'),path],input=data.encode(),timeout=3).decode().strip();assert actual==('possible' if construct else 'impossible');count+=1
+(D/'PUBLIC_CROSSCHECKS_BATCHz118.json').write_text(json.dumps({'status':'passed','cases':{'800':count},'seed':20260920,'private_cases_read':False,'oracle':'Explicit prime-product store assignment and actual integer LCM victory checks; for every impossible instance an independently found disjoint-set contradiction certificate.'},indent=2)+'\n');print('public passed',count)

@@ -1,0 +1,18 @@
+from pathlib import Path
+import json,random,subprocess,itertools,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';paths={r['ordinal']:r['candidate_path'] for r in json.loads((D/'AUTHORED_BATCHz131.json').read_text())['candidates']};rng=random.Random(20260920)
+for trial in range(180):
+ rgb=[rng.randrange(256) for _ in range(3)];color='#'+''.join(format(x,'02X') for x in rgb);expected='#'+''.join(format(255-x,'02X') for x in rgb);actual=subprocess.check_output([str(R/'.venv/bin/python'),paths[351]],input=(color+'\n').encode(),timeout=3).decode().strip();assert actual==expected
+for trial in range(180):
+ count=rng.randrange(11);serial=[0]
+ def tree(k):
+  if not k:return rng.randrange(1,10)
+  a=rng.randrange(k);ident=serial[0];serial[0]+=1;return (ident,tree(a),tree(k-1-a))
+ root=tree(count)
+ def render(node):return str(node) if isinstance(node,int) else '('+render(node[1])+'?'+render(node[2])+')'
+ def evaluate(node,plus):
+  if isinstance(node,int):return node
+  a=evaluate(node[1],plus);b=evaluate(node[2],plus);return a+b if node[0] in plus else a-b
+ p=rng.randrange(count+1);expected=max(evaluate(root,set(comb)) for comb in itertools.combinations(range(count),p));data=render(root)+f'\n{p} {count-p}\n';actual=int(subprocess.check_output([str(R/'.venv/bin/python'),paths[710]],input=data.encode(),timeout=3));assert actual==expected,(data,actual,expected)
+expr='('*2499+'1'+ '?1)'*2499;start=time.monotonic();actual=int(subprocess.check_output([str(R/'.venv/bin/python'),paths[710]],input=(expr+'\n2399 100\n').encode(),timeout=10));assert actual==2300;elapsed=time.monotonic()-start
+(D/'PUBLIC_CROSSCHECKS_BATCHz131.json').write_text(json.dumps({'status':'passed','cases':{'351':180,'710':180},'seed':20260920,'private_cases_read':False,'oracle':'Independent per-channel complement; exhaust all assignments of the prescribed number of plus operators on small expression trees','skew_2500_leaf_seconds':elapsed},indent=2)+'\n');print('public passed',elapsed)

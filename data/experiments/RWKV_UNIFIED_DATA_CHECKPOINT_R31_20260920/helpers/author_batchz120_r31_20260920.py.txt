@@ -1,0 +1,21 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+it=iter(map(int,sys.stdin.buffer.read().split()));out=[]
+for _ in range(next(it)):
+ n=next(it);m=next(it);r=next(it);player=next(it)-1;hands=[]
+ for j in range(2):
+  suits=[next(it) for i in range(n)];points=[next(it) for i in range(n)];hands.append(sorted(zip(points,suits)))
+ suit=None;value=0
+ while True:
+  hand=hands[player];choice=0 if suit is None else next((i for i,(p,s) in enumerate(hand) if s==suit and p>value),-1)
+  if choice<0:player^=1;suit=None;continue
+  value,suit=hand.pop(choice)
+  if not hand:out.append('FS wins!' if player==0 else 'FR wins!');break
+  player^=1
+print('\\n'.join(out))
+'''
+note='Simulate the deterministic card rules exactly. Keep each hand sorted by (point,suit). A round starts with its first card, then each alternating player selects the smallest strictly greater point in the current suit. If that player has none, the previous player starts the next round. Stop immediately when a player removes their last card. A failed response removes no card, but is followed by a successful new-round play, bounding the simulation by O(n) steps with O(n) hand scans; duplicate cards remain distinct occurrences.'
+row=rows[237];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz120.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':237,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

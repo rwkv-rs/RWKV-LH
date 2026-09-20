@@ -1,0 +1,27 @@
+from pathlib import Path
+from fractions import Fraction as F
+import json,random,subprocess
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCHz133.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+def cross(a,b,c):return (b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0])
+def hull(points):
+ points=sorted(set(points));low=[];high=[]
+ for point in points:
+  while len(low)>1 and cross(low[-2],low[-1],point)<=0:low.pop()
+  low.append(point)
+ for point in reversed(points):
+  while len(high)>1 and cross(high[-2],high[-1],point)<=0:high.pop()
+  high.append(point)
+ return low[:-1]+high[:-1]
+def area(points):return abs(sum(x*points[(i+1)%len(points)][1]-y*points[(i+1)%len(points)][0] for i,(x,y) in enumerate(points))) if points else F(0)
+for trial in range(200):
+ points=hull([(rng.randrange(-30,31),rng.randrange(-30,31)) for _ in range(20)]);shift=rng.randrange(len(points));points=points[shift:]+points[:shift];region=[(F(x),F(y)) for x,y in points]
+ for i in range(1,len(points)):
+  def value(p):return cross(points[i],points[(i+1)%len(points)],p)-cross(points[0],points[1],p)
+  next_region=[]
+  for j,p in enumerate(region):
+   q=region[(j+1)%len(region)];vp=value(p);vq=value(q)
+   if vp>=0:next_region.append(p)
+   if (vp<0)!=(vq<0):t=vp/(vp-vq);next_region.append((p[0]+t*(q[0]-p[0]),p[1]+t*(q[1]-p[1])))
+  region=next_region
+ expected=float(area(region)/area(points));data=str(len(points))+'\n'+''.join(f'{x} {y}\n' for x,y in points);actual=float(subprocess.check_output([str(R/'.venv/bin/python'),path],input=data.encode(),timeout=3));assert abs(actual-expected)<=.00005000001,(data,actual,expected)
+(D/'PUBLIC_CROSSCHECKS_BATCHz133.json').write_text(json.dumps({'status':'passed','cases':{'10':200},'seed':20260920,'private_cases_read':False,'oracle':'Exact Fraction Sutherland-Hodgman clipping on independently generated strict convex hulls, comparing final area ratio within required four-decimal rounding'},indent=2)+'\n');print('public passed')

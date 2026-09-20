@@ -1,0 +1,24 @@
+from pathlib import Path
+import json,random,subprocess,collections
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCHz119.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920);count=0
+for trial in range(100):
+ n=rng.randrange(1,20);graph=[set() for _ in range(2*n)];ops=[];expected=[]
+ for step in range(200):
+  if rng.random()<.55:
+   a=rng.randrange(2*n);b=rng.randrange(2*n);ops.append(f'Ask {a//n+1} {a%n+1} {b//n+1} {b%n+1}');seen={a};queue=[a]
+   for u in queue:
+    for v in graph[u]:
+     if v not in seen:seen.add(v);queue.append(v)
+   expected.append('Y' if b in seen else 'N')
+  else:
+   a=rng.randrange(2*n);neighbors=[a+n if a<n else a-n]
+   if a%n:neighbors.append(a-1)
+   if a%n<n-1:neighbors.append(a+1)
+   b=rng.choice(neighbors);op=rng.choice(['Open','Close']);ops.append(f'{op} {a//n+1} {a%n+1} {b//n+1} {b%n+1}')
+   if op=='Open':graph[a].add(b);graph[b].add(a)
+   else:graph[a].discard(b);graph[b].discard(a)
+ data=str(n)+'\n'+'\n'.join(ops)+'\nExit\n';actual=subprocess.check_output([str(R/'.venv/bin/python'),path],input=data.encode(),timeout=5).decode().split()
+ if actual!=expected:
+  (D/'PUBLIC_FAILURE_BATCHz119.json').write_text(json.dumps({'trial':trial,'input':data,'actual':actual,'expected':expected,'candidate':path},indent=2)+'\n');raise AssertionError(('BFS mismatch',trial))
+ count+=1
+(D/'PUBLIC_CROSSCHECKS_BATCHz119.json').write_text(json.dumps({'status':'passed','cases':{'812':count},'operations':count*200,'seed':20260920,'private_cases_read':False,'oracle':'Explicit dynamic full 2-row graph and fresh reachability BFS for every Ask'},indent=2)+'\n');print('public passed',count)

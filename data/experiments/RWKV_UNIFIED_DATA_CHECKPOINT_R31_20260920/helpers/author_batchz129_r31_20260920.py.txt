@@ -1,0 +1,15 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];a=v[1:n+1];b=v[n+1:2*n+1];c=v[2*n+1:];active=[a[i]+c[i] if a[i] else 0 for i in range(n)];exports=[min(b[i],active[i]) for i in range(n)];pool=sum(exports)
+if pool==0:print(*active);print(sum(active));raise SystemExit
+gain=[min(b[i],c[i]+1)-1 if a[i]==0 and b[i]>0 else 0 for i in range(n)];extra=sum(gain);answer=[]
+for i in range(n):
+ if a[i]:answer.append(active[i]+pool-exports[i]+extra)
+ else:answer.append(pool+extra-gain[i]+c[i])
+total=sum(active)+sum(c[i] for i in range(n) if not a[i] and b[i]);sinks=sorted((c[i] for i in range(n) if not a[i] and not b[i]),reverse=True);total+=sum(sinks[:pool+extra]);print(*answer);print(total)
+'''
+note='Grow every initially nonempty color before exporting: it has A_i+C_i balls and at most min(B_i,A_i+C_i) convertible balls. Their total is the initial seed budget. An empty color with B_i>0 can be seeded using one conversion, use all C_i growth tools, and return min(B_i,C_i+1) further convertible balls, a nonnegative net gain. Thus any positive initial seed budget can activate all such colors in a chain. To maximize total balls, use the resulting seed budget on empty colors with B_i=0 in descending C_i order. To maximize one target color, export all other usable balls to it and retain its own growth; subtract its contribution to export/net-gain bookkeeping to avoid double counting. If seed budget is zero, only initially nonempty colors can grow. All counts use unbounded integers.'
+row=rows[834];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz129.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':834,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

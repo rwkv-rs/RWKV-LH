@@ -21,7 +21,7 @@ def save(p,x):
 def main():
  targets=read(Q/'TARGETS.json')['targets'];inventory={r['id']:r for r in read(P/'INVENTORY.json')['tasks']}
  packages=[R/'data/experiments/RWKV_TRAINING_TARGET_FORMAT_R28_20260920/frozen_corrected']
- packages += sorted(p for p in (D/'batches').glob('*/frozen_increment') if '35'<=p.parent.name<Q.name)
+ packages += sorted(p for p in (D/'batches').glob('*/frozen_increment') if '35'<=p.parent.name<Q.name and (p.parent/'RESULT.json').exists() and read(p.parent/'RESULT.json')['status']=='frozen_loader_accepted' and not ((p.parent/'BATCH_DISPOSITION.json').exists() and read(p.parent/'BATCH_DISPOSITION.json').get('formal_rows')==0))
  prior=[];old_sources={}
  old=read(packages[0]/'manifest.json');oldreg=read(old['freeze_registration']['path']);regref=oldreg['regression_registration']
  for p in packages:

@@ -1,0 +1,7 @@
+from pathlib import Path
+import json,random,subprocess,itertools,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCHz121.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+for trial in range(180):
+ points=rng.sample(list(itertools.product(range(8),repeat=2)),rng.randrange(4,15));expected=sum(all((b[0]-a[0])*(c[1]-a[1])!=(b[1]-a[1])*(c[0]-a[0]) for a,b,c in itertools.combinations(quad,3)) for quad in itertools.combinations(points,4));data=str(len(points))+'\n'+''.join(f'{x} {y}\n' for x,y in points);actual=int(subprocess.check_output([str(R/'.venv/bin/python'),path],input=data.encode(),timeout=3));assert actual==expected,(points,actual,expected)
+start=time.monotonic();data='10000\n'+''.join(f'{x} {y}\n' for x in range(100) for y in range(100));actual=int(subprocess.check_output([str(R/'.venv/bin/python'),path],input=data.encode(),timeout=30));elapsed=time.monotonic()-start
+(D/'PUBLIC_CROSSCHECKS_BATCHz121.json').write_text(json.dumps({'status':'passed','cases':{'475':180},'seed':20260920,'private_cases_read':False,'oracle':'Enumerate all four-point subsets and reject each with any zero signed-area triple','max_size_smoke_seconds':elapsed,'max_size_answer':actual},indent=2)+'\n');print('public passed; max size seconds',elapsed)

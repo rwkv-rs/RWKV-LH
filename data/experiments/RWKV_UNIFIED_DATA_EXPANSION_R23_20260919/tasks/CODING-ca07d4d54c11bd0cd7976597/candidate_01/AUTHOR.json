@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "ed492691504cf0d8c3716ff77f552d4aa4e5ac1ac64ee492566957eb1a780f11",
+  "solution_sha256": "3a5558564f1bee83f34297b2e5a217111ea9bd5f543afef7f2af54eb072bd4c6",
+  "reasoning": "Grow every initially nonempty color before exporting: it has A_i+C_i balls and at most min(B_i,A_i+C_i) convertible balls. Their total is the initial seed budget. An empty color with B_i>0 can be seeded using one conversion, use all C_i growth tools, and return min(B_i,C_i+1) further convertible balls, a nonnegative net gain. Thus any positive initial seed budget can activate all such colors in a chain. To maximize total balls, use the resulting seed budget on empty colors with B_i=0 in descending C_i order. To maximize one target color, export all other usable balls to it and retain its own growth; subtract its contribution to export/net-gain bookkeeping to avoid double counting. If seed budget is zero, only initially nonempty colors can grow. All counts use unbounded integers.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

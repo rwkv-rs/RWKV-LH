@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "26c5494dc736bd70370d947ebfd3532843bbfaffb6729f62573b0fcdd4479e04",
+  "solution_sha256": "ad40acd26532f9962358b3eefffc94004c654eb7b99adc50393af936f77d179f",
+  "reasoning": "Only odd checkerboard cells have positive instability, so pillars with even corner can be omitted without losing benefit. Every useful L connects one even-row/even-column stable cell through an odd corner to one odd-row/odd-column stable cell. These endpoints are necessarily in perpendicular directions, so every such path is exactly a legal orientation. Capacity one on stable cells and split corner nodes enforces no overlap. Min-cost flow with cost -instability selects at most M disjoint pillars; stop when the best residual augmentation is nonnegative. Reverse arcs permit globally optimal rearrangements, not a greedy independent choice of high-valued corners. Collapsed cells are entirely absent from the network.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

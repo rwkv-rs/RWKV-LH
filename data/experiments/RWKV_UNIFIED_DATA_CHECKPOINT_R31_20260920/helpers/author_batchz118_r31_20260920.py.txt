@@ -1,0 +1,15 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+it=iter(map(int,sys.stdin.buffer.read().split()));m=next(it);n=next(it);days=[]
+for _ in range(m):
+ size=next(it);mask=0
+ for j in range(size):mask|=1<<(next(it)-1)
+ days.append(mask)
+print('possible' if all(a&b for i,a in enumerate(days) for b in days[:i]) else 'impossible')
+'''
+note='The shopping subsets must pairwise intersect. For disjoint subsets A,B, LCM(A) divides LCM(complement B), and LCM(B) divides LCM(complement A), contradicting both strict victories. Conversely assign one distinct prime per day to every store in that day subset and let a store value be the product of its assigned primes. Pairwise intersection means each Dora subset has all primes in its LCM, whereas its complement lacks its own day prime. This constructs strict victories. Use integer bitsets and test every pair; identical day subsets are valid.'
+row=rows[800];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n')
+(D/'AUTHORED_BATCHz118.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':800,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

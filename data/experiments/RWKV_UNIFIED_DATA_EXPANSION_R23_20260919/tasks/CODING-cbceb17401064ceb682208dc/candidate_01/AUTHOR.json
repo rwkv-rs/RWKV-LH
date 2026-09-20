@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "fba0a02bf58779da02d7ff26dd09a3d709690f34682b8f1e61cb68838ad86ea0",
+  "solution_sha256": "bcd264999655c9464c0531759a4962ff3b46c2693177e31e7558c35ca6e8918d",
+  "reasoning": "Build the undirected hearing graph with squared distance <=2500 and initial speakers within squared distance 100 of the door. All utterance starts lie on multiples of X. If Y>=X, a vertex cannot repeat two rounds after its first speech, so the wave visits every reachable vertex exactly once at its multi-source BFS distance: any first repeated vertex would be two rounds after its first visit because neighboring BFS levels differ by at most one, and cooldown forbids that. If Y<X only the immediately preceding round is blocked; any edge from a speaking vertex to a non-speaker propagates forever, since its two endpoints guarantee a boundary edge at each subsequent round. Thus either the initial set has such an edge (infinite), or all speech ends after X. No initial speakers gives zero.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

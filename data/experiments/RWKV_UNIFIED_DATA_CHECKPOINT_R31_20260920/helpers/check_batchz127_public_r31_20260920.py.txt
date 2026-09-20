@@ -1,0 +1,14 @@
+from pathlib import Path
+import json,random,subprocess
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCHz127.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+for trial in range(120):
+ n=rng.randrange(1,70);parent=[-1]+[rng.randrange(i) for i in range(1,n)];values=[rng.randrange(100) for _ in range(n)];original=values[:];operations=[];answers=[]
+ for step in range(180):
+  u=rng.randrange(n)
+  if rng.random()<.55:
+   operations.append(f'1 {u+1}');value=0
+   while u>=0:value+=values[u];u=parent[u]
+   answers.append(value)
+  else:value=rng.randrange(100);operations.append(f'2 {u+1} {value}');values[u]=value
+ data=f'{n}\n'+' '.join(map(str,original))+'\n'+''.join(f'{i+1} {parent[i]+1}\n' for i in range(1,n))+str(len(operations))+'\n'+'\n'.join(operations)+'\n';actual=list(map(int,subprocess.check_output([str(R/'.venv/bin/python'),path],input=data.encode(),timeout=3).split()));assert actual==answers
+(D/'PUBLIC_CROSSCHECKS_BATCHz127.json').write_text(json.dumps({'status':'passed','cases':{'889':120},'operations':21600,'seed':20260920,'private_cases_read':False,'oracle':'Direct parent-chain sum after each mutable-array assignment'},indent=2)+'\n');print('public passed')

@@ -1,0 +1,9 @@
+from pathlib import Path
+import json,random,subprocess,itertools,collections,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCHz132.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+for trial in range(90):
+ n=rng.randrange(1,6);m=rng.randrange(1,7);rows=[[rng.randrange(5) for j in range(m)] for i in range(n)];counts=collections.Counter(tuple(sum(c*a[j] for c,a in zip(coeff,rows))%5 for j in range(m)) for coeff in itertools.product(range(5),repeat=n));queries=[tuple(rng.randrange(5) for j in range(m)) for _ in range(20)]+list(counts)[:5];encode=lambda a:''.join(chr(97+x) for x in a);data=f'{n} {m}\n'+'\n'.join(map(encode,rows))+f'\n{len(queries)}\n'+'\n'.join(map(encode,queries))+'\n';actual=list(map(int,subprocess.check_output([str(R/'.venv/bin/python'),path],input=data.encode(),timeout=3).split()));assert actual==[counts[a] for a in queries]
+n=m=500;rows=[]
+for i in range(n):rows.append([0]*i+[rng.randrange(1,5)]+[rng.randrange(5) for j in range(i+1,m)])
+rng.shuffle(rows);queries=[[rng.randrange(5) for j in range(m)] for _ in range(300)];data=f'{n} {m}\n'+'\n'.join(map(encode,rows))+'\n300\n'+'\n'.join(map(encode,queries))+'\n';start=time.monotonic();actual=list(map(int,subprocess.check_output([str(R/'.venv/bin/python'),path],input=data.encode(),timeout=10).split()));assert actual==[1]*300;elapsed=time.monotonic()-start
+(D/'PUBLIC_CROSSCHECKS_BATCHz132.json').write_text(json.dumps({'status':'passed','cases':{'338':90},'seed':20260920,'private_cases_read':False,'oracle':'Exhaust all GF(5) coefficient choices and count exact resulting vectors; maximum-size shuffled triangular full-rank basis has one solution per query','max_size_seconds':elapsed},indent=2)+'\n');print('public passed',elapsed)
