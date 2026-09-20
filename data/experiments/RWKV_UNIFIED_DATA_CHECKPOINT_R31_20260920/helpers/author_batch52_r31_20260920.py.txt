@@ -1,0 +1,188 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+0:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];a=v[1:];answer=[0]*(n+1);cache={}
+def solve(k):
+ if k in cache:return cache[k]
+ groups=1;seen=set()
+ for x in a:
+  if x not in seen:
+   if len(seen)==k:groups+=1;seen={x}
+   else:seen.add(x)
+ cache[k]=groups;return groups
+def fill(l,r,lo,hi):
+ if lo==hi:
+  answer[l:r+1]=[lo]*(r-l+1);return
+ if l==r:answer[l]=solve(l);return
+ mid=(l+r)//2;x=solve(mid);answer[mid]=x
+ if l<mid:fill(l,mid-1,lo,x)
+ if mid<r:fill(mid+1,r,x,hi)
+fill(1,n,solve(1),1)
+print(*answer[1:])
+''','Greedy maximal prefixes minimize the number of contiguous squads for each color bound. The answer is monotone in k; divide and conquer fills any interval whose endpoint bounds coincide and only scans unresolved midpoints. This computes every k exactly without assuming distinct colors or equal block sizes.'),
+639:('''import sys,math
+it=iter(map(int,sys.stdin.buffer.read().split()));out=[]
+for case in range(1,next(it)+1):
+ n=next(it);parts=[]
+ for a in range(2,math.isqrt(math.isqrt(n)+1)+1):
+  factor=a*a-1
+  if n%factor:continue
+  value=n//factor+1;b=math.isqrt(value)
+  if b*b==value and b>=a:parts.append(f'({a}^2-1)*({b}^2-1)')
+ out.append(f'Case #{case}:')
+ if parts:out.append(str(n)+'='+'='.join(parts))
+ else:out.append(f'For n={n} there is no almost square factorisation.')
+print('\\n'.join(out))
+''','Since a<=b, a^2-1<=sqrt(n). Enumerate a through the exact nested integer-square-root bound, test divisibility and perfect-square complementary factor with isqrt. Avoid float rounding for n<2^62; enumerate naturally in increasing a and emit one unbroken equality line.'),
+770:('''import sys,heapq
+it=iter(map(int,sys.stdin.buffer.read().split()));L,R=next(it),next(it);A=[next(it) for _ in range(L)];B=[next(it) for _ in range(R)];C=[[next(it) for _ in range(R)] for _ in range(L)];N=L+R+2;s=N-2;t=N-1;g=[[] for _ in range(N)]
+def edge(u,v,cap,cost):g[u].append([v,len(g[v]),cap,cost]);g[v].append([u,len(g[u])-1,0,-cost])
+for i,a in enumerate(A):edge(s,i,a,0)
+for j,b in enumerate(B):edge(L+j,t,b,0)
+for i in range(L):
+ for j in range(R):edge(i,L+j,10000,-C[i][j])
+potential=[0]*N
+for j in range(R):potential[L+j]=-max(C[i][j] for i in range(L))
+potential[t]=min(potential[L:L+R]);answer=0
+while True:
+ dist=[10**30]*N;dist[s]=0;parent=[None]*N;heap=[(0,s)]
+ while heap:
+  d,u=heapq.heappop(heap)
+  if d!=dist[u]:continue
+  for k,(v,rev,cap,cost) in enumerate(g[u]):
+   z=d+cost+potential[u]-potential[v]
+   if cap and z<dist[v]:dist[v]=z;parent[v]=(u,k);heapq.heappush(heap,(z,v))
+ if parent[t] is None:break
+ cost=dist[t]+potential[t]-potential[s]
+ if cost>=0:break
+ for u in range(N):
+  if dist[u]<10**30:potential[u]+=dist[u]
+ flow=10000;v=t
+ while v!=s:u,k=parent[v];flow=min(flow,g[u][k][2]);v=u
+ answer-=cost*flow;v=t
+ while v!=s:u,k=parent[v];e=g[u][k];e[2]-=flow;g[v][e[1]][2]+=flow;v=u
+print(answer)
+''','The integral dual of min sum A*x+B*y subject to x_i+y_j>=Cij is capacitated maximum-profit bipartite flow. Source/sink capacities are camera unit costs and edge profit is C. Total unimodularity gives integer primal optimum. Successive shortest paths with valid initial potentials augment only negative-cost paths; stopping on nonnegative marginal cost avoids forced unprofitable flow.'),
+600:('''import sys
+from collections import Counter
+it=iter(map(int,sys.stdin.buffer.read().split()));out=[]
+for _ in range(next(it)):
+ n,m=next(it),next(it);g=[[] for i in range(n)]
+ for i in range(n-1):a,b=next(it)-1,next(it)-1;g[a].append(b);g[b].append(a)
+ blocked=bytearray(n);paths=[[] for i in range(n)];totals=[None]*n;subs={};jobs=[0];parent=[-1]*n;size=[0]*n
+ while jobs:
+  root=jobs.pop();order=[root];parent[root]=-1
+  for u in order:
+   for v in g[u]:
+    if not blocked[v] and v!=parent[u]:parent[v]=u;order.append(v)
+  length=len(order)
+  for u in reversed(order):size[u]=1+sum(size[v] for v in g[u] if not blocked[v] and parent[v]==u)
+  c=root
+  for u in order:
+   if max([length-size[u]]+[size[v] for v in g[u] if not blocked[v] and parent[v]==u])<=length//2:c=u;break
+  blocked[c]=1;totals[c]=Counter({0:1});paths[c].append((c,0,-1))
+  for child in g[c]:
+   if blocked[child]:continue
+   counts=Counter();stack=[(child,c,1)]
+   while stack:
+    u,p,d=stack.pop();counts[d]+=1;paths[u].append((c,d,child))
+    for v in g[u]:
+     if v!=p and not blocked[v]:stack.append((v,u,d+1))
+   subs[c,child]=counts;totals[c].update(counts);jobs.append(child)
+ for i in range(m):
+  x,k=next(it)-1,next(it);answer=0
+  for c,d,child in paths[x]:
+   if d<=k:
+    answer+=totals[c][k-d]
+    if child>=0:answer-=subs[c,child][k-d]
+  out.append(str(answer))
+print('\\n'.join(out))
+''','First arrival day equals unweighted tree distance. Centroid decomposition stores distance histograms for each component and each centroid branch. Query sums exact complementary distances across ancestor centroids, subtracting the branch containing the query vertex to avoid duplication. Iterative component traversal avoids recursion failure on long chains; supports day0 and multiple datasets.'),
+607:('''import sys,heapq
+it=iter(map(int,sys.stdin.buffer.read().split()));n,m,army=next(it),next(it),next(it);a=[];b=[];c=[]
+for i in range(n):a.append(next(it));b.append(next(it));c.append(next(it))
+last=list(range(n))
+for _ in range(m):u,v=next(it)-1,next(it)-1;last[v]=max(last[v],u)
+buckets=[[] for i in range(n)]
+for i in range(n):buckets[last[i]].append(c[i])
+heap=[];score=0;possible=True
+for i in range(n):
+ while army<a[i] and heap:score-=heapq.heappop(heap);army+=1
+ if army<a[i]:possible=False;break
+ army+=b[i]
+ for value in buckets[i]:heapq.heappush(heap,value);score+=value;army-=1
+ while army<0:score-=heapq.heappop(heap);army+=1
+print(score if possible else -1)
+''','Postpone each castle defense to its latest available portal. Process defense opportunities with a minimum-importance heap; whenever army feasibility is violated, remove the cheapest previously chosen defense. Such removal represents revising the offline plan, not moving an actual deployed warrior. Nested prefix capacity constraints make this greedy maximum-weight selection exact; impossibility is detected even with every optional defense removed.'),
+627:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n,m=v[:2];counts=[0]*(n+1)
+for x in v[2:]:counts[x]+=1
+def complete():
+ states={(0,0,0)}
+ for i in range(1,n+1):
+  new=set()
+  for a,b,pair in states:
+   rem=counts[i]-a-b
+   if rem<0:continue
+   new.add((b,rem%3,pair))
+   if not pair and rem>=2:new.add((b,(rem-2)%3,1))
+  states=new
+  if not states:return False
+ return (0,0,1) in states
+out=[]
+for x in range(1,n+1):
+ counts[x]+=1
+ if complete():out.append(x)
+ counts[x]-=1
+print(' '.join(map(str,out)) if out else 'NO')
+''','For each possible waiting tile, scan counts with DP tracking sequences begun at previous two ranks and whether the unique pair was used. New sequence count need only be remainder modulo3: three parallel sequences can be replaced by a triplet at each of three ranks. Triplets consume the remainder. Require all sequence obligations discharged and exactly one pair at end.'),
+628:('''import sys
+from array import array
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];A=v[1:n+1];B=v[n+1:];limit=1<<n;dp=bytearray([255])*(limit*n)
+for i in range(n):dp[(1<<i)*n+i]=i
+for mask in range(1,limit):
+ length=mask.bit_count();best=[255]*51;base=mask*n;bits=mask
+ while bits:
+  bit=bits&-bits;i=bit.bit_length()-1;value=A[i] if (i-length+1)%2==0 else B[i];best[value]=min(best[value],dp[base+i]);bits^=bit
+ for i in range(1,51):best[i]=min(best[i],best[i-1])
+ bits=(limit-1)^mask
+ while bits:
+  bit=bits&-bits;i=bit.bit_length()-1;value=A[i] if (i-length)%2==0 else B[i];cost=best[value]+(i-(mask&((1<<i)-1)).bit_count());p=(mask|bit)*n+i
+  if cost<dp[p]:dp[p]=cost
+  bits^=bit
+answer=min(dp[(limit-1)*n:]);print(answer if answer<255 else -1)
+''','Every adjacent swap flips both cards, so face orientation depends only on original versus final position parity. Subset DP appends an unused card in sorted-facing order; its additional swaps equal unused original predecessors. A prefix minimum over last facing values removes the inner predecessor loop. Costs fit a byte (at most153 inversions for18 cards), keeping subset table memory bounded.'),
+650:('''import sys
+v=iter(map(int,sys.stdin.buffer.read().split()));n,K=next(v),next(v);values=[next(v) for _ in range(n)];weights=[next(v) for _ in range(n)];g=[[] for _ in range(n)]
+for _ in range(n-1):a,b=next(v)-1,next(v)-1;g[a].append(b);g[b].append(a)
+parent=[-1]*n;order=[0]
+for u in order:
+ for z in g[u]:
+  if z!=parent[u]:parent[z]=u;order.append(z)
+def feasible(ratio):
+ dp=[None]*n
+ for u in reversed(order):
+  row=[-1e100,values[u]-ratio*weights[u]]
+  for z in g[u]:
+   if parent[z]!=u:continue
+   other=dp[z];new=row+[-1e100]*(len(other)-1)
+   for a in range(1,len(row)):
+    for b in range(1,len(other)):new[a+b]=max(new[a+b],row[a]+other[b])
+   row=new
+  if len(row)>K and max(row[K:])>=0:return True
+  dp[u]=row
+ return False
+lo=0.0;hi=max(x/w for x,w in zip(values,weights))
+for _ in range(55):
+ mid=(lo+hi)/2
+ if feasible(mid):lo=mid
+ else:hi=mid
+print(f'{lo:.2f}')
+''','Binary search candidate value/weight ratio. Transform each fruit to value-ratio*weight and run connected-subtree knapsack rooted at each highest included vertex, permitting child exclusion and requiring at leastK nodes. A nonnegative transformed sum is equivalent to achievable ratio. Never average per-node ratios or constrain selection to exactlyK.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH52.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

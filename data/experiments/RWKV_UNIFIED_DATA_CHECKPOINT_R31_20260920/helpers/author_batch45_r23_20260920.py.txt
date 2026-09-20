@@ -1,0 +1,173 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+717:('''import sys
+from collections import deque
+v=sys.stdin.buffer.read().split();n,k=int(v[0]),int(v[1]);s=v[2].decode();color=list(s);distance=[-1]*n;q=deque()
+for i in range(n):
+ if s[i]==s[(i-1)%n] or s[i]==s[(i+1)%n]:distance[i]=0;q.append(i)
+while q:
+ i=q.popleft()
+ for j in ((i-1)%n,(i+1)%n):
+  if distance[j]<0:distance[j]=distance[i]+1;color[j]=color[i];q.append(j)
+for i in range(n):
+ if distance[i]<0 or distance[i]>k:color[i]=s[i] if k%2==0 else ('B' if s[i]=='W' else 'W')
+print(''.join(color))
+''','Adjacent equal cells never change. Their colors propagate one edge per iteration into alternating segments. Multi-source ring BFS gives stabilization time and color. Before stabilization a cell flips each iteration, including the no-anchor even alternating cycle. O(n), independent of k.'),
+743:('''import sys
+sys.setrecursionlimit(10000)
+it=iter(map(int,sys.stdin.buffer.read().split()));n=next(it);a=[[0]*(n+1)]+[[0]+[-next(it) for _ in range(n)] for _ in range(n)];u=[0]*(n+1);v=[0]*(n+1);p=[0]*(n+1);way=[0]*(n+1)
+for i in range(1,n+1):
+ p[0]=i;j0=0;dist=[10**30]*(n+1);used=[False]*(n+1)
+ while True:
+  used[j0]=True;i0=p[j0];delta=10**30;j1=0
+  for j in range(1,n+1):
+   if not used[j]:
+    cur=a[i0][j]-u[i0]-v[j]
+    if cur<dist[j]:dist[j]=cur;way[j]=j0
+    if dist[j]<delta:delta=dist[j];j1=j
+  for j in range(n+1):
+   if used[j]:u[p[j]]+=delta;v[j]-=delta
+   else:dist[j]-=delta
+  j0=j1
+  if not p[j0]:break
+ while j0:j1=way[j0];p[j0]=p[j1];j0=j1
+match=[0]*(n+1)
+for j in range(1,n+1):match[p[j]]=j
+reach=[0]*(n+1)
+for i in range(1,n+1):
+ for j in range(1,n+1):
+  if j!=match[i] and a[i][j]==u[i]+v[j]:reach[i]|=1<<p[j]
+for k in range(1,n+1):
+ for i in range(1,n+1):
+  if reach[i]>>k&1:reach[i]|=reach[k]
+print(-sum(a[i][match[i]] for i in range(1,n+1)))
+for i in range(1,n+1):
+ if not (reach[i]>>i&1):print(i,match[i])
+''','Hungarian algorithm on negative weights produces optimal matching and feasible duals. Every alternate optimal matching uses only tight edges. Direct each nonmatched tight edge to the boy owning its girl; a matched edge is replaceable exactly when its boy belongs to an alternating cycle. Bitset transitive closure identifies cycles, yielding intersection of all optimal matchings in O(n^3).'),
+747:('''import sys,math
+it=iter(map(int,sys.stdin.buffer.read().split()));n=next(it);points=[(next(it),next(it),next(it)) for _ in range(n)];groups={};answer=-1
+for i,(x,y,c) in enumerate(points):
+ for X,Y,C in points[:i]:
+  dx,dy=x-X,y-Y;g=math.gcd(dx,dy);dx//=g;dy//=g
+  if dx<0 or (dx==0 and dy<0):dx=-dx;dy=-dy
+  sx,sy=x+X,y+Y;key=(dx,dy,sx*dx+sy*dy);line=sx*dy-sy*dx;weight=c+C
+  if key not in groups:groups[key]=(weight,line)
+  else:
+   best,where=groups[key]
+   if where!=line:answer=max(answer,best+weight)
+   if weight>best:groups[key]=(weight,line)
+print(answer)
+''','Parallel bases form an isosceles trapezoid iff their midpoints share the same perpendicular bisector and lie on different parallel lines. Normalize integer direction with gcd; group by direction and midpoint projection. Within each group keep maximum prior endpoint weight, combine only distinct line offsets. If current shares the best line, a second-best base was already combined when it arrived, so no lost optimum. Exact integer arithmetic, O(n^2) pairs.'),
+757:('''import sys
+from fractions import Fraction as F
+it=iter(map(int,sys.stdin.buffer.read().split()));out=[];case=0
+for n in it:
+ if not n:break
+ points=[(next(it),next(it)) for _ in range(n)];segments=[(a,b) for a,b in zip(points,points[1:]) if a!=b];cuts=[set((a,b)) for a,b in segments]
+ for i,(a,b) in enumerate(segments):
+  rx,ry=b[0]-a[0],b[1]-a[1]
+  for j in range(i):
+   c,d=segments[j];sx,sy=d[0]-c[0],d[1]-c[1];qx,qy=c[0]-a[0],c[1]-a[1];den=rx*sy-ry*sx
+   if den:
+    t=F(qx*sy-qy*sx,den);u=F(qx*ry-qy*rx,den)
+    if 0<=t<=1 and 0<=u<=1:p=(a[0]+t*rx,a[1]+t*ry);cuts[i].add(p);cuts[j].add(p)
+   elif qx*ry-qy*rx==0:
+    for p in (a,b,c,d):
+     if min(a[0],b[0])<=p[0]<=max(a[0],b[0]) and min(a[1],b[1])<=p[1]<=max(a[1],b[1]) and min(c[0],d[0])<=p[0]<=max(c[0],d[0]) and min(c[1],d[1])<=p[1]<=max(c[1],d[1]):cuts[i].add(p);cuts[j].add(p)
+ vertices=set(points);edges=set()
+ for part in cuts:
+  p=sorted(part);vertices.update(p);edges.update(zip(p,p[1:]))
+ case+=1;out.append(f'Case {case}: There are {len(edges)-len(vertices)+2} pieces.')
+print('\\n'.join(out))
+''','Build exact planar arrangement of the connected closed walk. Split each segment at all rational intersections and collinear overlap endpoints; deduplicate vertices and undirected atomic edges. Euler formula F=E-V+2 counts the unbounded face. Fraction arithmetic avoids rounding, repeated and zero-length edges do not create fictitious regions.'),
+768:('''import sys,bisect
+v=iter(map(int,sys.stdin.buffer.read().split()));n,m=next(v),next(v);adj=[[] for _ in range(n)]
+for _ in range(m):a,b=next(v)-1,next(v)-1;adj[a].append(b);adj[b].append(a)
+tin=[-1]*n;tout=[0]*n;low=[0]*n;parent=[-1]*n;children=[[] for _ in range(n)];timer=1;tin[0]=low[0]=0;stack=[(0,0)]
+while stack:
+ x,j=stack[-1]
+ if j==len(adj[x]):
+  stack.pop();tout[x]=timer
+  if parent[x]>=0:low[parent[x]]=min(low[parent[x]],low[x])
+  continue
+ y=adj[x][j];stack[-1]=(x,j+1)
+ if y==parent[x]:continue
+ if tin[y]<0:parent[y]=x;children[x].append(y);tin[y]=low[y]=timer;timer+=1;stack.append((y,0))
+ else:low[x]=min(low[x],tin[y])
+starts=[[tin[y] for y in part] for part in children]
+def component(x,removed):
+ if not (tin[removed]<tin[x]<tout[removed]):return -1
+ child=children[removed][bisect.bisect_right(starts[removed],tin[x])-1]
+ return child if low[child]>=tin[removed] else -1
+out=[]
+for _ in range(next(v)):
+ s,t,m=next(v)-1,next(v)-1,next(v)-1;out.append('yes' if component(s,m)!=component(t,m) else 'no')
+print('\\n'.join(out))
+''','Iterative DFS computes low-link values and subtree intervals. Removing a vertex disconnects precisely child subtrees whose low>=tin[removed]; all remaining vertices share the parent-side component. Binary search finds the direct child containing each endpoint, including root and ancestor cases. Compare component IDs per query in logarithmic time.'),
+775:('''import sys
+from array import array
+v=sys.stdin.buffer.read().split();n,m=int(v[0]),int(v[1]);s=v[2];weights=[[0]*m for _ in range(m)]
+for a,b in zip(s,s[1:]):
+ a-=97;b-=97
+ if a!=b:weights[a][b]+=1;weights[b][a]+=1
+N=1<<m;cut=array('i',[0])*N;dp=array('q',[0])*N;degree=list(map(sum,weights));index={1<<i:i for i in range(m)}
+for mask in range(1,N):
+ bit=mask&-mask;i=index[bit];rest=mask^bit;inside=0;t=rest
+ while t:b=t&-t;inside+=weights[i][index[b]];t^=b
+ cut[mask]=cut[rest]+degree[i]-2*inside
+ best=10**18;t=mask
+ while t:b=t&-t;best=min(best,dp[mask^b]);t^=b
+ dp[mask]=best+cut[mask]
+print(dp[-1])
+''','Keyboard distance equals sum of edge weights crossing each prefix cut. Subset DP chooses the last letter and adds cut(mask). Compute cut by removing the lowest bit and updating its incident weights. Handles absent letters and repeats; O(m2^m) time with compact integer arrays rather than permutation enumeration.'),
+782:('''import sys,heapq
+it=iter(map(int,sys.stdin.buffer.read().split()));n,k,A,B,C=[next(it) for _ in range(5)];station=[next(it) for _ in range(n*n)];dist=[10**30]*(n*n*(k+1));dist[k]=0;heap=[(0,0,k)];end=n*n-1
+while heap:
+ cost,p,fuel=heapq.heappop(heap)
+ if cost!=dist[p*(k+1)+fuel]:continue
+ if p==end:print(cost);break
+ r,c=divmod(p,n)
+ if not station[p] and fuel<k:
+  idx=p*(k+1)+k;new=cost+A+C
+  if new<dist[idx]:dist[idx]=new;heapq.heappush(heap,(new,p,k))
+ if not fuel:continue
+ for dr,dc,fee in ((1,0,0),(0,1,0),(-1,0,B),(0,-1,B)):
+  rr,cc=r+dr,c+dc
+  if 0<=rr<n and 0<=cc<n:
+   q=rr*n+cc;nf=k if station[q] else fuel-1;new=cost+fee+(A if station[q] else 0);idx=q*(k+1)+nf
+   if new<dist[idx]:dist[idx]=new;heapq.heappush(heap,(new,q,nf))
+''','Dijkstra on (grid cell, remaining fuel). Each move consumes one unit; entering an existing station forces paid refill. At nonstations an optional refill costs setup+fuel. Left/up moves add B. Positive costs eliminate revisiting newly-built stations in optimal paths; arrival at destination needs no refill. Full initial tank, O(N^2 K log(N^2 K)).'),
+848:('''import sys,math
+v=list(map(int,sys.stdin.buffer.read().split()));queries=[v[i:i+3] for i in range(1,len(v),3)];limit=max((p for x,p,k in queries),default=1);spf=list(range(limit+1))
+for i in range(2,math.isqrt(limit)+1):
+ if spf[i]==i:
+  for j in range(i*i,limit+1,i):
+   if spf[j]==j:spf[j]=i
+cache={};out=[]
+for x,p,k in queries:
+ if p not in cache:
+  factors=[];q=p
+  while q>1:
+   f=spf[q];factors.append(f)
+   while q%f==0:q//=f
+  terms=[(1,1)]
+  for f in factors:terms += [(d*f,-s) for d,s in terms[:]]
+  cache[p]=terms
+ terms=cache[p]
+ def count(t):return sum(s*(t//d) for d,s in terms)
+ target=count(x)+k;lo=x+1;hi=x+max(1,k)
+ while count(hi)<target:hi=x+2*(hi-x)
+ while lo<hi:
+  mid=(lo+hi)//2
+  if count(mid)>=target:hi=mid
+  else:lo=mid+1
+ out.append(str(lo))
+print('\\n'.join(out))
+''','Factor each p into distinct primes using SPF. Inclusion-exclusion counts integers <=t coprime to p. Binary search smallest t with count(t)=count(x)+k using doubling bound. Cache divisor/sign terms for repeated p; p=1 yields all integers. No floating-point density approximation.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH45.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

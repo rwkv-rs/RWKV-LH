@@ -1,0 +1,43 @@
+from pathlib import Path
+import json,subprocess,sys,random,itertools,math
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH39.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,inp,want):
+ r=subprocess.run([sys.executable,by[k]['candidate_path']],input=inp,text=True,capture_output=True,timeout=12);assert r.returncode==0,(k,r.stderr);assert r.stdout.strip()==str(want).strip(),(k,inp,r.stdout,want);counts[k]+=1
+rng=random.Random(20260920)
+for s in ['sabcabcfabc','trutrutiktiktappop','a','aaaaaaa']+[''.join(rng.choice('abcd') for _ in range(rng.randrange(1,60))) for j in range(45)]:
+ want=0
+ for i in range(len(s)):
+  for j in range(i+1,len(s)):
+   k=0
+   while j+k<len(s) and s[i+k]==s[j+k]:k+=1
+   want=max(want,k)
+ run(484,f'{len(s)}\n{s}\n',want)
+height=[0]*401
+for n in range(2,401):height[n]=max([0]+[1+max(height[a],height[n-a]) for a in range(2,n-1) if n%a==0 or n%(n-a)==0])
+run(487,'399\n'+'\n'.join(map(str,range(2,401))),'\n'.join(f'Case #{i}: {height[n]}' for i,n in enumerate(range(2,401),1)))
+for n in range(1,7):
+ count=0
+ for assignment in itertools.product(range(n),repeat=n):
+  freq=[0]*n
+  for x in assignment:freq[x]+=1
+  count+=any(c==i+1 for i,c in enumerate(freq))
+ run(488,str(n),count)
+run(488,'314','192940893')
+run(490,'1\n3\n2\n7\n3 5 9 1 11 14 2\n',11)
+for _ in range(30):
+ n=rng.randrange(1,40);schools=rng.randrange(1,n+1);chosen=rng.randrange(schools);values=rng.sample(range(1,1000),n);remaining=list(range(n));groups=[]
+ for i in range(schools):
+  take=n//schools+(i<n%schools);selected=sorted(remaining,key=lambda j:values[j])[:take];groups.append(sorted(selected));remaining=[j for j in remaining if j not in selected]
+ run(490,f'1\n{schools} {chosen} {n}\n'+' '.join(map(str,values)),values[groups[chosen][0]])
+for n in range(1,9):
+ for _ in range(8):
+  s=[rng.choice('fs') for i in range(n-1)]+['s'];depths=[0]
+  for previous in s[:-1]:depths=[x+1 for x in depths] if previous=='f' else [j for x in depths for j in range(x+1)]
+  run(492,str(n)+'\n'+'\n'.join(s),len(depths))
+def cover(l,r,a,b):
+ if a<=l and r<=b:return 1
+ mid=(l+r)//2
+ return (cover(l,mid,a,b) if a<=mid else 0)+(cover(mid+1,r,a,b) if b>mid else 0)
+nums=list(range(1,81));want=[sum(cover(1,n,a,b) for a in range(1,n+1) for b in range(a,n+1)) for n in nums]
+run(494,str(len(nums))+'\n'+'\n'.join(map(str,nums)),'\n'.join(map(str,want)))
+p=D/'PUBLIC_CROSSCHECKS_BATCH39.json';assert not p.exists();p.write_text(json.dumps({'passed':True,'counts':counts,'private_answers_read':False,'seed':20260920},indent=2)+'\n');print(counts)

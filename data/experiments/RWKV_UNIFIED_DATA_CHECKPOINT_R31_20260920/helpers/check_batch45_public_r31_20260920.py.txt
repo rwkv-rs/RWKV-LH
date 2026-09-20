@@ -1,0 +1,80 @@
+from pathlib import Path
+import json,subprocess,sys,random,itertools,collections,math
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH45.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,inp,want):
+ r=subprocess.run([sys.executable,by[k]['candidate_path']],input=inp,text=True,capture_output=True,timeout=20);assert r.returncode==0,(k,r.stderr);assert r.stdout.strip()==str(want).strip(),(k,inp,r.stdout,want);counts[k]+=1
+rng=random.Random(20260920)
+for _ in range(70):
+ n=rng.randrange(3,40);k=rng.randrange(40);s=''.join(rng.choice('BW') for _ in range(n));cur=s
+ for j in range(k):cur=''.join('W' if sum(cur[x%n]=='W' for x in (i-1,i,i+1))>=2 else 'B' for i in range(n))
+ run(717,f'{n} {k}\n{s}',cur)
+for _ in range(40):
+ n=rng.randrange(1,8);a=[[rng.randrange(6) for _ in range(n)] for _ in range(n)];scores=[(sum(a[i][p[i]] for i in range(n)),p) for p in itertools.permutations(range(n))];best=max(x[0] for x in scores);opts=[p for x,p in scores if x==best];forced=[f'{i+1} {opts[0][i]+1}' for i in range(n) if all(p[i]==opts[0][i] for p in opts)];run(743,str(n)+'\n'+'\n'.join(' '.join(map(str,r)) for r in a),'\n'.join([str(best)]+forced))
+for _ in range(50):
+ xy=rng.sample(list(itertools.product(range(-3,4),repeat=2)),rng.randrange(4,11));p=[(x,y,rng.randrange(1,30)) for x,y in xy];best=-1
+ for a,b,c,d in itertools.combinations(p,4):
+  for A,B,C,D in ((a,b,c,d),(a,c,b,d),(a,d,b,c)):
+   dx,dy=B[0]-A[0],B[1]-A[1];ex,ey=D[0]-C[0],D[1]-C[1]
+   if dx*ey!=dy*ex:continue
+   if dx*(C[1]-A[1])==dy*(C[0]-A[0]):continue
+   if (A[0]+B[0]-C[0]-D[0])*dx+(A[1]+B[1]-C[1]-D[1])*dy==0:best=max(best,sum(q[2] for q in (A,B,C,D)))
+ run(747,str(len(p))+'\n'+'\n'.join(' '.join(map(str,q)) for q in p),best)
+# Independent raster flood fill for integer axis-aligned walks, including overlap.
+for _ in range(35):
+ points=[(0,0)];cur=(0,0)
+ for j in range(8):cur=(rng.randrange(-3,4),cur[1]) if j%2==0 else (cur[0],rng.randrange(-3,4));points.append(cur)
+ points.extend([(0,cur[1]),(0,0)]);walls=set()
+ for (x,y),(X,Y) in zip(points,points[1:]):
+  x*=2;y*=2;X*=2;Y*=2;dx=(X>x)-(X<x);dy=(Y>y)-(Y<y);walls.add((x,y))
+  while (x,y)!=(X,Y):x+=dx;y+=dy;walls.add((x,y))
+ free=set(itertools.product(range(-8,9),repeat=2))-walls;faces=0
+ while free:
+  faces+=1;q=[free.pop()]
+  for x,y in q:
+   for nxt in ((x+1,y),(x-1,y),(x,y+1),(x,y-1)):
+    if nxt in free:free.remove(nxt);q.append(nxt)
+ run(757,str(len(points))+'\n'+' '.join(str(v) for p in points for v in p)+'\n0',f'Case 1: There are {faces} pieces.')
+run(757,'5\n0 0 2 2 0 2 2 0 0 0\n0','Case 1: There are 3 pieces.')
+for _ in range(40):
+ n=rng.randrange(3,25);edges={(i,rng.randrange(i)) for i in range(1,n)}
+ for j in range(n*2):
+  a,b=rng.sample(range(n),2);edges.add((max(a,b),min(a,b)))
+ adj=[[] for i in range(n)]
+ for a,b in edges:adj[a].append(b);adj[b].append(a)
+ queries=[];out=[]
+ for j in range(80):
+  a,b,m=rng.sample(range(n),3);queries.append((a+1,b+1,m+1));seen={a};q=[a]
+  for u in q:
+   for w in adj[u]:
+    if w!=m and w not in seen:seen.add(w);q.append(w)
+  out.append('no' if b in seen else 'yes')
+ run(768,f'{n} {len(edges)}\n'+''.join(f'{a+1} {b+1}\n' for a,b in edges)+str(len(queries))+'\n'+'\n'.join(' '.join(map(str,q)) for q in queries),'\n'.join(out))
+for _ in range(35):
+ m=rng.randrange(1,8);n=rng.randrange(1,30);s=[rng.randrange(m) for _ in range(n)];best=min(sum(abs(p[a]-p[b]) for a,b in zip(s,s[1:])) for p in itertools.permutations(range(m)));run(775,f'{n} {m}\n'+''.join(chr(97+x) for x in s),best)
+# Independent Bellman-Ford full state graph, optional refill at all nonstations.
+for _ in range(30):
+ n=rng.randrange(2,5);k=rng.randrange(2,5);A,B,C=[rng.randrange(1,8) for i in range(3)];st=[rng.randrange(2) for i in range(n*n)];st[0]=st[-1]=0;dist={(0,k):0}
+ for iteration in range(n*n*(k+1)):
+  changed=False
+  for (p,f),cost in list(dist.items()):
+   moves=[]
+   if not st[p] and f<k:moves.append((p,k,cost+A+C))
+   r,c=divmod(p,n)
+   if f:
+    for dr,dc in ((1,0),(-1,0),(0,1),(0,-1)):
+     rr,cc=r+dr,c+dc
+     if 0<=rr<n and 0<=cc<n:
+      q=rr*n+cc;moves.append((q,k if st[q] else f-1,cost+(B if dr+dc<0 else 0)+(A if st[q] else 0)))
+   for q,g,z in moves:
+    if z<dist.get((q,g),10**9):dist[q,g]=z;changed=True
+  if not changed:break
+ best=min(cost for (p,f),cost in dist.items() if p==n*n-1);run(782,f'{n} {k} {A} {B} {C}\n'+' '.join(map(str,st)),best)
+queries=[];answers=[]
+for _ in range(180):
+ x,p,k=[rng.randrange(1,150) for j in range(3)];y=x;left=k
+ while left:
+  y+=1
+  if math.gcd(y,p)==1:left-=1
+ queries.append((x,p,k));answers.append(str(y))
+run(848,str(len(queries))+'\n'+'\n'.join(' '.join(map(str,q)) for q in queries),'\n'.join(answers))
+proof=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919/PUBLIC_CROSSCHECKS_BATCH45.json';assert not proof.exists();proof.write_text(json.dumps({'author':'current Codex assistant','seed':20260920,'passed':True,'checks':counts,'private_cases_read':False},indent=2)+'\n');print(counts)

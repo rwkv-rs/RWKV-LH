@@ -1,0 +1,129 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+914:('''import sys,math
+l,r=map(int,sys.stdin.buffer.read().split());bound=math.isqrt(r);prime=bytearray(b'\\1')*(bound+1)
+if bound>=0:prime[0]=0
+if bound>=1:prime[1]=0
+for p in range(2,math.isqrt(bound)+1):
+ if prime[p]:prime[p*p:bound+1:p]=b'\\0'*((bound-p*p)//p+1)
+start=max(l,5);start+=(1-start)%4;answer=int(l<=2<=r)
+if start<=r:
+ length=(r-start)//4+1;valid=bytearray(b'\\1')*length
+ for p in range(3,bound+1,2):
+  if not prime[p]:continue
+  first=max(p*p,((start+p-1)//p)*p)
+  while first%4!=1:first+=p
+  if first>r:continue
+  index=(first-start)//4;valid[index::p]=b'\\0'*((length-1-index)//p+1)
+ answer+=sum(valid)
+print(answer)
+''','A prime is a sum of two positive squares iff it is2 or congruent1 mod4. Sieve base primes to sqrt(r), then sieve only interval candidates congruent1 mod4; their multiples of each odd prime form stride p in compressed indices. Start at p^2 to retain prime itself. O((r-l)/4) bytes instead of a full 3e8-element integer sieve.'),
+919:('''import sys
+it=iter(map(int,sys.stdin.buffer.read().split()));out=[]
+for _ in range(next(it)):
+ n,P,Q=next(it),next(it),next(it);a=sorted(next(it) for _ in range(n));money=P+2*Q;odd=count=spent=0
+ for x in a:
+  if x%2 and odd==P:continue
+  if spent+x>money:break
+  spent+=x;odd+=x%2;count+=1
+ out.append(str(count))
+print('\\n'.join(out))
+''','A chosen set is payable iff total demand<=P+2Q and number of odd demands<=P. Every odd amount needs one one-rupee coin; remaining even amounts can use twos or pairs of ones. For each cardinality, cheapest set under the odd-count cap is produced by increasing demands while skipping excess odds. Stop when next admissible demand exceeds total money.'),
+921:('''import sys,math
+from collections import deque
+v=sys.stdin.buffer.read().split();n,m,T=map(int,v[:3]);a=[int(chr(c)) for row in v[3:] for c in row];size=n*m;adj=[[] for _ in range(size)]
+for p in range(size):
+ r,c=divmod(p,m)
+ for dr,dc in ((1,0),(-1,0),(0,1),(0,-1)):
+  rr,cc=r+dr,c+dc
+  if 0<=rr<n and 0<=cc<m:adj[p].append(rr*m+cc)
+answer=0
+for start in range(size):
+ if a[start]>T:continue
+ dist=[T+1]*size;dist[start]=a[start];q=deque([start]);sr,sc=divmod(start,m)
+ while q:
+  u=q.popleft();d=dist[u]
+  for w in adj[u]:
+   nd=d+a[w]
+   if nd<dist[w]:
+    dist[w]=nd
+    if a[w]:q.append(w)
+    else:q.appendleft(w)
+ for p in range(start+1,size):
+  if dist[p]<=T:r,c=divmod(p,m);answer=max(answer,(sr-r)**2+(sc-c)**2)
+print(f'{math.sqrt(answer):.6f}')
+''','Connectivity after removing at most T obstacles is equivalent to a path with obstacle cost<=T, including both endpoints. Run 0-1 BFS from each possible start, charging each entered blocked cell, then maximize Euclidean squared endpoint distance among reachable cells. This is not shortest-path geometric distance. Output square root once to six decimals.'),
+935:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];a=v[1::2];b=v[2::2];answer=[bytearray(b'0'*n),bytearray(b'0'*n)]
+for row in answer:row[:n//2]=b'1'*(n//2)
+combined=sorted([(x,0,i) for i,x in enumerate(a)]+[(x,1,i) for i,x in enumerate(b)])
+for x,t,i in combined[:n]:answer[t][i]=49
+print(answer[0].decode());print(answer[1].decode())
+''','All top floor(n/2) in each semifinal qualify at maximal k, and global top n qualify at k0. Any other participant has local rank>n/2>=k and global rank>n; removing the forced top k cannot improve its residual rank enough. Thus union of these two extreme configurations is exactly all possible finalists.'),
+950:('''import sys
+from decimal import Decimal as D
+lines=iter(sys.stdin.read().splitlines());figures=[]
+for line in lines:
+ v=line.split()
+ if not v:continue
+ if v[0]=='*':break
+ figures.append((v[0],list(map(D,v[1:]))))
+out=[];index=0
+for line in lines:
+ v=line.split()
+ if not v:continue
+ x,y=map(D,v)
+ if x==D('9999.9') and y==D('9999.9'):break
+ index+=1;found=False
+ for j,(kind,p) in enumerate(figures,1):
+  if kind=='r':a,b,c,d=p;inside=min(a,c)<x<max(a,c) and min(b,d)<y<max(b,d)
+  else:a,b,r=p;inside=(x-a)**2+(y-b)**2<r*r
+  if inside:found=True;out.append(f'Point {index} is contained in figure {j}')
+ if not found:out.append(f'Point {index} is not contained in any figure')
+print('\\n'.join(out))
+''','Preserve figure input order; test strict rectangle interior or circle squared distance below radius squared. Decimal parsing avoids binary float artifacts for boundary points. Report every containing figure and a single none line only if no figure matches; sentinel is not a query.'),
+958:('''import sys
+v=sys.stdin.buffer.read().split();t,k=map(int,v[:2]);pairs=[(v[i].decode(),v[i+1].decode()) for i in range(2,len(v),2)];length=max(len(r) for l,r in pairs);MOD=1000000007;k=min(k,length);dp=[[1]*(k+1)]
+for m in range(1,length+1):
+ old=dp[-1];row=[0]*(k+1);row[0]=(8*old[0]+2*old[k])%MOD
+ for cool in range(1,k+1):row[cool]=8*old[cool-1]%MOD
+ dp.append(row)
+def nearly(text):
+ cool=0;safe=0;valid=True;value=0
+ for ch in text:value=(value*10+int(ch))%MOD
+ for i,ch in enumerate(text):
+  d=int(ch);remaining=len(text)-i-1;lucky=(d>4)+(d>7);safe=(safe+(d-lucky)*dp[remaining][max(0,cool-1)])%MOD
+  if cool==0:safe=(safe+lucky*dp[remaining][k])%MOD
+  if d in (4,7):
+   if cool:valid=False;break
+   cool=k
+  else:cool=max(0,cool-1)
+ if valid:safe=(safe+1)%MOD
+ return (value+1-safe)%MOD,not valid
+out=[]
+for l,r in pairs:
+ R,_=nearly(r);L,is_lucky=nearly(l);out.append(str((R-L+is_lucky)%MOD))
+print('\\n'.join(out))
+''','Count the complement: digit strings where consecutive lucky digits are separated by more than k positions. Cooldown DP precomputes suffix completions, with 8 nonlucky and2 lucky digits. Digit-bound traversal counts safe numbers<=N, including harmless leading zeros, then subtracts from N+1 modulo MOD. Inclusive interval correction tests whether l itself violates cooldown. O(maxdigits*k+total query digits).'),
+1000:('''import sys
+from functools import lru_cache
+v=list(map(int,sys.stdin.buffer.read().split()));a=[];count=[]
+for c in v[1:]:
+ if a and a[-1]==c:count[-1]+=1
+ else:a.append(c);count.append(1)
+@lru_cache(None)
+def clear(l,r,extra):
+ if l>r:return True
+ if count[l]+extra>=2 and clear(l+1,r,0):return True
+ for j in range(l+1,r+1):
+  if a[j]==a[l] and clear(l+1,j-1,0) and clear(j,r,1):return True
+ return False
+print('yes' if clear(0,len(a)-1,0) else 'no')
+''','Compress initial equal runs. Interval DP tracks whether its first run has at least one equal character carried from the left. Either erase a run of size>=2 then solve remainder, or clear the middle and merge first run into a later equal run. One carried character is sufficient because removal threshold is2; memoization explores all legal choices, including cases where early erasure would lose solvability.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH48.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

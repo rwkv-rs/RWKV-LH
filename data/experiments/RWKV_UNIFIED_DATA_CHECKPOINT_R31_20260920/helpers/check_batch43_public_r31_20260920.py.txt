@@ -1,0 +1,56 @@
+from pathlib import Path
+import json,subprocess,sys,random,itertools,math
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH43.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,inp,want):
+ r=subprocess.run([sys.executable,by[k]['candidate_path']],input=inp,text=True,capture_output=True,timeout=15);assert r.returncode==0,(k,r.stderr);assert r.stdout.strip()==str(want).strip(),(k,inp,r.stdout,want);counts[k]+=1
+rng=random.Random(20260920)
+for _ in range(30):
+ n=rng.randrange(2,8);k=rng.randrange(1,8);a=[rng.randrange(1,30) for i in range(n)];original=a.copy();paths=[(i,) for i in range(n)]
+ for j in range(k):paths=[p+(v,) for p in paths for v in (p[-1]-1,p[-1]+1) if 0<=v<n]
+ queries=[];out=[]
+ for j in range(8):
+  i=rng.randrange(n);x=rng.randrange(1,30);a[i]=x;queries.append((i+1,x));out.append(str(sum(sum(a[v] for v in p) for p in paths)%1000000007))
+ run(625,f'{n} {k} 8\n'+' '.join(map(str,original))+'\n'+''.join(f'{i} {x}\n' for i,x in queries),'\n'.join(out))
+ms=list(range(1,80));out=[]
+for case,m in enumerate(ms,1):
+ a,b=0,1%m;seq=[]
+ while not seq or (a,b)!=(0,1%m):seq.append(a);a,b=b,(a+b)%m
+ answer=0
+ for i,value in enumerate(seq):
+  count=1
+  for step in range(1,len(seq)+1):
+   other=seq[(i+step)%len(seq)]
+   if other>value:value=other;count+=1
+  answer+=count
+ out.append(f'Case {case}: {answer}')
+run(635,str(len(ms))+'\n'+'\n'.join(map(str,ms)),'\n'.join(out))
+run(651,'2\n3 100\n60 70 80\n3 100\n30 69 70','Case 1: 2 758\nCase 2: 3 777')
+for _ in range(35):
+ n=rng.randrange(1,12);a=[rng.randrange(1,181) for i in range(n)];t=rng.randrange(1,sum(a)+678);best=max((mask.bit_count(),sum(a[i] for i in range(n) if mask>>i&1)) for mask in range(1<<n) if sum(a[i] for i in range(n) if mask>>i&1)<t);run(651,f'1\n{n} {t}\n'+' '.join(map(str,a)),f'Case 1: {best[0]+1} {best[1]+678}')
+for _ in range(40):
+ n=rng.randrange(1,80);a=[rng.randrange(1,200) for i in range(n)];want=max(sum(a[j]%a[i]==0 for j in range(i)) for i in range(n));run(652,f'1\n{n}\n'+' '.join(map(str,a)),want)
+for _ in range(35):
+ n=rng.randrange(1,25);r=rng.randrange(2,100);a=[0]*n;ops=[];answers=[]
+ for j in range(80):
+  kind=rng.randrange(3)
+  if kind==0:
+   l=rng.randrange(n);h=rng.randrange(l,n);start=rng.randrange(1,100);ops.append(f'0 {start} {l+1} {h+1}')
+   for i in range(l,h+1):a[i]=(a[i]+start*pow(r,i-l,1000000007))%1000000007
+  elif kind==1:
+   l=rng.randrange(n);h=rng.randrange(l,n);ops.append(f'1 {l+1} {h+1}');answers.append(str(sum(a[l:h+1])%1000000007))
+  else:i=rng.randrange(n);ops.append(f'2 {i+1}');a[i]=0
+ run(653,f'{n} {r} {len(ops)}\n'+'\n'.join(ops),'\n'.join(answers))
+for n in range(1,8):
+ for _ in range(7):
+  p=list(range(1,n+1));q=p.copy();rng.shuffle(p);rng.shuffle(q);want=sum(all(r[i]!=p[i] and r[i]!=q[i] for i in range(n)) for r in itertools.permutations(range(1,n+1)));run(658,str(n)+'\n'+' '.join(map(str,p))+'\n'+' '.join(map(str,q)),want)
+for n in range(1,8):
+ for k in range(1,4):
+  c=[rng.randrange(0,8) for i in range(k)];best=0
+  for sequence in itertools.product(range(k),repeat=n):
+   last={};value=0
+   for i,x in enumerate(sequence):
+    if x in last:value+=(i-last[x])*c[x]
+    last[x]=i
+   best=max(best,value)
+  run(659,f'{n} {k}\n'+' '.join(map(str,c)),best)
+p=D/'PUBLIC_CROSSCHECKS_BATCH43.json';assert not p.exists();p.write_text(json.dumps({'passed':True,'counts':counts,'private_answers_read':False,'seed':20260920},indent=2)+'\n');print(counts)

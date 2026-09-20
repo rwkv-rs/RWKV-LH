@@ -1,0 +1,245 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+317:('''import sys,heapq
+it=iter(map(int,sys.stdin.buffer.read().split()));n,q,s=next(it),next(it),next(it)-1
+size=1
+while size<n:size*=2
+g=[[] for _ in range(4*size)];offset=2*size
+for p in range(1,size):
+ for c in (p*2,p*2+1):g[p].append((c,0));g[c+offset].append((p+offset,0))
+for i in range(n):g[size+i].append((size+i+offset,0));g[size+i+offset].append((size+i,0))
+for _ in range(q):
+ t,v=next(it),next(it)-1
+ if t==1:u,w=next(it)-1,next(it);g[size+v].append((size+u,w));continue
+ l,r,w=next(it)-1,next(it),next(it);l+=size;r+=size
+ while l<r:
+  if l&1:
+   if t==2:g[size+v].append((l,w))
+   else:g[l+offset].append((size+v,w))
+   l+=1
+  if r&1:
+   r-=1
+   if t==2:g[size+v].append((r,w))
+   else:g[r+offset].append((size+v,w))
+  l//=2;r//=2
+inf=10**30;dist=[inf]*len(g);dist[size+s]=0;heap=[(0,size+s)]
+while heap:
+ d,u=heapq.heappop(heap)
+ if d!=dist[u]:continue
+ for v,w in g[u]:
+  z=d+w
+  if z<dist[v]:dist[v]=z;heapq.heappush(heap,(z,v))
+print(*[dist[size+i] if dist[size+i]<inf else -1 for i in range(n)])
+''','Two segment-tree graphs encode outward and inward interval edges without enumerating every planet per plan. Leaf pairs share zero-cost edges, internal directions remain separated. Dijkstra preserves exact nonnegative shortest paths, O((n+q) log n) graph size.'),
+331:('''import sys
+from collections import deque
+v=iter(sys.stdin.buffer.read().split());r,c=int(next(v)),int(next(v));grid=b''.join(next(v) for _ in range(r));k=int(next(v));targets={};trigger=[0]*(r*c)
+for _ in range(k):
+ a,b,x,y=(int(next(v))-1 for _ in range(4));p=x*c+y
+ if p not in targets:targets[p]=len(targets)
+ trigger[a*c+b]^=1<<targets[p]
+bit=[0]*(r*c)
+for p,j in targets.items():bit[p]=1<<j
+N=r*c;start=grid.index(b'S');goal=grid.index(b'T');seen=bytearray(N*(1<<len(targets)));seen[start]=1;queue=deque([(start,0,0)]);answer=-1
+while queue:
+ p,mask,d=queue.popleft()
+ if p==goal:answer=d;break
+ x,y=divmod(p,c)
+ for a,b in ((x-1,y),(x+1,y),(x,y-1),(x,y+1)):
+  if not(0<=a<r and 0<=b<c):continue
+  z=a*c+b
+  if (grid[z]==35)==bool(mask&bit[z]):
+   new=mask^trigger[z];key=new*N+z
+   if not seen[key]:seen[key]=1;queue.append((z,new,d+1))
+print(answer)
+''','BFS state contains location and current toggle parity for distinct affected cells. Test destination passability before applying all mechanisms triggered by entering it; repeated targets XOR naturally. Starting state has no toggles, observation is not confused with static wall layout.'),
+329:('''import sys
+it=iter(map(int,sys.stdin.buffer.read().split()));out=[]
+for _ in range(next(it)):
+ n,K,D=next(it),next(it),next(it);x=[next(it) for i in range(n)];lanes=[next(it) for i in range(n)];last=-D;answer=K
+ for i in range(1,n):
+  if lanes[i]==lanes[i-1]:continue
+  switch=max(x[i-1]+1,last+D)
+  if switch>=x[i]:answer=x[i];break
+  last=switch
+ out.append(str(answer))
+print('\\n'.join(out))
+''','Choose initial lane opposite first obstacle. Each change in blocked lane forces one switch in the intervening open integer interval. Taking its earliest feasible position dominates later choices for every future cooldown; extra switches cannot improve feasibility. If interval cannot accommodate the switch, its ending obstacle is the furthest reachable point.'),
+313:('''import sys
+it=iter(map(int,sys.stdin.buffer.read().split()));n,m=next(it),next(it);a=[next(it) for _ in range(n)];MOD=10**9;f=[0,1]
+for _ in range(n+2):f.append((f[-1]+f[-2])%MOD)
+x=[0]*(4*n);y=x.copy();lazy=x.copy()
+def join(a,b):
+ u,v,k=a;p,q,l=b
+ if not k:return b
+ if not l:return a
+ return ((u+f[k-1]*p+f[k]*q)%MOD,(v+f[k]*p+f[k+1]*q)%MOD,k+l)
+def pull(p,l,r):
+ k=(l+r)//2-l+1;u=p*2;v=u+1;x[p]=(x[u]+f[k-1]*x[v]+f[k]*y[v])%MOD;y[p]=(y[u]+f[k]*x[v]+f[k+1]*y[v])%MOD
+def build(p,l,r):
+ if l==r:y[p]=a[l];return
+ mid=(l+r)//2;build(p*2,l,mid);build(p*2+1,mid+1,r);pull(p,l,r)
+def apply(p,length,d):x[p]=(x[p]+d*(f[length+1]-1))%MOD;y[p]=(y[p]+d*(f[length+2]-1))%MOD;lazy[p]=(lazy[p]+d)%MOD
+def push(p,l,r):
+ if lazy[p] and l<r:
+  mid=(l+r)//2;apply(p*2,mid-l+1,lazy[p]);apply(p*2+1,r-mid,lazy[p]);lazy[p]=0
+def update(p,l,r,L,R,d,assign=False):
+ if L<=l and r<=R:
+  if assign:x[p]=0;y[p]=d;lazy[p]=0
+  else:apply(p,r-l+1,d)
+  return
+ push(p,l,r);mid=(l+r)//2
+ if L<=mid:update(p*2,l,mid,L,R,d,assign)
+ if R>mid:update(p*2+1,mid+1,r,L,R,d,assign)
+ pull(p,l,r)
+def query(p,l,r,L,R):
+ if L<=l and r<=R:return x[p],y[p],r-l+1
+ push(p,l,r);mid=(l+r)//2
+ if R<=mid:return query(p*2,l,mid,L,R)
+ if L>mid:return query(p*2+1,mid+1,r,L,R)
+ return join(query(p*2,l,mid,L,R),query(p*2+1,mid+1,r,L,R))
+build(1,0,n-1);out=[]
+for _ in range(m):
+ t,l,r=next(it),next(it),next(it)
+ if t==1:update(1,0,n-1,l-1,l-1,r,True)
+ elif t==2:out.append(str(query(1,0,n-1,l-1,r-1)[1]))
+ else:update(1,0,n-1,l-1,r-1,next(it))
+print('\\n'.join(out))
+''','Lazy segment tree stores two adjacent Fibonacci-weighted sums relative to each segment. Fibonacci addition identities merge shifted right sums; closed-form sums of Fibonacci numbers apply range additions. Point assignment replaces leaf after pending propagation. Query merging uses actual returned lengths, giving requested weights starting at1,1, modulo1e9.'),
+311:('''import sys,random
+sys.setrecursionlimit(1000000)
+it=iter(map(int,sys.stdin.buffer.read().split()));n,q=next(it),next(it);left=[0]*(n+1);right=left.copy();parent=left.copy();size=[1]*(n+1);size[0]=0;rev=bytearray(n+1);rng=random.Random(1743);priority=[0]+[rng.getrandbits(64) for _ in range(n)]
+def flip(p):
+ if p:left[p],right[p]=right[p],left[p];rev[p]^=1
+def push(p):
+ if rev[p]:flip(left[p]);flip(right[p]);rev[p]=0
+def pull(p):
+ size[p]=1+size[left[p]]+size[right[p]]
+ if left[p]:parent[left[p]]=p
+ if right[p]:parent[right[p]]=p
+def merge(a,b):
+ if not a or not b:
+  z=a or b
+  if z:parent[z]=0
+  return z
+ if priority[a]>priority[b]:push(a);right[a]=merge(right[a],b);pull(a);parent[a]=0;return a
+ push(b);left[b]=merge(a,left[b]);pull(b);parent[b]=0;return b
+def split(p,k):
+ if not p:return 0,0
+ push(p)
+ if size[left[p]]>=k:a,left[p]=split(left[p],k);pull(p);parent[p]=0;return a,p
+ right[p],b=split(right[p],k-size[left[p]]-1);pull(p);parent[p]=0;return p,b
+root=0
+for i in range(1,n+1):root=merge(root,i)
+out=[]
+for _ in range(q):
+ t,i=next(it),next(it)
+ if t==1:
+  j=next(it);a,b=split(root,i-1);b,c=split(b,j-i+1);flip(b);root=merge(a,merge(b,c))
+ elif t==2:
+  p=root
+  while p:
+   push(p);k=size[left[p]]+1
+   if i==k:out.append(str(p));break
+   if i<k:p=left[p]
+   else:i-=k;p=right[p]
+ else:
+  path=[];p=i
+  while p:path.append(p);p=parent[p]
+  for p in reversed(path):push(p)
+  rank=size[left[i]]+1;p=i
+  while parent[p]:
+   z=parent[p]
+   if right[z]==p:rank+=size[left[z]]+1
+   p=z
+  out.append(str(rank))
+print('\\n'.join(out))
+''','Implicit treap represents card order, lazy reversal supports interval mutation, subtree sizes answer rank selection. Each value has a permanent node with parent pointers; before computing its rank, propagate reversal flags down the ancestor chain. Split/merge maintain parent links and detach returned roots. Expected logarithmic operations avoid linear list reversals.'),
+371:('''import sys
+from collections import deque
+sys.setrecursionlimit(10000)
+it=iter(map(int,sys.stdin.buffer.read().split()));n=next(it);B=[[next(it) for _ in range(n)] for _ in range(n)];C=[next(it) for _ in range(n)];source=n;sink=n+1;g=[[] for _ in range(n+2)]
+def edge(u,v,c,d=0):g[u].append([v,len(g[v]),c]);g[v].append([u,len(g[u])-1,d])
+weights=[2*(B[i][i]-C[i]) for i in range(n)]
+for i in range(n):
+ for j in range(i+1,n):
+  w=B[i][j]+B[j][i]
+  if w:weights[i]+=w;weights[j]+=w;edge(i,j,w,w)
+total=0
+for i,w in enumerate(weights):
+ if w>0:edge(source,i,w);total+=w
+ elif w<0:edge(i,sink,-w)
+flow=0
+while True:
+ level=[-1]*(n+2);level[source]=0;q=deque([source])
+ while q:
+  u=q.popleft()
+  for v,rev,c in g[u]:
+   if c and level[v]<0:level[v]=level[u]+1;q.append(v)
+ if level[sink]<0:break
+ index=[0]*(n+2)
+ def send(u,f):
+  if u==sink:return f
+  while index[u]<len(g[u]):
+   e=g[u][index[u]];v,rev,c=e
+   if c and level[v]==level[u]+1:
+    z=send(v,min(f,c))
+    if z:e[2]-=z;g[v][rev][2]+=z;return z
+   index[u]+=1
+  return 0
+ while True:
+  z=send(source,10**30)
+  if not z:break
+  flow+=z
+print((total-flow)//2)
+''','For binary coordinates,2D is linear vertex reward minus nonnegative pair disagreement penalties. Combine asymmetric Bij+Bji, retain diagonal terms, encode positive/negative unary weights and undirected capacities in minimum cut. Empty subset is allowed. Dinic returns exact global maximum, not local coordinate greed.'),
+379:('''import sys,math
+v=list(map(int,sys.stdin.buffer.read().split()))
+print('\\n'.join(str(math.gcd(n-1,m-1)+1) for n,m in zip(v[::2],v[1::2])))
+''','Unfolding reflections identifies cells by folded residues of x+y and x-y modulo2*gcd(n-1,m-1). Nonattacking maximum equals g+1 invariant classes. Handle multiple input lines through EOF; dimensions count cells, so reflection periods use n-1,m-1.'),
+965:('''import sys,itertools
+s=list(sys.stdin.read().strip());holes=[i for i,c in enumerate(s) if c=='.'];answer=-1
+class Invalid(Exception):pass
+def bounded(v):
+ if not 0<=v<=1024:raise Invalid
+ return v
+def evaluate():
+ p=0
+ def atom():
+  nonlocal p
+  if p==len(s):raise Invalid
+  if s[p]=='(':
+   p+=1;v,ops=expression()
+   if p==len(s) or s[p]!=')' or not ops:raise Invalid
+   p+=1;return v
+  if s[p] not in '01':raise Invalid
+  value=0
+  while p<len(s) and s[p] in '01':value=bounded(value*2+int(s[p]));p+=1
+  return value
+ def term():
+  nonlocal p
+  value=atom();ops=0
+  while p<len(s) and s[p]=='*':p+=1;value=bounded(value*atom());ops+=1
+  return value,ops
+ def expression():
+  nonlocal p
+  value,ops=term()
+  while p<len(s) and s[p] in '+-':
+   op=s[p];p+=1;other,count=term();value=bounded(value+other if op=='+' else value-other);ops+=1+count
+  return value,ops
+ value,_=expression()
+ if p!=len(s):raise Invalid
+ return value
+for chars in itertools.product('01+-*()',repeat=len(holes)):
+ for i,c in zip(holes,chars):s[i]=c
+ try:answer=max(answer,evaluate())
+ except Invalid:pass
+print(answer)
+''','Enumerate at most7^5 unreadable replacements, parse with explicit multiplication precedence and left-associative addition/subtraction. Enforce unsigned binary literals and every intermediate in0..1024, including literals. Parentheses must contain an operation at their own expression level, disallowing bare parenthesized numbers per supplied grammar. Invalid syntax is rejected without eval.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH51.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

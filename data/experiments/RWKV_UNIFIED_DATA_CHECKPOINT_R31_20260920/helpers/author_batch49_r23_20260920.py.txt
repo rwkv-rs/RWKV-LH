@@ -1,0 +1,167 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+34:('''import sys,heapq
+it=iter(map(int,sys.stdin.buffer.read().split()));n,q=next(it),next(it);heap=[];by_left={};by_right={};students={};bit={};out=[]
+def add(l,r):
+ if l<=r:by_left[l]=r;by_right[r]=l;heapq.heappush(heap,(-(r-l+1),-r,l))
+def remove(l,r):del by_left[l];del by_right[r]
+def update(p,delta):
+ while p<=n:bit[p]=bit.get(p,0)+delta;p+=p&-p
+def prefix(p):
+ value=0
+ while p:value+=bit.get(p,0);p-=p&-p
+ return value
+add(1,n)
+for _ in range(q):
+ student=next(it)
+ if student==0:l,r=next(it),next(it);out.append(str(prefix(r)-prefix(l-1)));continue
+ if student in students:
+  p=students.pop(student);update(p,-1);l=r=p
+  if p-1 in by_right:l=by_right[p-1];remove(l,p-1)
+  if p+1 in by_left:r=by_left[p+1];remove(p+1,r)
+  add(l,r)
+ else:
+  while True:
+   neglen,negr,l=heapq.heappop(heap);r=-negr
+   if by_left.get(l)==r:break
+  remove(l,r);p=(l+r+1)//2;students[student]=p;update(p,1);add(l,p-1);add(p+1,r)
+print('\\n'.join(out))
+''','Heap selects longest free interval, rightmost on ties; upper midpoint handles even lengths. Endpoint maps merge adjacent free intervals on departures and invalidate stale heap entries. Sparse Fenwick stores occupied-position counts up to n1e9 without allocating n cells. Student IDs toggle presence, queries are inclusive.'),
+40:('''import sys
+from fractions import Fraction as F
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];p=list(zip(v[1::2],v[2::2]));cross=moment=0
+for (x,y),(X,Y) in zip(p,p[1:]+p[:1]):z=x*Y-X*y;cross+=z;moment+=(x+X)*z
+if cross<0:cross=-cross;moment=-moment
+area=F(cross,2);moment=F(moment,6);L=min(x for x,y in p if y==0);R=max(x for x,y in p if y==0);attach=p[0][0];low=F(0);high=None;valid=True
+for a,b in ((L-attach,moment-L*area),(attach-R,R*area-moment)):
+ if a==0:
+  if b<0:valid=False
+ elif a>0:
+  bound=b/a;high=bound if high is None else min(high,bound)
+ else:low=max(low,b/a)
+if not valid or (high is not None and high<low):print('unstable')
+else:
+ upper='inf' if high is None else str(-((-high.numerator)//high.denominator));print(f'{low.numerator//low.denominator} .. {upper}')
+''','Shoelace area and first moment locate horizontal center of mass exactly. Stability requires L*(A+W)<=moment+attachment_x*W<=R*(A+W), yielding two linear bounds on nonnegative W. Fraction arithmetic handles orientation, attachment on support endpoint, zero lower bound, infinite upper bound, and exact floor/ceil output.'),
+64:('''import sys
+it=iter(map(int,sys.stdin.buffer.read().split()));out=[]
+for _ in range(next(it)):
+ s,n=next(it),next(it);a=[next(it) for _ in range(n)];last={};diff=[0]*(s+1);constraints=0
+ for j,x in enumerate(a):
+  if x in last and j-last[x]<s:
+   i=last[x];l=(i+1)%s;r=j%s;constraints+=1
+   if l<=r:diff[l]+=1;diff[r+1]-=1
+   else:diff[l]+=1;diff[s]-=1;diff[0]+=1;diff[r+1]-=1
+  last[x]=j
+ value=answer=0
+ for r in range(s):value+=diff[r];answer+=(value==constraints)
+ out.append(str(answer))
+print('\\n'.join(out))
+''','A shuffle boundary phase is valid iff each pair of consecutive equal-song occurrences closer than s has a boundary between them. Such a pair allows a circular interval of residues modulo s. Difference-array intersection counts all phases satisfying all constraints, including partial first/last blocks and n<s. O(n+s), no simulated permutation enumeration.'),
+72:('''import sys,itertools
+v=iter(sys.stdin.buffer.read().split());out=[];EPS=1e-9
+for token in v:
+ n=int(token)
+ if not n:break
+ top=[(float(next(v)),float(next(v))) for _ in range(n)];points=top+[(x,y-1) for x,y in top];best=top[0][0];through=(n==1)
+ for (x,y),(X,Y) in itertools.combinations(points,2):
+  if abs(X-x)<EPS:continue
+  slope=(Y-y)/(X-x);offset=y-slope*x;previous=None;valid=True
+  for j,(xx,yy) in enumerate(top):
+   h=slope*xx+offset
+   if yy-1-EPS<=h<=yy+EPS:previous=(xx,yy,h);continue
+   valid=False
+   if previous is not None:
+    px,py,ph=previous;upper=h>yy;old=ph-py if upper else ph-(py-1);new=h-yy if upper else h-(yy-1);hit=px+(xx-px)*(-old)/(new-old);best=max(best,hit)
+   break
+  if valid:through=True;break
+ out.append('Through all the pipe.' if through else f'{best:.2f}')
+print('\\n'.join(out))
+''','At an optimal feasible beam, two pipe boundary vertices determine the line unless full passage is possible. Enumerate upper/lower vertex pairs with distinct x, scan cross-sections left to right, and intersect the first violated upper or lower wall segment. Both interval constraints are linear between bends, so endpoint checks suffice. Keep farthest horizontal hit; use epsilon only for geometric containment.'),
+91:('''import sys
+n=int(sys.stdin.buffer.read());print((n-1)*(n-1)//4)
+''','Circular reversal allows arbitrary final rotation. The minimum adjacent swaps is floor((n-1)^2/4), attained by reversing two contiguous near-equal arcs; their internal inversion counts sum to this value. Covers n1/2 requiring no change. Public exhaustive state-space validation checks all rotations for small n.'),
+94:('''import sys,bisect
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];primes=v[1:1+n];k=v[n+1];LIMIT=10**18
+if k==1:print(1);raise SystemExit
+def products(ps):
+ values=[1]
+ for p in ps:
+  old=values[:]
+  for x in old:
+   while x<=LIMIT//p:x*=p;values.append(x)
+ values.sort();return values
+a=products(primes[::2]);b=products(primes[1::2])
+if len(a)>len(b):a,b=b,a
+def enough(value):
+ count=0;j=len(b)-1
+ for x in a:
+  bound=value//x
+  while j>=0 and b[j]>bound:j-=1
+  if j<0:break
+  count+=j+1
+  if count>=k:return True
+ return False
+lo,hi=1,LIMIT
+while lo<hi:
+ mid=(lo+hi)//2
+ if enough(mid):hi=mid
+ else:lo=mid+1
+print(lo)
+''','Meet in the middle splits distinct primes into alternating groups and enumerates all prime-power products<=1e18 in each half. Unique factorization gives a bijection between valid numbers and pairs of half-products. Monotone two-pointer pair counting supports binary search for kth value; includes1 and avoids generating every combined smooth number.'),
+118:('''import sys
+from collections import deque
+it=iter(map(int,sys.stdin.buffer.read().split()));out=[]
+for case in range(1,next(it)+1):
+ n,m=next(it),next(it);counts=[]
+ for _ in range(n):
+  a=[0]*m
+  for j in range(next(it)):a[next(it)-1]+=1
+  counts.append(a)
+ size=m+n+1;source=m+n-1;sink=m+n;g=[[] for _ in range(size)]
+ def edge(u,v,c):g[u].append([v,len(g[v]),c]);g[v].append([u,len(g[u])-1,0])
+ for j in range(m):edge(source,j,counts[0][j]);edge(j,sink,1)
+ for i in range(1,n):
+  person=m+i-1
+  for j in range(m):
+   if counts[i][j]==0:edge(j,person,1)
+   elif counts[i][j]>1:edge(person,j,counts[i][j]-1)
+ answer=0
+ while True:
+  parent=[None]*size;parent[source]=(-1,-1);q=deque([source])
+  while q and parent[sink] is None:
+   u=q.popleft()
+   for j,(w,rev,c) in enumerate(g[u]):
+    if c and parent[w] is None:parent[w]=(u,j);q.append(w)
+  if parent[sink] is None:break
+  v=sink
+  while v!=source:u,j=parent[v];g[u][j][2]-=1;g[v][g[u][j][1]][2]+=1;v=u
+  answer+=1
+ out.append(f'Case #{case}: {answer}')
+print('\\n'.join(out))
+''','Network flow represents sticker inventory and legal exchanges. Source supplies Bob copies, each type has one sink slot, friends accept at most one of each missing type and give only their surplus copies. Flow conservation enforces equal exchange counts and permits chains through duplicate types. Residual reverse edges support reallocating earlier exchanges.'),
+912:('''import sys
+v=sys.stdin.buffer.read().split();n,m,k=map(int,v[:3]);board=v[3:3+n];commands=v[3+n].decode();free=0;target=0
+for r,row in enumerate(board):
+ for c,ch in enumerate(row):
+  if ch!=35:free|=1<<(r*m+c)
+  if ch==69:target=1<<(r*m+c)
+state=free;blocked={'R':free&~(free>>1),'L':free&~(free<<1),'D':free&~(free>>m),'U':free&~(free<<m)}
+if state==target:print(0)
+else:
+ for i,ch in enumerate(commands,1):
+  if ch=='R':moved=state<<1
+  elif ch=='L':moved=state>>1
+  elif ch=='D':moved=state<<m
+  else:moved=state>>m
+  state=(moved&free)|(state&blocked[ch])
+  if state==target:print(i);break
+ else:print(-1)
+''','Track the set of possible robot positions as a bitset. Each command shifts movable positions and retains those whose destination is a wall; perimeter walls prevent row wrap. Coalescing positions is exact because future transitions are deterministic. Return first prefix whose possibility set is exactly exit, allowing earlier visits/leavings and initial single-cell0.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH49.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

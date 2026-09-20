@@ -1,0 +1,119 @@
+from pathlib import Path
+import hashlib,json
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917'
+rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+402:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n,p=v[:2];colors=v[2:];mod=1000000007
+dp={(0,0):1};power=1
+for i,c in enumerate(colors):
+ nxt={}
+ for (flags,parity),ways in dp.items():
+  for color in ((0,1) if c==-1 else (c,)):
+   if flags&(1<<(1-color)):
+    factor=power*500000004%mod;options=(0,1)
+   else:factor=power;options=(1,)
+   for bit in options:
+    key=(flags|((1<<color) if bit else 0),parity^bit)
+    nxt[key]=(nxt.get(key,0)+ways*factor)%mod
+ dp=nxt;power=power*2%mod
+print(sum(ways for (flags,parity),ways in dp.items() if parity==p)%mod)
+''','Count paths ending at each new vertex modulo2. Its parity is1 xor incoming opposite-color odd-ending-path contributions. If any opposite odd predecessor exists, incoming-edge choices split equally between both parities; otherwise parity must be1. Same-color and even-contribution edges remain freely selectable. Eight DP states track existence of odd-ending paths for each color and total parity; unknown colors are summed explicitly. Exact modulo arithmetic; O(n).'),
+403:('''import sys,math
+read=sys.stdin.buffer.readline;n=int(read());size=1<<n;f=[0]*size
+for _ in range(size):
+ signs,value=read().split();mask=0
+ for j,c in enumerate(signs):
+  if c==45:mask|=1<<j
+ s=value.decode();negative=s.startswith('-');s=s.lstrip('+-');whole,sep,decimal=s.partition('.')
+ cents=int(whole)*100+int((decimal+'00')[:2]);f[mask]=-cents if negative else cents
+step=1
+while step<size:
+ jump=step*2
+ for base in range(0,size,jump):
+  for j in range(base,base+step):
+   a,b=f[j],f[j+step];f[j]=a+b;f[j+step]=a-b
+ step=jump
+denominator=100*size;stack=[(0,0,'')];out=[]
+while stack:
+ mask,start,name=stack.pop();value=f[mask]
+ if value:
+  g=math.gcd(value,denominator);top=value//g;bottom=denominator//g
+  coefficient=str(top) if bottom==1 else str(top)+'/'+str(bottom)
+  out.append(coefficient+(' '+name if name else '')+'\\n')
+  if len(out)>=4096:sys.stdout.write(''.join(out));out=[]
+ for j in range(n-1,start-1,-1):stack.append((mask|(1<<j),j+1,name+'x'+str(j+1)))
+sys.stdout.write(''.join(out))
+''','Fourier/Walsh expansion on signs: coefficients are the Walsh transform of function values divided by2^N. Parse the given at-most-two-decimal values as exact integer cents, so no float rounding enters rational output. Reduce by gcd against100*2^N. Preorder traversal of increasing variable-index tuples yields the specified polynomial lexicographic order; zero coefficients omitted. Streaming input/output avoids storing a million text rows; O(N*2^N) arithmetic.'),
+422:('''import sys
+from collections import deque
+sys.setrecursionlimit(10000)
+v=list(map(int,sys.stdin.buffer.read().split()));m,n=v[:2];a=v[2:];cells=m*n;source=2*cells;sink=source+1;graph=[[] for _ in range(sink+1)];inf=sum(x for x in a if x>0)+1
+def edge(u,v,c):
+ graph[u].append([v,c,len(graph[v])]);graph[v].append([u,0,len(graph[u])-1])
+for r in range(m):
+ for c in range(n):
+  k=r*n+c
+  if a[k]<0:continue
+  edge(2*k,2*k+1,inf if a[k]==0 else a[k])
+  if a[k]==0:edge(source,2*k,inf)
+  if r==0 or c==0 or r==m-1 or c==n-1:edge(2*k+1,sink,inf)
+  for rr,cc in ((r-1,c),(r+1,c),(r,c-1),(r,c+1)):
+   if 0<=rr<m and 0<=cc<n and a[rr*n+cc]>=0:edge(2*k+1,2*(rr*n+cc),inf)
+answer=0
+while True:
+ level=[-1]*len(graph);level[source]=0;q=deque([source])
+ while q:
+  u=q.popleft()
+  for dest,cap,rev in graph[u]:
+   if cap and level[dest]<0:level[dest]=level[u]+1;q.append(dest)
+ if level[sink]<0:break
+ at=[0]*len(graph)
+ def send(u,amount):
+  if u==sink:return amount
+  while at[u]<len(graph[u]):
+   e=graph[u][at[u]];dest,cap,rev=e
+   if cap and level[dest]==level[u]+1:
+    pushed=send(dest,min(amount,cap))
+    if pushed:e[1]-=pushed;graph[dest][rev][1]+=pushed;return pushed
+   at[u]+=1
+  return 0
+ while True:
+  pushed=send(source,inf)
+  if not pushed:break
+  answer+=pushed
+print(answer)
+''','Minimum weighted vertex cut from all enemy cells to the outside. Split every open cell into in/out with bombing cost; enemy capacity and movement/outside arcs exceed all finite bombing costs. Obstacles have no nodes or arcs. Dinic computes the mincut on at most1802 vertices. Handles one or multiple enemies without assuming the inconsistent sample count, and never bombs an enemy cell.'),
+427:('''import sys
+v=iter(map(int,sys.stdin.buffer.read().split()));cases=[];limit=0
+for _ in range(next(v)):
+ n,m=next(v),next(v);a=[];b=[]
+ for i in range(m):a.append(next(v));b.append(next(v))
+ cases.append((n,m,a,b));limit=max(limit,2*n-2)
+mod=998244353;fac=[1]*(limit+1)
+for i in range(1,limit+1):fac[i]=fac[i-1]*i%mod
+inv=[1]*(limit+1);inv[limit]=pow(fac[limit],mod-2,mod)
+for i in range(limit,0,-1):inv[i-1]=inv[i]*i%mod
+out=[]
+for n,m,a,b in cases:
+ mat=[[fac[n-1+y-x]*inv[n-1]%mod*inv[y-x]%mod if y>=x else 0 for y in b] for x in a];answer=1
+ for col in range(m):
+  pivot=next((r for r in range(col,m) if mat[r][col]),None)
+  if pivot is None:answer=0;break
+  if pivot!=col:mat[col],mat[pivot]=mat[pivot],mat[col];answer=-answer
+  row=mat[col];value=row[col];answer=answer*value%mod;reciprocal=pow(value,mod-2,mod)
+  for r in range(col+1,m):
+   factor=mat[r][col]*reciprocal%mod
+   if factor:
+    other=mat[r]
+    for k in range(col+1,m):other[k]=(other[k]-factor*row[k])%mod
+    other[col]=0
+ out.append(str(answer%mod))
+print('\\n'.join(out))
+''','Lindstrom-Gessel-Viennot determinant on the planar monotone grid. The entry from bottom starta_i to top endb_j is C(n-1+b_j-a_i,n-1), or zero when b_j<a_i. Sorted boundary endpoints ensure only identity matching is nonintersecting. Equal starts/ends correctly give zero determinant. Precompute factorial/inverse factorial through2*max(n)-2 and use modular Gaussian elimination with row-swap sign. O(max n + sum m^3), all arithmetic modulo998244353.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False,'not_in_running_r29_647_training':True},ensure_ascii=False,indent=2)+'\n')
+ records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH35.json').write_text(json.dumps({'candidates':records,'count':len(records)},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

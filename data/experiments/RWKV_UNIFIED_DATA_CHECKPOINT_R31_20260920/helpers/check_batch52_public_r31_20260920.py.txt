@@ -1,0 +1,94 @@
+from pathlib import Path
+import json,subprocess,sys,random,itertools,collections,math,functools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH52.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,inp,want):
+ r=subprocess.run([sys.executable,by[k]['candidate_path']],input=inp,text=True,capture_output=True,timeout=20);assert r.returncode==0,(k,r.stderr);assert r.stdout.strip()==str(want).strip(),(k,inp,r.stdout,want);counts[k]+=1
+rng=random.Random(20260920)
+for _ in range(60):
+ n=rng.randrange(1,35);a=[rng.randrange(1,n+1) for i in range(n)];out=[]
+ for k in range(1,n+1):
+  dp=[0]+[n+1]*n
+  for r in range(1,n+1):
+   for l in range(r):
+    if len(set(a[l:r]))<=k:dp[r]=min(dp[r],dp[l]+1)
+  out.append(dp[n])
+ run(0,str(n)+'\n'+' '.join(map(str,a)),' '.join(map(str,out)))
+values=[100,546939993600,172569415200,3467754019458593280]+[rng.randrange(1,10**7) for _ in range(40)]+[(a*a-1)*(b*b-1) for a,b in [(2,2),(2,31),(99,100),(17,3000)]];out=[]
+for case,n in enumerate(values,1):
+ parts=[]
+ for d in range(1,math.isqrt(n)+1) if n<10**8 else []:
+  if n%d==0:
+   a=math.isqrt(d+1);b=math.isqrt(n//d+1)
+   if a>1 and a*a==d+1 and b*b==n//d+1:parts.append((a,b))
+ if n>=10**8:
+  # Known public example factorizations, checked exactly rather than hidden cases.
+  known={546939993600:[(31,23869),(34,21761),(271,2729),(351,2107),(701,1055)],172569415200:[(456,911)],3467754019458593280:[(20513,90781)],(17*17-1)*(3000*3000-1):[(17,3000)]};parts=known[n]
+  assert all((a*a-1)*(b*b-1)==n for a,b in parts)
+ out.append(f'Case #{case}:');out.append(str(n)+'='+'='.join(f'({a}^2-1)*({b}^2-1)' for a,b in parts) if parts else f'For n={n} there is no almost square factorisation.')
+run(639,str(len(values))+'\n'+'\n'.join(map(str,values)),'\n'.join(out))
+for _ in range(45):
+ L,R=rng.randrange(1,5),rng.randrange(1,5);A=[rng.randrange(1,11) for i in range(L)];B=[rng.randrange(1,11) for i in range(R)];C=[[rng.randrange(5) for j in range(R)] for i in range(L)];answer=min(sum(x*a for x,a in zip(xs,A))+sum(B[j]*max(0,max(C[i][j]-xs[i] for i in range(L))) for j in range(R)) for xs in itertools.product(range(5),repeat=L));run(770,f'{L} {R}\n'+' '.join(map(str,A))+'\n'+' '.join(map(str,B))+'\n'+'\n'.join(' '.join(map(str,row)) for row in C),answer)
+for _ in range(35):
+ n=rng.randrange(1,80);edges=[(i,rng.randrange(i)) for i in range(1,n)];g=[[] for i in range(n)]
+ for a,b in edges:g[a].append(b);g[b].append(a)
+ queries=[];out=[]
+ for j in range(100):
+  x,k=rng.randrange(n),rng.randrange(n);queries.append((x+1,k));dist=[-1]*n;dist[x]=0;q=collections.deque([x])
+  while q:
+   a=q.popleft()
+   for b in g[a]:
+    if dist[b]<0:dist[b]=dist[a]+1;q.append(b)
+  out.append(str(dist.count(k)))
+ run(600,f'1\n{n} {len(queries)}\n'+'\n'.join(f'{a+1} {b+1}' for a,b in edges)+'\n'+'\n'.join(f'{x} {k}' for x,k in queries),'\n'.join(out))
+for _ in range(65):
+ n=rng.randrange(1,8);army=rng.randrange(7);a=[rng.randrange(12) for i in range(n)];b=[rng.randrange(4) for i in range(n)];c=[rng.randrange(20) for i in range(n)];edges=[(u,v) for u in range(n) for v in range(u) if rng.randrange(3)==0];options=[[i]+[u for u,v in edges if v==i] for i in range(n)];answer=-1
+ # Enumerate actual defense schedules, including skip, not the heap decision rule.
+ for choices in itertools.product(*[[-1]+o for o in options]):
+  current=army;valid=True
+  for i in range(n):
+   if current<a[i]:valid=False;break
+   current+=b[i];current-=choices.count(i)
+   if current<0:valid=False;break
+  if valid:answer=max(answer,sum(c[i] for i,z in enumerate(choices) if z>=0))
+ run(607,f'{n} {len(edges)} {army}\n'+'\n'.join(f'{a[i]} {b[i]} {c[i]}' for i in range(n))+'\n'+'\n'.join(f'{u+1} {v+1}' for u,v in edges),answer)
+for _ in range(60):
+ n=9;m=4;tiles=[rng.randrange(n) for j in range(13)];c=[tiles.count(i) for i in range(n)]
+ @functools.lru_cache(None)
+ def melds(state):
+  if not any(state):return True
+  i=next(i for i,x in enumerate(state) if x);row=list(state)
+  if row[i]>=3:
+   row[i]-=3
+   if melds(tuple(row)):return True
+   row[i]+=3
+  if i+2<n and row[i+1] and row[i+2]:
+   for j in range(i,i+3):row[j]-=1
+   if melds(tuple(row)):return True
+  return False
+ out=[]
+ for x in range(n):
+  row=c[:];row[x]+=1
+  for pair in range(n):
+   if row[pair]>=2:
+    row[pair]-=2;ok=melds(tuple(row));row[pair]+=2
+    if ok:out.append(x+1);break
+ run(627,f'{n} {m}\n'+' '.join(str(x+1) for x in tiles),' '.join(map(str,out)) if out else 'NO')
+for _ in range(55):
+ n=rng.randrange(1,8);A=[rng.randrange(1,9) for i in range(n)];B=[rng.randrange(1,9) for i in range(n)];answer=999
+ for p in itertools.permutations(range(n)):
+  visible=[A[i] if (i-j)%2==0 else B[i] for j,i in enumerate(p)]
+  if visible==sorted(visible):answer=min(answer,sum(p[i]>p[j] for i in range(n) for j in range(i+1,n)))
+ run(628,str(n)+'\n'+' '.join(map(str,A))+'\n'+' '.join(map(str,B)),answer if answer<999 else -1)
+for _ in range(40):
+ n=rng.randrange(1,10);K=rng.randrange(1,n+1);values=[rng.randrange(1,100) for i in range(n)];weights=[rng.randrange(1,30) for i in range(n)];edges=[(i,rng.randrange(i)) for i in range(1,n)];g=[[] for i in range(n)]
+ for a,b in edges:g[a].append(b);g[b].append(a)
+ answer=0
+ for mask in range(1,1<<n):
+  if mask.bit_count()<K:continue
+  first=(mask&-mask).bit_length()-1;seen={first};stack=[first]
+  while stack:
+   for z in g[stack.pop()]:
+    if mask>>z&1 and z not in seen:seen.add(z);stack.append(z)
+  if len(seen)==mask.bit_count():answer=max(answer,sum(values[i] for i in seen)/sum(weights[i] for i in seen))
+ run(650,f'{n} {K}\n'+' '.join(map(str,values))+'\n'+' '.join(map(str,weights))+'\n'+'\n'.join(f'{a+1} {b+1}' for a,b in edges),f'{answer:.2f}')
+p=D/'PUBLIC_CROSSCHECKS_BATCH52.json';assert not p.exists();p.write_text(json.dumps({'seed':20260920,'independent_public_crosschecks':counts,'hidden_cases_read':False},indent=2)+'\n');print(counts)

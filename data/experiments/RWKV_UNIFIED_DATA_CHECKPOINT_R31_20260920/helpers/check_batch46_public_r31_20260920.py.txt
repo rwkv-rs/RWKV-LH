@@ -1,0 +1,80 @@
+from pathlib import Path
+import json,subprocess,sys,random,itertools,collections,math
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH46.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,inp,want):
+ r=subprocess.run([sys.executable,by[k]['candidate_path']],input=inp,text=True,capture_output=True,timeout=20);assert r.returncode==0,(k,r.stderr);assert r.stdout.strip()==str(want).strip(),(k,inp,r.stdout,want);counts[k]+=1
+rng=random.Random(20260920)
+for _ in range(40):
+ n=rng.randrange(1,100);s=[rng.choice('ATGC') for i in range(n)];initial=''.join(s);ops=[];answers=[]
+ for j in range(100):
+  if rng.randrange(3)==0:
+   x=rng.randrange(n);c=rng.choice('ATGC');ops.append(f'1 {x+1} {c}');s[x]=c
+  else:
+   l=rng.randrange(n);r=rng.randrange(l,n);e=''.join(rng.choice('ATGC') for i in range(rng.randrange(1,11)));ops.append(f'2 {l+1} {r+1} {e}');answers.append(str(sum(s[i]==e[(i-l)%len(e)] for i in range(l,r+1))))
+ run(792,initial+'\n'+str(len(ops))+'\n'+'\n'.join(ops),'\n'.join(answers))
+def maxflow(a):
+ n=len(a);a=[r[:] for r in a];answer=0
+ while True:
+  parent=[-1]*n;parent[0]=0;q=[0]
+  for u in q:
+   for v in range(n):
+    if a[u][v]>0 and parent[v]<0:parent[v]=u;q.append(v)
+  if parent[-1]<0:return answer
+  v=n-1;amount=10**9
+  while v:u=parent[v];amount=min(amount,a[u][v]);v=u
+  v=n-1
+  while v:u=parent[v];a[u][v]-=amount;a[v][u]+=amount;v=u
+  answer+=amount
+for _ in range(28):
+ n=rng.randrange(2,5);budget=rng.randrange(4);edges=rng.sample([(i,j) for i in range(n) for j in range(n) if i!=j],rng.randrange(1,min(6,n*(n-1))+1));a=[[0]*n for i in range(n)]
+ for i,j in edges:a[i][j]=rng.randrange(1,4)
+ best=maxflow(a)
+ for countsadd in itertools.product(range(budget+1),repeat=len(edges)):
+  if sum(countsadd)>budget:continue
+  b=[r[:] for r in a]
+  for (i,j),x in zip(edges,countsadd):b[i][j]+=x
+  best=max(best,maxflow(b))
+ run(802,f'{n} {budget}\n'+'\n'.join(' '.join(map(str,r)) for r in a),best)
+run(807,'2\n10\n4 4\nOOGO\nXXOO\nXOOX\nXXOO\nXXOO\nOOFO\n2\n2 2\nOG\nXX\nOO\nFO','The minimum number of turns is 9.\nThe problem has no solution.')
+for _ in range(35):
+ n=rng.randrange(1,5);m=rng.randrange(1,7);limit=rng.randrange(1,20);start=rng.randrange(m);goal=rng.randrange(m);lanes=[list(''.join(rng.choice('OX') for i in range(m))) for j in range(n)];initial=[''.join(r) for r in lanes];positions={(n+1,start)};ans=None
+ for t in range(1,limit+1):
+  for r in range(n):
+   right=(n-1-r)%2==0;lanes[r]=lanes[r][-1:]+lanes[r][:-1] if right else lanes[r][1:]+lanes[r][:1]
+  new=set()
+  for r,c in positions:
+   for dr,dc in ((0,0),(1,0),(-1,0),(0,1),(0,-1)):
+    rr,cc=r+dr,c+dc
+    if 0<=rr<n+2 and 0<=cc<m and (rr in (0,n+1) or lanes[rr-1][cc]!='X'):new.add((rr,cc))
+  positions=new
+  if (0,goal) in positions:ans=t;break
+ board=['O'*goal+'G'+'O'*(m-goal-1)]+initial+['O'*start+'F'+'O'*(m-start-1)];run(807,f'1\n{limit}\n{n} {m}\n'+'\n'.join(board),f'The minimum number of turns is {ans}.' if ans is not None else 'The problem has no solution.')
+for _ in range(45):
+ roots=sorted(rng.sample(range(-24,25),rng.randrange(1,6)));a=[1]
+ for r in roots:
+  b=[0]*(len(a)+1)
+  for i,x in enumerate(a):b[i]+=x;b[i+1]-=r*x
+  a=b
+ run(826,str(len(roots))+' '+' '.join(map(str,a))+'\n0','Equation 1: '+' '.join(f'{r:.4f}' for r in roots))
+run(829,'2\nEnglish Department\nDr.,Tom,Davis,Anystreet USA,555-2832,555-2423,823\nMrs.,Jessica,Lembeck,Center Street,555-2543,555-8584,928\n\nComputer Science\nMr.,John,Euler,East Pleasure,555-1432,555-2343,126\n','\n'.join(['-'*40,'Dr. Tom Davis','Anystreet USA','Department: English Department','Home Phone: 555-2832','Work Phone: 555-2423','Campus Box: 823','-'*40,'Mr. John Euler','East Pleasure','Department: Computer Science','Home Phone: 555-1432','Work Phone: 555-2343','Campus Box: 126','-'*40,'Mrs. Jessica Lembeck','Center Street','Department: English Department','Home Phone: 555-2543','Work Phone: 555-8584','Campus Box: 928']))
+for _ in range(25):
+ h,w,n=rng.randrange(2,4),rng.randrange(2,4),rng.randrange(1,4);a=[[str(rng.randrange(1,4)) for i in range(w)] for j in range(h)];states={(r,c,'') for r in range(h) for c in range(w)}
+ for t in range(2*n):
+  nxt=set()
+  for r,c,s in states:
+   for j in range(w if t%2==0 else h):
+    rr,cc=(r,j) if t%2==0 else (j,c);nxt.add((rr,cc,s+a[rr][cc]))
+  states=nxt
+ run(840,f'{h} {w} {n}\n'+'\n'.join(''.join(r) for r in a),len({s for r,c,s in states}))
+queries=[];answers=[]
+for a,b,c,d in itertools.product(range(1,7),repeat=4):
+ # enumerate x through algebraic finite upper bound ac*(dc-1); compare cross products directly.
+ count=0
+ for y in range(1,d*c+1):
+  # Independent rational equality using Fraction to derive integral x.
+  from fractions import Fraction
+  z=Fraction(d,y)-Fraction(b,c)
+  if z>0 and (Fraction(a,1)/z).denominator==1:count+=1
+ queries.append((a,b,c,d));answers.append(str(count))
+run(844,str(len(queries))+'\n'+'\n'.join(' '.join(map(str,q)) for q in queries),'\n'.join(answers))
+proof=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919/PUBLIC_CROSSCHECKS_BATCH46.json';assert not proof.exists();proof.write_text(json.dumps({'author':'current Codex assistant','seed':20260920,'passed':True,'checks':counts,'private_cases_read':False},indent=2)+'\n');print(counts)

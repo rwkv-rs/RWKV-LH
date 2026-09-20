@@ -1,0 +1,76 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+522:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n,k=v[:2];a=v[2:2+n];b=iter(sorted(v[2+n:],reverse=True));a=[next(b) if x==0 else x for x in a];print('Yes' if any(a[i]>a[i+1] for i in range(n-1)) else 'No')
+''','Fillunknownswithdistinctreplacementvalues indescendingorder. Atleasttwo unknowns necessarilycreateaninversionbetweentheirpositions; oneunknownhasuniquereplacement. Testingadjacentinversionsofthiscompletion thereforedecidesexistenceofanonincreasingsequence, respectingallfixedvalues.'),
+524:('''import sys
+from collections import Counter
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];a=v[1:];freq=Counter(a)
+if max(freq.values())>(n+1)//2:print(-1)
+else:
+ bad=Counter(a[i] for i in range(n-1) if a[i]==a[i+1]);total=sum(bad.values());print(max((total+1)//2,max(bad.values(),default=0)))
+''','Feasibilityismaxfrequency<=ceil(n/2). A reversalchangesonlytwo boundaryadjacencies; two badboundaries canbothbe removedwhencolorsdiffer, whileeachsamecolor requiresitsownoperation. Minimum=max(ceil(total_bad/2),max_bad_of_one_color); feasibilityensuresremainingdominantbadboundariescanbe splitusinggoodboundaries. Internalreversalpreservesequality.'),
+530:('''import sys
+out=[]
+for line in sys.stdin.buffer:
+ if line.startswith(b'#'):break
+ if line.endswith(b'\\n'):line=line[:-1]
+ if line.endswith(b'\\r'):line=line[:-1]
+ value=0
+ for b in line:value=(value*256+b)%34943
+ crc=(-value*65536)%34943;out.append(f'{crc>>8:02X} {crc&255:02X}')
+print('\\n'.join(out))
+''','Interpretmessagebytesbig-endian andcomputeMmod34943incrementally; appendingtwoCRCbytes requirescrc=-(M*65536)mod34943. Preserveinternal/leading/trailingspacesandemptymessages; removeonlylineending. Hashincolumn1 terminates. Exactlytwo uppercasehexbytes withspace.'),
+537:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];a=v[1:1+n];b=v[1+n:1+2*n];answer=0;previous=0
+for x,y in zip(a,b):
+ current=y-x
+ if current*previous<=0:answer+=abs(current)
+ else:answer+=max(0,abs(current)-abs(previous))
+ previous=current
+print(answer)
+''','Treattarget-currentdifference aspositiveandnegativeheightprofiles. Contiguoussame-signruns shareoperations; onlyincreasesinabsolutedifference startnewoperations, andsignchangesstartallnewlayers. Positiveadjustmentsneverdelete; negativelayersstopattargetnonnegativeheights. Linear-time exactminimum, noexecutionofsourcecode.'),
+538:('''import sys,math
+from array import array
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];a=v[1:];limit=2000000;spf=array('i',[0])*(limit+1)
+for p in range(2,math.isqrt(limit)+1):
+ if not spf[p]:
+  for j in range(p*p,limit+1,p):
+   if not spf[j]:spf[j]=p
+blocked=bytearray(limit+1);greater=False;pointer=2;out=[]
+for x in a:
+ y=pointer if greater else x
+ while blocked[y]:y+=1
+ if y>x:greater=True
+ out.append(y);remaining=y
+ while remaining>1:
+  p=spf[remaining] or remaining;blocked[p::p]=b'\\x01'*(limit//p)
+  while remaining%p==0:remaining//=p
+ if greater:pointer=y+1
+print(' '.join(map(str,out)))
+''','Greedykeeptheprefixidenticalwhilea_iusesnoneofpreviousprimefactors. Atfirstconflictchooseleastvalidlargervalue; afterwardschooseleastunusedprimefrom2upwards. Sievefactorization andblockedmultiplesenforcepairwisecoprimality, notmerelyadjacentgcd. 2millionsievecontainsenoughprimes for100000outputs evenafterallprimefactors<=100000areused.'),
+540:('''import sys
+v=iter(map(int,sys.stdin.buffer.read().split()));out=[]
+for _ in range(next(v)):
+ n,x,y=next(v),next(v),next(v);out.append(str(max(1,x+y-n+1))+' '+str(min(n,x+y-1)))
+print('\\n'.join(out))
+''','Rankcounts allparticipantswithsum<=ownsum, includingtiesandself. Oppositelypairingavailablefirst/secondroundranks yieldsmin max(1,x+y-n+1); maximallypairinglowranks yieldsmax min(n,x+y-1). Handlesn1andextremepositions; O(1)percase.'),
+556:('''import sys
+n,h=map(int,sys.stdin.buffer.read().split())
+def capacity(length):
+ rising=max(0,min(length,(length-h+2)//2));falling=length-rising
+ return rising*h+rising*(rising-1)//2+falling*(falling+1)//2
+lo,hi=1,n
+while lo<hi:
+ mid=(lo+hi)//2
+ if capacity(mid)>=n:hi=mid
+ else:lo=mid+1
+print(lo)
+''','ForlengthL, maximalfeasibleprofile atpositioni is min(H+i-1,L-i+1), constrainedbyleftfenceandrightzero. Sumitsrising/fallingarithmeticsegments exactly; monotonecapacity permitsbinarysearch over1..n usingarbitraryprecisionintegers. Anyintermediatevolumecanbe obtainedbyloweringexposedpeaks, so capacity>=n is sufficient.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH41.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

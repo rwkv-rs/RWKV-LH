@@ -1,0 +1,11 @@
+from pathlib import Path
+import json,sys,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
+from rwkv_lh.direct_trace_data import replay_run
+from rwkv_lh.token_budget import tokenizer
+from rwkv_lh import model_io
+D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';B=R/'data/experiments/RWKV_QWEN38_TEACHER_R17_20260916/bulk_deployment';batch=sys.argv[1];records=json.loads((D/('AUTHORED_BATCH'+batch+'.json')).read_text())['candidates'];inventory={r['id']:r for r in json.loads((P/'INVENTORY.json').read_text())['tasks']};targets=[]
+for r in records:
+ row=inventory[r['id']];root=B/'inputs'/r['id']/'original';manifest=json.loads((root.parent/'MANIFEST.json').read_text());checkpoint=r.get('checkpoint_override',row['original_binding']['checkpoint']);model=manifest['model_sha256'];actual=replay_run(root,model)[checkpoint];task=(P/'tasks'/r['id']/'TASK.md').read_bytes().decode();assert task in actual['input_text'] or json.dumps(task,ensure_ascii=False)[1:-1] in actual['input_text'];p=Path(r['candidate_path']);code=p.read_bytes().decode();target=json.dumps(model_io.ModelCommand('write_file',{'path':'solution.py','content':code}).to_wire_dict(),ensure_ascii=False)+model_io.JSON_CALL_STOP_SUFFIXES[0];total=len(actual['input_token_ids'])+len(tokenizer().encode(target))-1;assert total<=24576,(r['id'],total)
+ targets.append(dict(r,solution_sha256=hashlib.sha256(p.read_bytes()).hexdigest(),task_sha256=row['task_sha256'],checkpoint=checkpoint,input_sha256=hashlib.sha256(actual['input_text'].encode()).hexdigest(),model_sha256=model,review={'reviewer':'current Codex assistant, candidate author and explicit source/algorithm reviewer','accepted':True,'visible_evidence_only':True,'source_consistent':True,'output_contract':'exact_unique','algorithm_assessment':r['review_note'],'private_answers_read':False,'execution_claims_in_target':False,'limitations':'One source reviewer plus actual isolated tests, not independent dual semantic review.'},training_admitted=False));print(r['ordinal'],total,flush=True)
+p=D/'batches'/batch;p.mkdir(parents=True,exist_ok=True);(p/'TARGETS.json').write_text(json.dumps({'targets':targets},ensure_ascii=False,indent=2)+'\n')

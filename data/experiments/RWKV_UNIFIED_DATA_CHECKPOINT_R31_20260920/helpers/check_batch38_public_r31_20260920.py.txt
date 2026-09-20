@@ -1,0 +1,59 @@
+from pathlib import Path
+import json,subprocess,sys,random,collections
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH38.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,inp,want):
+ r=subprocess.run([sys.executable,by[k]['candidate_path']],input=inp,text=True,capture_output=True,timeout=8);assert r.returncode==0,(k,r.stderr);assert r.stdout.strip()==str(want).strip(),(k,inp,r.stdout,want);counts[k]+=1
+run(472,'6 5\n1 2 3 2 3 3\n1 1 3 2\n1 4 6 3\n2 3\n1 1 3 2\n1 4 6 3\n','1\n2\n2\n3')
+rng=random.Random(20260920)
+for _ in range(40):
+ n=rng.randrange(2,45);a=[rng.randrange(1,8) for _ in range(n)];initial=a.copy();ops=[];out=[]
+ for __ in range(80):
+  if rng.random()<.5:
+   l=rng.randrange(n);r=rng.randrange(l,n);c=rng.randrange(1,10);ops.append(f'1 {l+1} {r+1} {c}');out.append(str(a[l:r+1].count(c)))
+  else:x=rng.randrange(n-1);ops.append(f'2 {x+1}');a[x],a[x+1]=a[x+1],a[x]
+ run(472,f'{n} {len(ops)}\n'+' '.join(map(str,initial))+'\n'+'\n'.join(ops),'\n'.join(out))
+run(476,'5 9\n1 2\n2 3\n3 4\n4 5\nQ 1 4\nC 2 1\nC 4 3\nQ 3 1\nQ 1 5\nU 1\nU 2\nC 4 3\nQ 3 4\n','Yes\nNo\nNo\nNo')
+for _ in range(35):
+ n=rng.randrange(2,40);edges=[(rng.randrange(v),v) for v in range(1,n)];adj=[[] for i in range(n)]
+ for i,(u,v) in enumerate(edges):adj[u].append((v,i));adj[v].append((u,i))
+ blocked=set();wars=[];active={};ops=[];out=[]
+ for __ in range(120):
+  mode=rng.randrange(3)
+  if mode==0 and len(blocked)<len(edges):
+   i=rng.choice([i for i in range(len(edges)) if i not in blocked]);blocked.add(i);wars.append(i);active[len(wars)]=i;u,v=edges[i];ops.append(f'C {u+1} {v+1}')
+  elif mode==1 and active:
+   i=rng.choice(list(active));blocked.remove(active.pop(i));ops.append(f'U {i}')
+  else:
+   u,v=rng.randrange(n),rng.randrange(n);ops.append(f'Q {u+1} {v+1}');seen={u};todo=[u]
+   while todo:
+    p=todo.pop()
+    for q,i in adj[p]:
+     if i not in blocked and q not in seen:seen.add(q);todo.append(q)
+   out.append('Yes' if v in seen else 'No')
+ run(476,f'{n} {len(ops)}\n'+''.join(f'{u+1} {v+1}\n' for u,v in edges)+'\n'.join(ops),'\n'.join(out))
+run(477,'3\n2\n3\n6\n','0\n1\n4')
+# Tower height5 has exponent65536; for p<=500 its residue hasalready stabilized.
+run(477,'500\n'+'\n'.join(map(str,range(1,501))),'\n'.join(str(pow(2,65536,p)) for p in range(1,501)))
+run(481,'5\n2 5\n##^##\nS...G\n2 5\n##v##\nS...G\n1 5\nS..G<\n1 6\nS...G<\n5 5\nS....\n.....\n.>v..\n.^<..\n....G\n','Case #1: 6\nCase #2: 4\nCase #3: 3\nCase #4: impossible\nCase #5: 8')
+for _ in range(35):
+ h,w=4,4;g=[[rng.choice('.....#^>v<') for c in range(w)] for r in range(h)];g[0][0]='S';g[-1][-1]='G';dirs=((-1,0),(0,1),(1,0),(0,-1));symbols='^>v<'
+ def safe(r,c,t):
+  for dr,dc in dirs:
+   rr,cc=r+dr,c+dc
+   while 0<=rr<h and 0<=cc<w:
+    ch=g[rr][cc]
+    if ch=='#':break
+    if ch in symbols:
+     if dirs[(symbols.index(ch)+t)%4]==(-dr,-dc):return False
+     break
+    rr+=dr;cc+=dc
+  return True
+ q=collections.deque([(0,0,0)]);seen={(0,0,0)};answer='impossible'
+ while q:
+  r,c,t=q.popleft()
+  if (r,c)==(h-1,w-1):answer=str(t);break
+  for dr,dc in dirs:
+   rr,cc=r+dr,c+dc;key=(rr,cc,(t+1)%4)
+   if 0<=rr<h and 0<=cc<w and g[rr][cc] not in '#^>v<' and key not in seen and safe(rr,cc,t+1):seen.add(key);q.append((rr,cc,t+1))
+ run(481,'1\n4 4\n'+'\n'.join(''.join(row) for row in g),f'Case #1: {answer}')
+p=D/'PUBLIC_CROSSCHECKS_BATCH38.json';assert not p.exists();p.write_text(json.dumps({'passed':True,'counts':counts,'private_answers_read':False,'seed':20260920},indent=2)+'\n');print(counts)

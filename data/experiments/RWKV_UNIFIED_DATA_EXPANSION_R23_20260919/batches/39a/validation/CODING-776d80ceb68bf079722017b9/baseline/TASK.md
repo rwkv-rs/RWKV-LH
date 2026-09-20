@@ -1,0 +1,54 @@
+**_This Time Keyur(Singal) has been challenged by his friend Nishant(Vaju).As keyur's programming skills are very poor so He asked you to help him, So As a Great programmer you have to help keyur.The challenge is as follow:  
+ Keyur has given a binary tree Mohib-tree. Every Mohib-tree has the following properties-  
+1\. Every Mohib-tree contains a root node that stores a positive integer greater than or equal to 2.  
+2\. Every node of an Mohib-tree is either a leaf node (has no children) or has exactly 2 children which are Mohib-trees as well.  
+The sum of values of children nodes is always equal to the value of the parent node.  
+Value of at least one of the children nodes divides the parent value.  
+The height of the tree is defined as the number of edges from the root to the deepest leaf.  
+Following is a valid Mohib-Tree:_**
+
+ **6 6**
+
+ **/ \\ / \\**
+
+ **2 4 3 3**
+
+ **/ \\**
+
+ **2 2**
+
+**_Input Format :_**
+
+**_The first line of the input gives the number of test cases, T. T test cases follow. Each test case starts with one line with one integer N, which represents the value of the root node._**
+
+**_Output Format:_**
+
+**_For each test case, output one line containing "Case #x:", where x is the test case number (starting from 1). Then, for every value N in the test case, output the maximum possible height of all R-trees with root N._**
+
+_**Constraints:**_
+
+_**0 < T <= 20**_
+
+_**2 <= N <= 10 $ ^{14} $**_
+
+_**Input:**_
+
+_**3**_
+
+_**2**_
+
+ _**6**_
+
+_**31**_
+
+_**Output:**_
+
+ ```
+<pre style="color: #000000; font-style: normal; font-variant: normal; font-weight: normal; letter-spacing: normal; line-height: normal; orphans: auto; text-align: start; text-indent: 0px; text-transform: none; widows: 1; word-spacing: 0px; -webkit-text-stroke-width: 0px; word-wrap: break-word; white-space: pre-wrap;"><p style="color: #000000; font-style: normal; font-variant: normal; font-weight: normal; letter-spacing: normal; line-height: normal; orphans: auto; text-align: start; text-indent: 0px; text-transform: none; widows: 1; word-spacing: 0px; -webkit-text-stroke-width: 0px; word-wrap: break-word; white-space: pre-wrap;"><em><strong>Case #1: 0
+Case #2: 2
+Case #3: 0</strong></em></p><br></br>
+```
+
+The input will be given via stdin and the output should be printed to stdout by your code.
+
+Now solve the problem by providing the code.

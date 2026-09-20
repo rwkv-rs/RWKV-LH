@@ -1,3 +1,11 @@
+# 当前 R31 进行中：正式747条，满1000后训练（2026-09-20）
+
+最新owner要求不中断完成“真实格式1000→StateTune→独立测试→缺陷总结”。当前正式747条，仍差253；尚未启动新训练，不恢复R29中断State。R28 corrected647为基座，仅累加35以后已通过加载器批次。公开验证候选不计数。1910工程回归全绿、0跳过；无子代理、教师API、未push，owner五处修改保持。准确库存与SHA见 `data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920/INVENTORY.json`；R23 STATUS已同步。此为工作中检查点，任务尚未完成；下方旧数量为历史。
+
+# Owner最新顺序：先满1000，再训练（2026-09-20）
+
+Owner明确修正：先完成格式修补，再补足至少1000条合格数据，之后训练与测试。647条R29训练已停止，服务inactive/dead；实际87 optimizer steps、348样本、0完整epoch。中断State仅诊断，不保留生产、不继续R30评测。真实ledger与停止原因见R29 training/interrupted和OWNER_ORDER_CORRECTION_20260920.json。当前已冻结647条，仍差353；batch35四条仅公开交叉验证通过，尚未计数。以下647提前训练授权已被最新指令替代。
+
 # 最新R28格式修复完成（2026-09-20）
 
 647条已全部重新冻结；344条外层格式修复（R22 30＋R23 314），v6 300与R20 3原本一致。647条真实输入、token/mask/长度/参数/执行证据复验通过，1907工程回归全绿、0跳过。新包为`data/experiments/RWKV_TRAINING_TARGET_FORMAT_R28_20260920/frozen_corrected/`，SHA与逐行映射见该轮RESULT和REPORT。旧样本保留，不计新增。后续扩量从新647包开始，使用`temp/freeze_expansion_batch_r23_wire_r28_20260920.py`，下一新批次35；不要再调用旧内部name/arguments生产器。

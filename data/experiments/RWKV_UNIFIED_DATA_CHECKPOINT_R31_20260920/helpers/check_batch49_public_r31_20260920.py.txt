@@ -1,0 +1,78 @@
+from pathlib import Path
+import json,subprocess,sys,random,itertools,collections,math,heapq
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH49.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,inp,want):
+ r=subprocess.run([sys.executable,by[k]['candidate_path']],input=inp,text=True,capture_output=True,timeout=20);assert r.returncode==0,(k,r.stderr);assert r.stdout.strip()==str(want).strip(),(k,inp,r.stdout,want);counts[k]+=1
+rng=random.Random(20260920)
+for _ in range(45):
+ n=rng.randrange(1,50);a=[0]*n;students={};ops=[];out=[];nextid=1
+ for j in range(120):
+  kind=rng.randrange(3)
+  if kind==0:
+   l=rng.randrange(n);r=rng.randrange(l,n);ops.append(f'0 {l+1} {r+1}');out.append(str(sum(a[l:r+1])))
+  elif students and (kind==1 or all(a)):
+   x=rng.choice(list(students));a[students.pop(x)]=0;ops.append(str(x))
+  elif not all(a):
+   free=[];i=0
+   while i<n:
+    if a[i]:i+=1;continue
+    l=i
+    while i<n and not a[i]:i+=1
+    free.append((i-l,i-1,l))
+   length,r,l=max(free);p=(l+r+1)//2;students[nextid]=p;a[p]=1;ops.append(str(nextid));nextid+=1
+ run(34,f'{n} {len(ops)}\n'+'\n'.join(ops),'\n'.join(out))
+run(40,'7\n50 50\n0 50\n0 0\n30 0\n30 30\n40 40\n50 40','0 .. 1017');run(40,'7\n50 50\n0 50\n0 0\n10 0\n10 30\n20 40\n50 40','unstable')
+for _ in range(25):
+ # Rectangle with load on top corner remains supported for all nonnegative masses; both orientations.
+ x,y,w,h=[rng.randrange(1,20) for j in range(4)];p=[(x,y+h),(x,0),(x+w,0),(x+w,y+h)]
+ for q in (p,[p[0]]+p[:0:-1]):run(40,'4\n'+'\n'.join(f'{a} {b}' for a,b in q),'0 .. inf')
+for _ in range(70):
+ s=rng.randrange(1,12);n=rng.randrange(1,45);a=[rng.randrange(s)+1 for i in range(n)];answer=0
+ for phase in range(s):
+  groups={}
+  for i,x in enumerate(a):groups.setdefault((i-phase)//s,[]).append(x)
+  answer+=all(len(set(g))==len(g) for g in groups.values())
+ run(64,f'1\n{s} {n}\n'+' '.join(map(str,a)),answer)
+run(72,'4\n0 1\n2 2\n4 1\n6 4\n6\n0 1\n2 -0.6\n5 -4.45\n7 -5.57\n12 -10.8\n17 -16.55\n0','4.67\nThrough all the pipe.')
+for _ in range(25):
+ n=rng.randrange(2,12);slope=rng.randrange(-10,11);base=rng.randrange(-10,11);p=[(j,base+slope*j) for j in range(n)];run(72,str(n)+'\n'+'\n'.join(f'{x} {y}' for x,y in p)+'\n0','Through all the pipe.')
+for n in range(1,9):
+ initial=tuple(range(n));target=tuple(reversed(initial));goals={target[i:]+target[:i] for i in range(n)};q=collections.deque([(initial,0)]);seen={initial}
+ while q:
+  a,d=q.popleft()
+  if a in goals:answer=d;break
+  for i in range(n):
+   b=list(a);b[i],b[(i+1)%n]=b[(i+1)%n],b[i];b=tuple(b)
+   if b not in seen:seen.add(b);q.append((b,d+1))
+ run(91,str(n),answer)
+for _ in range(30):
+ primes=sorted(rng.sample([2,3,5,7,11,13,17,19],rng.randrange(1,6)));k=rng.randrange(1,70);h=[1];seen={1}
+ for j in range(k):
+  x=heapq.heappop(h)
+  for p in primes:
+   if p*x not in seen:seen.add(p*x);heapq.heappush(h,p*x)
+ if x<=10**18:run(94,str(len(primes))+'\n'+' '.join(map(str,primes))+'\n'+str(k),x)
+for _ in range(25):
+ n,m=rng.randrange(2,4),rng.randrange(1,4);initial=tuple(tuple(rng.randrange(3) for _ in range(m)) for i in range(n));seen={initial};q=[initial];best=0
+ for state in q:
+  best=max(best,sum(x>0 for x in state[0]))
+  for i in range(1,n):
+   for give in range(m):
+    if state[0][give]==0 or state[i][give]!=0:continue
+    for take in range(m):
+     if state[i][take]<=1:continue
+     z=[list(row) for row in state];z[0][give]-=1;z[i][give]+=1;z[0][take]+=1;z[i][take]-=1;z=tuple(map(tuple,z))
+     if z not in seen:seen.add(z);q.append(z)
+ lines=[]
+ for row in initial:
+  items=[i+1 for i,x in enumerate(row) for j in range(x)];lines.append(str(len(items))+' '+' '.join(map(str,items)))
+ run(118,f'1\n{n} {m}\n'+'\n'.join(lines),f'Case #1: {best}')
+for _ in range(50):
+ n,m=rng.randrange(3,9),rng.randrange(3,9);free={(r,c) for r in range(1,n-1) for c in range(1,m-1) if rng.randrange(4)}
+ if not free:free={(1,1)}
+ target=rng.choice(list(free));commands=''.join(rng.choice('LRUD') for i in range(100));state=set(free);answer=0 if state=={target} else -1
+ for i,ch in enumerate(commands,1):
+  dr,dc={'L':(0,-1),'R':(0,1),'U':(-1,0),'D':(1,0)}[ch];state={(r+dr,c+dc) if (r+dr,c+dc) in free else (r,c) for r,c in state}
+  if state=={target} and answer<0:answer=i
+ board=[''.join('E' if (r,c)==target else '.' if (r,c) in free else '#' for c in range(m)) for r in range(n)];run(912,f'{n} {m} {len(commands)}\n'+'\n'.join(board)+'\n'+commands,answer)
+proof=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919/PUBLIC_CROSSCHECKS_BATCH49.json';assert not proof.exists();proof.write_text(json.dumps({'author':'current Codex assistant','seed':20260920,'passed':True,'checks':counts,'private_cases_read':False},indent=2)+'\n');print(counts)

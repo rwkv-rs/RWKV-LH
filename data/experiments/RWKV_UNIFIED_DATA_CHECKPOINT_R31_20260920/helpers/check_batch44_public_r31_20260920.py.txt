@@ -1,0 +1,79 @@
+from pathlib import Path
+import json,subprocess,sys,random,itertools,collections
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH44.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,inp,want):
+ r=subprocess.run([sys.executable,by[k]['candidate_path']],input=inp,text=True,capture_output=True,timeout=15);assert r.returncode==0,(k,r.stderr);assert r.stdout.strip()==str(want).strip(),(k,inp,r.stdout,want);counts[k]+=1
+rng=random.Random(20260920)
+for _ in range(40):
+ n=rng.randrange(2,50);a=[0]*n;ops=[];out=[]
+ for j in range(100):
+  l=rng.randrange(n);r=rng.randrange(l,n);kind=rng.randrange(2);ops.append(f'{kind} {l+1} {r+1}')
+  if kind==0:
+   for i in range(l,r+1):a[i]^=1
+  else:out.append(str(sum(a[l:r+1])))
+ run(660,f'{n} {len(ops)}\n'+'\n'.join(ops),'\n'.join(out))
+run(674,'1 2 1\n2 3 2\n3 1 6\n1 2 5\n2 3 3\n3 1 4\n0 0 0','1 2 3 5 4 6');run(674,'1 2 1\n2 3 2\n1 3 3\n2 4 4\n0 0 0','Round trip does not exist')
+for _ in range(35):
+ walk=[rng.randrange(1,5) for i in range(rng.randrange(3,9))];walk.append(walk[0]);edges=list(zip(walk,walk[1:]));start=min(edges[0]);best=None
+ def dfs(u,used,path):
+  global best
+  if len(path)==len(edges):
+   if u==start:best=path if best is None or path<best else best
+   return
+  for i,(a,b) in enumerate(edges):
+   if not(used>>i&1) and u in (a,b):dfs(b if u==a else a,used|1<<i,path+(i+1,))
+ dfs(start,0,());run(674,''.join(f'{a} {b} {i+1}\n' for i,(a,b) in enumerate(edges))+'0 0 0',' '.join(map(str,best)))
+for _ in range(35):
+ n=rng.randrange(1,20);a=[rng.randrange(20) for i in range(n)];initial=a.copy();ops=[];out=[]
+ for j in range(150):
+  op=rng.randrange(1,5)
+  if op==3:
+   c=rng.randrange(len(a)+1);x=rng.randrange(30);ops.append(f'3 {c+1} {x}');a.insert(c,x)
+  else:
+   l=rng.randrange(len(a));r=rng.randrange(l,len(a));x=rng.randrange(30)
+   if op==1:ops.append(f'1 {l+1} {r+1} {x}');a[l:r+1]=[x]*(r-l+1)
+   elif op==2:
+    ops.append(f'2 {l+1} {r+1} {x}')
+    for i in range(l,r+1):a[i]+=(i-l+1)*x
+   else:ops.append(f'4 {l+1} {r+1}');out.append(str(sum(a[l:r+1])))
+ run(675,f'{n} {len(ops)}\n'+' '.join(map(str,initial))+'\n'+'\n'.join(ops),'\n'.join(out))
+for n in range(1,7):
+ for _ in range(5):
+  adj=[{i} for i in range(n)]
+  for i,j in itertools.combinations(range(n),2):
+   if rng.random()<.5:adj[i].add(j);adj[j].add(i)
+  best=0
+  def partition(i,groups):
+   global best
+   if i==n:
+    if all(set().union(*(adj[j] for j in group))==set(range(n)) for group in groups):best=max(best,len(groups))
+    return
+   for j in range(len(groups)):
+    groups[j].append(i);partition(i+1,groups);groups[j].pop()
+   groups.append([i]);partition(i+1,groups);groups.pop()
+  partition(0,[]);inp=str(n)+'\n'+''.join(str(len(s)-1)+' '+' '.join(map(str,sorted(s-{i})))+'\n' for i,s in enumerate(adj))+'0\n';run(689,inp,f'Case 1: {best}')
+for _ in range(35):
+ n=rng.randrange(1,8);d=rng.randrange(1,15);a=[rng.randrange(1,20) for i in range(n)];sums=[sum(a[i] for i in range(n) if mask>>i&1) for mask in range(1<<n)];dist={0:0};q=collections.deque([0])
+ while q:
+  x=q.popleft()
+  for y,total in enumerate(sums):
+   if total<=sums[x]+d and y not in dist:dist[y]=dist[x]+1;q.append(y)
+ best=max(sums[x] for x in dist);days=min(dist[x] for x in dist if sums[x]==best);run(690,f'{n} {d}\n'+' '.join(map(str,a)),f'{best} {days}')
+nums=list(range(1,150));out=[]
+for n in nums:
+ a=list(range(1,n+1));index=0;skip=0
+ while len(a)>1:index=(index+skip)%len(a);a.pop(index);skip+=1
+ out.append(str(a[0]))
+run(695,str(len(nums))+'\n'+'\n'.join(map(str,nums)),'\n'.join(out))
+for _ in range(60):
+ n=rng.randrange(1,45);k=rng.randrange(1,n+1);a=[rng.randrange(1,n+1) for i in range(n)];out=[]
+ for l in range(n-k+1):
+  best=0
+  for i in range(l,l+k):
+   value=a[i];count=1
+   for j in range(i+1,l+k):
+    if a[j]>value:value=a[j];count+=1
+   best=max(best,count)
+  out.append(str(best))
+ run(703,f'{n} {k}\n'+' '.join(map(str,a)),' '.join(out))
+p=D/'PUBLIC_CROSSCHECKS_BATCH44.json';assert not p.exists();p.write_text(json.dumps({'passed':True,'counts':counts,'private_answers_read':False,'seed':20260920},indent=2)+'\n');print(counts)
