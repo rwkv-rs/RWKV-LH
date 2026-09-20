@@ -1,0 +1,25 @@
+from pathlib import Path
+import json,random,subprocess,collections,re
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCHz110.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920);datasets=[];expected=[]
+for trial in range(180):
+ w=rng.randrange(2,8);h=rng.randrange(2,8);grid=[['X' if rng.random()<0.6 else ' ' for _ in range(w)] for _ in range(h)];occupied=[(x+1,y+1) for y in range(h) for x in range(w) if grid[y][x]=='X']
+ if len(occupied)<2:grid[0][0]=grid[-1][-1]='X';occupied=[(x+1,y+1) for y in range(h) for x in range(w) if grid[y][x]=='X']
+ board=[' '*(w+2)]+[' '+''.join(row)+' ' for row in grid]+[' '*(w+2)];queries=[]
+ for _ in range(5):
+  start,target=rng.sample(occupied,2);queries.append((*start,*target));distance={start:0};queue=collections.deque([start])
+  while queue:
+   x,y=queue.popleft()
+   for dx,dy in [(0,1),(0,-1),(1,0),(-1,0)]:
+    xx=x+dx;yy=y+dy
+    while 0<=xx<w+2 and 0<=yy<h+2:
+     if board[yy][xx]=='X' and (xx,yy)!=target:break
+     if (xx,yy) not in distance:distance[xx,yy]=distance[x,y]+1;queue.append((xx,yy))
+     if (xx,yy)==target:break
+     xx+=dx;yy+=dy
+  expected.append(distance.get(target))
+ datasets.append(f'{w} {h}\n'+'\n'.join(''.join(row) for row in grid)+'\n'+''.join(' '.join(map(str,q))+'\n' for q in queries)+'0 0 0 0\n')
+output=subprocess.check_output([str(R/'.venv/bin/python'),path],input=(''.join(datasets)+'0 0\n').encode(),timeout=20).decode();actual=[]
+for line in output.splitlines():
+ if line.startswith('Pair '):actual.append(None if line.endswith('impossible.') else int(line.split(': ')[1].split()[0]))
+assert actual==expected,[(i,a,b) for i,(a,b) in enumerate(zip(actual,expected)) if a!=b][:3]
+(D/'PUBLIC_CROSSCHECKS_BATCHz110.json').write_text(json.dumps({'status':'passed','cases':{'876':180},'queries_checked':len(expected),'seed':20260920,'private_cases_read':False,'oracle':'Unweighted cell graph with an edge for every unobstructed entire horizontal/vertical segment; ordinary BFS minimizes segment count directly'},indent=2)+'\n');print('public passed')

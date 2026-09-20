@@ -1,0 +1,19 @@
+from pathlib import Path
+import json,random,subprocess,re
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCHz115.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920);cases=[];answers=[]
+for trial in range(400):
+ n=rng.randrange(1,20);grid=[''.join('-' if rng.random()<0.75 else '#' for _ in range(2*(n-r)-1)) for r in range(n)];best=0
+ for r,line in enumerate(grid):
+  for j,c in enumerate(line):
+   for size in range(1,n+1):
+    cells=[];ok=True
+    for h in range(size):
+     rr=r-h if j%2==0 else r+h;left=j if j%2==0 else j-2*h;right=j+2*h if j%2==0 else j
+     if rr<0 or rr>=n or left<0 or right>=len(grid[rr]):ok=False;break
+     if any(grid[rr][x]!='-' for x in range(left,right+1)):ok=False;break
+    if ok:best=max(best,size*size)
+    else:break
+ cases.append(str(n)+'\n'+'\n'.join(grid)+'\n');answers.append(best)
+output=subprocess.check_output([str(R/'.venv/bin/python'),path],input=(''.join(cases)+'0\n').encode(),timeout=20).decode().splitlines();actual=[int(re.fullmatch(r'The largest triangle area is (\d+)\.',line)[1]) for line in output[1::2]];assert actual==answers
+sample='5\n#-##----#\n-----#-\n---#-\n-#-\n-\n4\n#-#-#--\n#---#\n##-\n-\n0\n';actual=subprocess.check_output([str(R/'.venv/bin/python'),path],input=sample.encode()).decode().splitlines();assert actual==['Triangle #1','The largest triangle area is 9.','Triangle #2','The largest triangle area is 4.'],actual
+(D/'PUBLIC_CROSSCHECKS_BATCHz115.json').write_text(json.dumps({'status':'passed','cases':{'1004':402},'seed':20260920,'private_cases_read':False,'oracle':'Enumerate all apexes, orientations and side lengths, inspect every unit cell of each triangular footprint; published two-case example'},indent=2)+'\n');print('public passed')

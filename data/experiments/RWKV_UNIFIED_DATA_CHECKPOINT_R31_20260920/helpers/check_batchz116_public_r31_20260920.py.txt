@@ -1,0 +1,28 @@
+from pathlib import Path
+import json,random,subprocess,itertools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCHz116.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920);cases=[];answers=[]
+for trial in range(120):
+ n=rng.randrange(1,6);q=rng.randrange(4);points=[(rng.randrange(8),rng.randrange(8)) for _ in range(n)];subnets=[(rng.randrange(35),rng.sample(range(n),rng.randrange(1,n+1))) for _ in range(q)];trees=[]
+ if n==1:trees=[[]]
+ else:
+  for seq in itertools.product(range(n),repeat=n-2):
+   degree=[1]*n
+   for x in seq:degree[x]+=1
+   edges=[]
+   for x in seq:
+    leaf=next(i for i,d in enumerate(degree) if d==1);edges.append((leaf,x));degree[leaf]-=1;degree[x]-=1
+   rem=[i for i,d in enumerate(degree) if d==1];edges.append(tuple(rem));trees.append(edges)
+ best=10**9
+ for mask in range(1<<q):
+  component=list(range(n));cost=0
+  for i,(price,nodes) in enumerate(subnets):
+   if mask>>i&1:
+    cost+=price;merged={component[x] for x in nodes};representative=min(merged);component=[representative if c in merged else c for c in component]
+  for tree in trees:
+   value=cost
+   for a,b in tree:
+    if component[a]!=component[b]:value+=(points[a][0]-points[b][0])**2+(points[a][1]-points[b][1])**2
+   best=min(best,value)
+ cases.append(f'{n} {q}\n'+''.join(f'{len(nodes)} {price} '+' '.join(str(x+1) for x in nodes)+'\n' for price,nodes in subnets)+''.join(f'{x} {y}\n' for x,y in points));answers.append(best)
+actual=list(map(int,subprocess.check_output([str(R/'.venv/bin/python'),path],input=(str(len(cases))+'\n'+''.join(cases)).encode(),timeout=20).split()));assert actual==answers,[(cases[i],a,b) for i,(a,b) in enumerate(zip(actual,answers)) if a!=b][:3]
+(D/'PUBLIC_CROSSCHECKS_BATCHz116.json').write_text(json.dumps({'status':'passed','cases':{'883':120},'seed':20260920,'private_cases_read':False,'oracle':'Enumerate every subnet purchase subset and every labeled spanning tree via Prüfer sequences on the complete graph with purchased components at zero distance'},indent=2)+'\n');print('public passed')

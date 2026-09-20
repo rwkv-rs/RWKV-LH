@@ -1,0 +1,40 @@
+Maryanna and Lucyanna play tennis every Sunday afternoon since 10 years ago.
+
+A tennis match is determined through 5 sets. Typically the first player to win 3 sets wins the match. A set consists of games, and games, in turn, consist of points.
+
+A game consists of a sequence of points played with the same player serving. A game is won by the first player to have won at least four points in total and at least two points more than the opponent. The running score of each game is described in a manner peculiar to tennis: scores from zero to three points are described as "love", "fifteen", "thirty", and "forty" respectively. If at least three points have been scored by each player, and the scores are equal, the score is "deuce". If at least three points have been scored by each side and a player has one more point than his opponent, the score of the game is "advantage" for the player in the lead. During informal games, "advantage" can also be called "ad in" or "ad out", depending on whether the serving player or receiving player is ahead, respectively.
+
+A set consists of a sequence of games played with service alternating between games, ending when the count of games won meets certain criteria. Typically, a player wins a set by winning at least six games and at least two games more than the opponent.
+
+The first servers of two consecutive sets are different.
+
+Maryanna has found out when she is the server, her winning probability of this point is **M**%; otherwise, **Y**%. She wants to know her winning probability of the whole match if she serves first.
+
+## Input Format
+
+The first line contains **T** (**T** <= 10000), the number of test cases. **T** lines follow. Each line contains two space-separated positive integers **M**, **Y** (0 < **M**, **Y** < 100).
+
+## Output Format
+
+For each test case, output a single line, which should begin with the case number counting from 1, followed by Maryanna's winning percentage accurate to 4 decimal places. See the sample for more format details.
+
+## Sample Input and Output
+
+### Sample Input #1
+
+```
+2
+50 50
+51 51
+```
+
+### Sample Output #1
+
+```
+Case #1: 50.0000%
+Case #2: 63.5654%
+```
+
+The input will be given via stdin and the output should be printed to stdout by your code.
+
+Now solve the problem by providing the code.

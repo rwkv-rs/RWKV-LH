@@ -1,0 +1,19 @@
+from pathlib import Path
+import json,itertools,io,sys,subprocess
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCHz111.json').read_text())['candidates'][0]['candidate_path'];program=compile(Path(path).read_bytes(),path,'exec');count=0;permutations=0
+for n in range(1,9):
+ best={}
+ for p in itertools.permutations(range(1,n+1)):
+  a=[]
+  for i,x in enumerate(p):a.append(1+max((a[j] for j in range(i) if p[j]<x),default=0))
+  b=[1]*n
+  for i in range(n-1,-1,-1):b[i]=1+max((b[j] for j in range(i+1,n) if p[j]<p[i]),default=0)
+  key=tuple(a);best[key]=max(best.get(key,0),sum(b));permutations+=1
+ for a,want in best.items():
+  oldin,oldout=sys.stdin,sys.stdout;capture=io.StringIO();sys.stdin=io.TextIOWrapper(io.BytesIO((str(n)+'\n'+' '.join(map(str,a))+'\n').encode()));sys.stdout=capture
+  try:exec(program,{'__name__':'__main__'})
+  finally:sys.stdin,sys.stdout=oldin,oldout
+  actual=int(capture.getvalue());assert actual==want,(a,actual,want);count+=1
+for a,want in [([1]*100000,100000*100001//2),(list(range(1,100001)),100000)]:
+ actual=int(subprocess.check_output([str(R/'.venv/bin/python'),path],input=(str(len(a))+'\n'+' '.join(map(str,a))+'\n').encode(),timeout=10));assert actual==want
+(D/'PUBLIC_CROSSCHECKS_BATCHz111.json').write_text(json.dumps({'status':'passed','cases':{'941':count+2},'permutations_exhausted':permutations,'private_cases_read':False,'oracle':'Enumerate every permutation up to n=8, group by exact quadratic LIS-ending array, maximize exact quadratic LDS-starting score; also verify both full-size extremal arrays'},indent=2)+'\n');print('public passed',count,permutations)

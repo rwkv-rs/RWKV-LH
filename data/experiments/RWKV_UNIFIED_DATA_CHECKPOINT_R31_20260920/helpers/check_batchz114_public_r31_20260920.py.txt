@@ -1,0 +1,12 @@
+from pathlib import Path
+from fractions import Fraction
+import json,random,subprocess
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCHz114.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+for trial in range(220):
+ whole=''.join(rng.choice('01') for _ in range(rng.randrange(1,120)));fraction=''.join(rng.choice('01') for _ in range(rng.randrange(1,90))) if rng.random()<0.6 else None;text=whole+('.'+fraction if fraction is not None else '');output=subprocess.check_output([str(R/'.venv/bin/python'),path],input=(text+'\n').encode()).decode().rstrip('\n');octal,letters=output.split(' ',1);parts=octal.split('.');value=Fraction(int(parts[0],8));expected=Fraction(int(whole,2))
+ if fraction is not None:
+  assert len(parts)==2;value+=Fraction(int(parts[1],8),8**len(parts[1]));expected+=Fraction(int(fraction,2),2**len(fraction));assert len(parts[1])==(len(fraction)+2)//3
+ assert value==expected and parts[0]==format(int(whole,2),'o')
+ table={'0':' ','1':'A','2':'B','3':'C','4':'D','5':'E','6':'F','7':'G','.':' '};assert letters==''.join(table[c] for c in octal)
+for binary,want in [('10101101','255 BEE'),('101101101110.111','5556.7 EEEF G')]:assert subprocess.check_output([str(R/'.venv/bin/python'),path],input=(binary+'\n').encode()).decode().rstrip('\n')==want
+(D/'PUBLIC_CROSSCHECKS_BATCHz114.json').write_text(json.dumps({'status':'passed','cases':{'975':222},'seed':20260920,'private_cases_read':False,'oracle':'Exact Fraction value equivalence between independently parsed binary and octal, canonical integer formatting, explicit alphabet lookup, both examples'},indent=2)+'\n');print('public passed')

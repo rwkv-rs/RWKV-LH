@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "0142c2e9bbe902e6e850af99f01edb653831e195581472f1b0f6b130659b003a",
+  "solution_sha256": "7f7590221c56a89872b57665eade611c43b810ad404513a4bf6624d45e1c6a8e",
+  "reasoning": "Breadth-first layers minimize path length over states (cell, set of visited terrain types), excluding any return to S. Within a layer, process equal-prefix groups together and emit their next-letter buckets in alphabetic order; this preserves global lexicographic path ordering even when many states share the same text prefix. The first reachable T therefore has the lexicographically least shortest terrain string. A previously reached subset mask at the same cell dominates a superset because it used no more steps, is no worse lexicographically at equal depth, and leaves at least as much type budget. Store shared prefix backpointers instead of duplicating path strings for every state.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

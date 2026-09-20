@@ -1,0 +1,36 @@
+from pathlib import Path
+from decimal import Decimal as D,getcontext
+import json,random,subprocess,re
+getcontext().prec=80
+R=Path('/home/chase/GitHub/RWKV-LH');ROOT=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((ROOT/'AUTHORED_BATCHz117a.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920);cases=[];expected=[]
+def phases(legs,v,a,stop):
+ result=[];t=D(0);x=D(0);ramp=v/a;rd=v*v/(2*a)
+ for i,length in enumerate(legs):
+  for duration,velocity,accel in [(ramp,D(0),a),((length-2*rd)/v,v,D(0)),(ramp,v,-a)]:
+   if duration:result.append((t,t+duration,x,velocity,accel))
+   x+=velocity*duration+accel*duration*duration/2;t+=duration
+  if i+1<len(legs) and stop:result.append((t,t+stop,x,D(0),D(0)));t+=stop
+ return result
+for trial in range(120):
+ n=rng.randrange(1,9);v=D(rng.randrange(1,6)*5280);a=D(rng.randrange(2,9)*5280);stop=D(rng.randrange(6));minimum=int(v*v/a/5280)+1;legs=[D(rng.randrange(minimum,minimum+11)*5280) for _ in range(n)];positions=[];s=D(0)
+ for length in legs:s+=length;positions.append(s)
+ left=phases(legs,v,a,stop);right=phases(legs[::-1],v,a,stop);events=sorted({t for phase in left+right for t in phase[:2]});li=ri=0
+ def local(phase,t):
+  start,end,x,speed,acc=phase;dt=t-start;return x+speed*dt+acc*dt*dt/2,speed+acc*dt,acc
+ for t,end in zip(events,events[1:]):
+  while li+1<len(left) and left[li][1]<=t:li+=1
+  while ri+1<len(right) and right[ri][1]<=t:ri+=1
+  x,vx,ax=local(left[li],t);y,vy,ay=local(right[ri],t);c=x+y-s;b=vx+vy;aa=(ax+ay)/2;duration=end-t
+  if abs(c)<D('1e-60'):dt=D(0)
+  elif c+b*duration+aa*duration*duration<D('-1e-60'):continue
+  elif aa==0:dt=-c/b
+  else:
+   disc=(b*b-4*aa*c).sqrt();roots=[(-b+disc)/(2*aa),(-b-disc)/(2*aa)];dt=next(z for z in roots if -D('1e-50')<=z<=duration+D('1e-50'))
+  meeting=t+dt;where=x+vx*dt+ax*dt*dt/2;station=next((i+1 for i,p in enumerate(positions[:-1]) if abs(where-p)<D('1e-40')),None);expected.append((meeting,where/5280,station));break
+ else:raise AssertionError('oracle missed intersection')
+ cases.append(' '.join(str(p/5280) for p in positions)+' 0.0\n'+f'{v}\n{a}\n{stop}\n')
+output=subprocess.check_output([str(R/'.venv/bin/python'),path],input=(''.join(cases)+'-1.0\n').encode(),timeout=30).decode();blocks=output.strip().split('\n\n');assert len(blocks)==len(expected)
+for i,(block,(time,where,station)) in enumerate(zip(blocks,expected),1):
+ lines=block.splitlines();assert lines[0]==f'Scenario #{i}:';got=D(re.fullmatch(r'Meeting time: ([0-9.]+) minutes',lines[1])[1]);m=re.fullmatch(r'Meeting distance: ([0-9.]+) miles from metro center hub(?:, in station (\d+))?',lines[2]);assert m;assert abs(got-time)<=D('0.05000000001') and abs(D(m[1])-where)<=D('0.00050000001');assert (int(m[2]) if m[2] else None)==station,(cases[i-1],lines,station)
+sample='15.0 0.0\n5280.0\n10560.0\n5.0\n3.5 7.0 0.0\n5280.0\n10560.0\n2.0\n3.4 7.0 0.0\n5280.0\n10560.0\n2.0\n-1.0\n';out=subprocess.check_output([str(R/'.venv/bin/python'),path],input=sample.encode()).decode();assert 'Meeting time: 7.8 minutes' in out and 'Meeting time: 4.0 minutes' in out and 'Meeting time: 4.1 minutes' in out
+(ROOT/'PUBLIC_CROSSCHECKS_BATCHz117a.json').write_text(json.dumps({'status':'passed','cases':{'918':123},'seed':20260920,'private_cases_read':False,'oracle':'Build every acceleration/cruise/deceleration/dwell polynomial phase, scan merged time events and solve the relative quadratic analytically at 80-digit precision; verify station and requested display precision'},indent=2)+'\n');print('public passed')
