@@ -1,0 +1,132 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+185:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));P=4294967143;inverse=pow(12,-1,P);powers=[(2,1)]
+for _ in range(64):a,b=powers[-1];powers.append(((a*a+3*b*b)%P,2*a*b%P))
+out=[]
+for n in v[1:]:
+ if n%2:out.append('0');continue
+ t=n//2;a,b=1,0;bits=t;i=0
+ while bits:
+  if bits&1:c,d=powers[i];a,b=(a*c+3*b*d)%P,(a*d+b*c)%P
+  bits//=2;i+=1
+ answer=(44*a+6*b+23*pow(3,t,P)+22*pow(2,t,P)+21)*inverse%P;out.append(str(answer))
+print('\\n'.join(out))
+''','Stepping strings are closed walks on the digit path0..10 with the initial0 excluded. Odd lengths vanish by bipartiteness. For n=2t, the five nonzero squared eigenvalues are2±sqrt3,3,2,1; subtracting the forbidden endpoint diagonal yields(44a+6b+23*3^t+22*2^t+21)/12 where(2+sqrt3)^t=a+b*sqrt3. Exact quadratic-ring exponentiation handles64-bit lengths and modular division uses gcd-safe inverse12.'),
+226:('''import sys
+v=sys.stdin.buffer.read().split();p=1;MOD=1000000007;out=[]
+for _ in range(int(v[0])):
+ n=int(v[p]);p+=1;graph=[[] for _ in range(n)]
+ for _ in range(n-1):
+  a,sign,b=v[p:p+3];p+=3;a=int(a);b=int(b);less=sign==b'<';graph[a].append((b,less));graph[b].append((a,not less))
+ f=[1]*(n+1);g=[1]*(n+1)
+ for i in range(1,n+1):f[i]=f[i-1]*i%MOD
+ g[n]=pow(f[n],MOD-2,MOD)
+ for i in range(n,0,-1):g[i-1]=g[i]*i%MOD
+ def choose(a,b):return f[a]*g[b]%MOD*g[a-b]%MOD
+ parent=[-1]*n;order=[0];relation=[False]*n
+ for u in order:
+  for w,less in graph[u]:
+   if w!=parent[u]:parent[w]=u;relation[w]=less;order.append(w)
+ dp=[None]*n
+ for u in reversed(order):
+  current=[1]
+  for w,unused in graph[u]:
+   if parent[w]!=u:continue
+   child=dp[w];A=len(current);B=len(child);prefix=[0]
+   for number in child:prefix.append((prefix[-1]+number)%MOD)
+   merged=[0]*(A+B)
+   for i,number in enumerate(current):
+    if not number:continue
+    for t in range(B+1):
+     ways=(prefix[B]-prefix[t])%MOD if relation[w] else prefix[t]
+     if ways:merged[i+t]=(merged[i+t]+number*ways%MOD*choose(i+t,t)%MOD*choose(A+B-i-t-1,B-t))%MOD
+   current=merged;dp[w]=None
+  dp[u]=current
+ out.append(str(sum(dp[0])%MOD))
+print('\\n'.join(out))
+''','Tree DP indexes each subtree by the rank of its root in a valid local linear extension. When merging a child, t child vertices precede the parent root; the edge inequality selects a prefix or suffix of child-root ranks. Binomial factors independently interleave vertices before and after the root. Summing the final root-rank distribution counts every valid ordering once; iterative tree traversal handles long paths.'),
+261:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];ranges=list(zip(v[1::2],v[2::2]))[::-1];MOD=998244353;coordinates=sorted({x for l,r in ranges for x in (l,r+1)});inverses=[0]+[pow(i,MOD-2,MOD) for i in range(1,n+1)];dp=[1]+[0]*n
+for left,right in zip(coordinates,coordinates[1:]):
+ length=right-left;comb=[1]
+ for t in range(1,n+1):comb.append(comb[-1]*(length+t-1)%MOD*inverses[t]%MOD)
+ new=dp[:]
+ for i in range(n):
+  if not dp[i]:continue
+  for j in range(i,n):
+   l,r=ranges[j]
+   if not(l<=left and right-1<=r):break
+   new[j+1]=(new[j+1]+dp[i]*comb[j-i+1])%MOD
+ dp=new
+choices=1
+for l,r in ranges:choices=choices*(r-l+1)%MOD
+print(dp[n]*pow(choices,MOD-2,MOD)%MOD)
+''','Reverse the problem order to count nondecreasing chosen values. Compress all range endpoints into intervals where eligibility is constant. Values assigned to one coordinate interval occupy a consecutive block of variables; for block length t and interval size L there are C(L+t-1,t) weakly increasing assignments. Sweep intervals with prefix-count DP, then divide by the product of independent range sizes modulo the stated prime.'),
+274:('''import sys
+v=sys.stdin.buffer.read().split();p=0;case=0;out=[]
+while p<len(v):
+ r=int(v[p]);p+=1
+ if r==0:break
+ c=int(v[p]);p+=1;grid=[x.decode() for x in v[p:p+r]];p+=r;case+=1;numbers={};number=0
+ for i in range(r):
+  for j in range(c):
+   if grid[i][j]!='*' and (i==0 or j==0 or grid[i-1][j]=='*' or grid[i][j-1]=='*'):number+=1;numbers[i,j]=number
+ if out:out.append('')
+ out.extend([f'puzzle #{case}:','Across'])
+ for i in range(r):
+  for j in range(c):
+   if grid[i][j]!='*' and (j==0 or grid[i][j-1]=='*'):
+    end=j
+    while end<c and grid[i][end]!='*':end+=1
+    out.append('%3d.%s'%(numbers[i,j],grid[i][j:end]))
+ out.append('Down')
+ for i in range(r):
+  for j in range(c):
+   if grid[i][j]!='*' and (i==0 or grid[i-1][j]=='*'):
+    end=i;word=[]
+    while end<r and grid[end][j]!='*':word.append(grid[end][j]);end+=1
+    out.append('%3d.%s'%(numbers[i,j],''.join(word)))
+print('\\n'.join(out))
+''','Number white cells once in row-major order whenever either the left or upper neighbor is absent/black. Across entries start only at left boundaries and Down entries only at upper boundaries, reusing the same cell number. Single-letter words and entirely black boards are retained; numbering is right-aligned in width3 as required.'),
+259:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];children=[[] for _ in range(n)];distance=[0]*n;P=[0]*n;Q=[0]*n;edge=[0]*n
+for i in range(1,n):
+ parent,length,p,q=v[1+4*(i-1):5+4*(i-1)];children[parent-1].append(i);edge[i]=length;P[i]=p;Q[i]=q
+order=[0]
+for u in order:
+ for w in children[u]:distance[w]=distance[u]+edge[w];order.append(w)
+answer=[0]*n;slopes=[0]*n;intercepts=[0]*n;length=1;stack=[(0,False,None)]
+def bad(i,m,b):return (intercepts[i]-intercepts[i-1])*(slopes[i]-m)>=(b-intercepts[i])*(slopes[i-1]-slopes[i])
+while stack:
+ u,leaving,record=stack.pop()
+ if leaving:
+  if record is not None:
+   at,oldm,oldb,oldlength=record;slopes[at]=oldm;intercepts[at]=oldb;length=oldlength
+  continue
+ if u:
+  x=P[u];lo,hi=0,length-1
+  while lo<hi:
+   mid=(lo+hi)//2
+   if slopes[mid]*x+intercepts[mid]>=slopes[mid+1]*x+intercepts[mid+1]:lo=mid+1
+   else:hi=mid
+  answer[u]=distance[u]*x+Q[u]+slopes[lo]*x+intercepts[lo];m,b=-distance[u],answer[u];oldlength=length
+  if m==slopes[length-1] and b>=intercepts[length-1]:record=None
+  else:
+   searchlength=length-int(m==slopes[length-1]);lo,hi=1,searchlength
+   while lo<hi:
+    mid=(lo+hi)//2
+    if bad(mid,m,b):hi=mid
+    else:lo=mid+1
+   at=lo if searchlength else 0;record=(at,slopes[at],intercepts[at],oldlength);slopes[at]=m;intercepts[at]=b;length=at+1
+ stack.append((u,True,record))
+ for w in reversed(children[u]):stack.append((w,False,None))
+print('\\n'.join(map(str,answer[1:])))
+''','A detour outside the ancestor path is dominated by transferring at its LCA because ancestral per-distance prices are no larger and fixed fees are nonnegative. Thus dp(u)=dist(u)P(u)+Q(u)+min_ancestor(dp(v)-dist(v)P(u)). Maintain the lower hull of ancestor lines with decreasing distance slopes. Binary-search both queries and the insertion truncation point, and roll back one overwritten hull slot after each DFS subtree. Equal-distance dominated lines are skipped; no sibling hull leaks across branches.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH64.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

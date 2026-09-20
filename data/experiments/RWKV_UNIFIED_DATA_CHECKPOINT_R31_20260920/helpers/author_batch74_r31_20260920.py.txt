@@ -1,0 +1,57 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+868:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n,k=v[:2];ranges=list(zip(v[2::2],v[3::2]));MOD=998244353;points=sorted({0}|{x for pair in ranges for x in pair});inverse=[0]+[pow(i,MOD-2,MOD) for i in range(1,n+2)];denominators=[pow(r-l,MOD-2,MOD) for l,r in ranges];answer=0
+for left,right in zip(points,points[1:]):
+ sure=sum(l>=right for l,r in ranges);active=[(r-left,inv) for (l,r),inv in zip(ranges,denominators) if l<=left<r];need=k-sure;width=right-left
+ if need<=0:answer+=width;continue
+ if need>len(active):continue
+ dp=[[1]]
+ for numerator,inv in active:
+  q=numerator*inv%MOD;b=(-inv)%MOD;new=[[0]*(len(dp[0])+1) for _ in range(len(dp)+1)]
+  for count,poly in enumerate(dp):
+   for degree,value in enumerate(poly):
+    new[count][degree]=(new[count][degree]+value*(1-q))%MOD;new[count][degree+1]=(new[count][degree+1]-value*b)%MOD
+    new[count+1][degree]=(new[count+1][degree]+value*q)%MOD;new[count+1][degree+1]=(new[count+1][degree+1]+value*b)%MOD
+  dp=new
+ polynomial=[sum(poly[j] for poly in dp[need:])%MOD for j in range(len(dp[0]))];power=width
+ for j,coefficient in enumerate(polynomial):answer=(answer+coefficient*power*inverse[j+1])%MOD;power=power*width%MOD
+print(answer%MOD)
+''','For a nonnegative order statistic, expectation equals the integral of its survival probability. Between consecutive interval endpoints each variable is certainly above, certainly below, or has a linear probability of exceeding x. A polynomial Bernoulli-count DP computes the probability that at least K variables exceed x. Integrate every coefficient exactly in the prime field over that interval, including the initial interval from0. No floating-point approximation or Monte Carlo is used.'),
+879:('''import sys
+from functools import lru_cache
+v=sys.stdin.buffer.read().split();n=int(v[0]);cost=list(map(int,v[1:5]));grid=v[5:9];options=[[] for _ in range(4)]
+for row in range(4):
+ for size in range(1,5):
+  for top in range(max(0,row-size+1),min(row,4-size)+1):options[row].append((size,top))
+@lru_cache(None)
+def transitions(state,mask):
+ uncovered=mask
+ for row,x in enumerate(state):
+  if x:uncovered&=~(1<<row)
+ if not uncovered:return ((tuple(max(0,x-1) for x in state),0),)
+ row=(uncovered&-uncovered).bit_length()-1;answers={}
+ for size,top in options[row]:
+  new=list(state)
+  for r in range(top,top+size):new[r]=max(new[r],size)
+  for target,extra in transitions(tuple(new),mask):
+   value=cost[size-1]+extra
+   if value<answers.get(target,10**30):answers[target]=value
+ return tuple(answers.items())
+dp={(0,0,0,0):0}
+for column in range(n):
+ mask=sum(1<<row for row in range(4) if grid[row][column]==42);new={}
+ for state,value in dp.items():
+  for target,extra in transitions(state,mask):
+   result=value+extra
+   if result<new.get(target,10**30):new[target]=result
+ dp=new
+print(min(dp.values()))
+''','Sweep columns, storing for each row how many current/future columns are already erased by selected squares. Whenever a current star is uncovered, branch over every square size and vertical placement covering it; each choice strictly reduces the number of uncovered current stars. Memoized transitions then advance one column. A square may be postponed to its leftmost still-needed column without hurting earlier coverage; near the right edge it is placed flush with the board edge, and excess tracked coverage is ignored after the final column. Since n>=4, every size remains physically placeable.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH74.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

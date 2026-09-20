@@ -1,0 +1,37 @@
+from pathlib import Path
+import json,random,subprocess,sys,itertools,functools,fractions
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH74.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,s,want):
+ p=subprocess.run([sys.executable,by[k]['candidate_path']],input=s,text=True,capture_output=True,timeout=45);assert p.returncode==0,p.stderr;assert p.stdout.split()==str(want).split(),(k,s,p.stdout,want);counts[k]+=1
+rng=random.Random(20260920);F=fractions.Fraction;MOD=998244353
+for _ in range(65):
+ n=rng.randrange(1,6);k=rng.randrange(1,n+1);ranges=[]
+ for i in range(n):l=rng.randrange(7);r=rng.randrange(l+1,10);ranges.append((l,r))
+ points=sorted({0}|{x for pair in ranges for x in pair});answer=F(0)
+ for left,right in zip(points,points[1:]):
+  for mask in range(1<<n):
+   if mask.bit_count()<k:continue
+   poly=[F(1)]
+   for i,(l,r) in enumerate(ranges):
+    if left>=r:a,b=F(0),F(0)
+    elif right<=l:a,b=F(1),F(0)
+    else:a,b=F(r,r-l),F(-1,r-l)
+    if not mask>>i&1:a,b=1-a,-b
+    new=[F(0)]*(len(poly)+1)
+    for j,x in enumerate(poly):new[j]+=a*x;new[j+1]+=b*x
+    poly=new
+   answer+=sum(x*F(right**(j+1)-left**(j+1),j+1) for j,x in enumerate(poly))
+ expected=answer.numerator*pow(answer.denominator,MOD-2,MOD)%MOD;run(868,f'{n} {k}\n'+'\n'.join(f'{l} {r}' for l,r in ranges),expected)
+for _ in range(90):
+ n=rng.randrange(4,8);positions=rng.sample(list(itertools.product(range(4),range(n))),rng.randrange(0,13));index={p:i for i,p in enumerate(positions)};cost=[rng.randrange(1,30) for i in range(4)];cover=[]
+ for size in range(1,5):
+  for row in range(5-size):
+   for col in range(n-size+1):
+    mask=sum(1<<i for (r,c),i in index.items() if row<=r<row+size and col<=c<col+size)
+    if mask:cover.append((mask,cost[size-1]))
+ @functools.lru_cache(None)
+ def optimum(mask):
+  if mask==0:return 0
+  bit=mask&-mask;return min(price+optimum(mask&~area) for area,price in cover if area&bit)
+ grid=[''.join('*' if (i,j) in index else '.' for j in range(n)) for i in range(4)];run(879,str(n)+'\n'+' '.join(map(str,cost))+'\n'+'\n'.join(grid),optimum((1<<len(positions))-1))
+(D/'PUBLIC_CROSSCHECKS_BATCH74.json').write_text(json.dumps({'status':'passed','cases':counts,'seed':20260920,'private_cases_read':False,'oracles':{'868':'Enumerate all above/below subsets and integrate Fraction polynomials in absolute x','879':'Weighted subset cover over every physically valid square on small boards'}},indent=2)+'\n');print(counts)

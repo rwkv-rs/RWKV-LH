@@ -1,0 +1,52 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+495:('''import sys
+v=sys.stdin.buffer.read().split();n=int(v[0]);pieces=[x-48 for x in v[1]];graph=[[] for _ in range(n)]
+for i in range(n-1):a,b=int(v[2+2*i])-1,int(v[3+2*i])-1;graph[a].append(b);graph[b].append(a)
+parent=[-1]*n;order=[0]
+for u in order:
+ for w in graph[u]:
+  if w!=parent[u]:parent[w]=u;order.append(w)
+count=pieces[:];down=[0]*n
+for u in reversed(order[1:]):count[parent[u]]+=count[u];down[parent[u]]+=down[u]+count[u]
+total=[0]*n;total[0]=down[0];answer=None
+for u in order:
+ largest=total[u]-down[u]
+ for w in graph[u]:
+  if parent[w]==u:largest=max(largest,down[w]+count[w]);total[w]=total[u]+count[0]-2*count[w]
+ if total[u]%2==0 and 2*largest<=total[u]:
+  candidate=total[u]//2
+  if answer is None or candidate<answer:answer=candidate
+print(-1 if answer is None else answer)
+''','For a proposed gathering vertex, each incident branch has workload equal to the sum of distances of its pieces to that vertex. A move between different branches removes one unit from each; a move confined to one branch, including a root piece entering it, leaves that branch workload unchanged. Therefore total workload must be even and no branch may exceed the sum of the others. These conditions suffice by repeatedly pairing pieces from the two largest remaining branches and moving them toward the root. Each operation reduces total distance by2, attaining the distance lower bound. Rerooted subtree counts and distance sums test all possible gathering vertices in linear time.'),
+520:('''import sys
+from functools import lru_cache
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];values=sorted(v[1:]);leaves=values.count(1);internal=tuple(x for x in values if x>1)
+if values[-1]!=n or values.count(n)!=1 or 2 in values or (internal and leaves<len(internal)+1):print('NO');raise SystemExit
+@lru_cache(None)
+def construct(index,forest):
+ if index==len(internal):return forest==(n,)
+ target=internal[index]-1;counts={}
+ for x in forest:counts[x]=counts.get(x,0)+1
+ kinds=sorted((x for x in counts if x>1 and x<=target),reverse=True);chosen={}
+ def select(pos,remaining,number):
+  if pos==len(kinds):
+   if remaining>counts.get(1,0) or number+remaining<2:return False
+   chosen[1]=remaining;nextforest=[]
+   for x,c in counts.items():nextforest.extend([x]*(c-chosen.get(x,0)))
+   nextforest.append(internal[index]);return construct(index+1,tuple(sorted(nextforest)))
+  x=kinds[pos]
+  for take in range(min(counts[x],remaining//x),-1,-1):
+   chosen[x]=take
+   if select(pos+1,remaining-take*x,number+take):return True
+  chosen.pop(x,None);return False
+ return select(0,target,0)
+print('YES' if construct(0,(1,)*leaves) else 'NO')
+''','Build subtrees in increasing required size. Initially every size1 vertex is an available leaf tree. To create a vertex of size c, choose at least two available components whose sizes sum to c-1, replace them by the new component of size c, and continue. Enumerating component multiplicities, not labeled subsets, avoids duplicate branches; memoize the sorted forest and next internal vertex. Every valid tree admits this construction order, and each completed merge is a valid subtree, so the existence search is both necessary and sufficient for n<=24.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH75.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

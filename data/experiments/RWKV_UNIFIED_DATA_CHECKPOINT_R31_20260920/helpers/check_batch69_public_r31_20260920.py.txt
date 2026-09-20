@@ -1,0 +1,28 @@
+from pathlib import Path
+import json,random,subprocess,sys,itertools,math,collections
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH69.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,s,want):
+ p=subprocess.run([sys.executable,by[k]['candidate_path']],input=s,text=True,capture_output=True,timeout=30);assert p.returncode==0,p.stderr;assert p.stdout.split()==str(want).split(),(k,s,p.stdout,want);counts[k]+=1
+rng=random.Random(20260920);cases=[];answers=[];MOD=1000000007
+for n in range(1,9):
+ frequency=collections.Counter()
+ for permutation in itertools.permutations(range(1,n+1)):
+  g=0;seen=set()
+  for x in permutation:g=math.gcd(g,x);seen.add(g)
+  frequency[tuple(sorted(seen))]+=1
+ for mask in range(1,1<<n):
+  s=tuple(i+1 for i in range(n) if mask>>i&1);cases.append(f'{n} {len(s)} {MOD}\n'+' '.join(map(str,s)));answers.append(frequency[s]*pow(math.factorial(n),MOD-2,MOD)%MOD)
+# Respect the published T<=10 limit in every public invocation.
+for at in range(0,len(cases),10):run(337,str(len(cases[at:at+10]))+'\n'+'\n'.join(cases[at:at+10]),'\n'.join(map(str,answers[at:at+10])))
+g=[0]*200001
+for x in range(1,len(g)):
+ seen={g[x//d] for d in range(2,7)};value=0
+ while value in seen:value+=1
+ g[x]=value
+cases=[];answers=[]
+for _ in range(900):
+ n=rng.randrange(1,30);a=[rng.randrange(1,len(g)) for i in range(n)];value=0
+ for x in a:value^=g[x]
+ cases.append(str(n)+'\n'+' '.join(map(str,a)));answers.append('Henry' if value else 'Derek')
+run(356,str(len(cases))+'\n'+'\n'.join(cases),'\n'.join(answers))
+(D/'PUBLIC_CROSSCHECKS_BATCH69.json').write_text(json.dumps({'status':'passed','cases':counts,'seed':20260920,'private_cases_read':False,'oracles':{'337':'All permutations N1..8 and every nonempty requested subset','356':'Full integer-by-integer Grundy recurrence through200000,900 random boards'}},indent=2)+'\n');print(counts)

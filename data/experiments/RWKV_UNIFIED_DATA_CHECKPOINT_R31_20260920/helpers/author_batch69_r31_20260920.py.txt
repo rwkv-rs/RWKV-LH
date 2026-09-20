@@ -1,0 +1,51 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+337:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));p=1;out=[]
+for _ in range(v[0]):
+ n,m,mod=v[p:p+3];p+=3;s=v[p:p+m];p+=m
+ if s[0]!=1 or any(b%a for a,b in zip(s,s[1:])):out.append('0');continue
+ numerator=1;denominator=n
+ for a,b in zip(s,s[1:]):
+  ratio=b//a;primes=[];d=2
+  while d*d<=ratio:
+   if ratio%d==0:
+    primes.append(d)
+    while ratio%d==0:ratio//=d
+   d+=1 if d==2 else 2
+  if ratio>1:primes.append(ratio)
+  terms=[(1,1)]
+  for prime in primes:terms.extend([(product*prime,-sign) for product,sign in terms[:]])
+  count=sum(sign*((n//a)//product) for product,sign in terms);numerator=numerator*count%mod;denominator=denominator*(n-n//b)%mod
+ out.append(str(numerator*pow(denominator,mod-2,mod)%mod))
+print('\\n'.join(out))
+''','The distinct prefix gcds form a strict divisibility chain ending at1. The first permutation element must equal the chain maximum, with probability1/N. At a current gcd b, all previously exposed elements are multiples of b. The first remaining nonmultiple of b is uniform over all N-floor(N/b) such elements, and the next gcd equals a precisely for multiples a*t with gcd(t,b/a)=1. Inclusion-exclusion over distinct prime factors counts these choices; multiply transition probabilities using the prime modulus.'),
+356:('''import sys,heapq,bisect
+v=list(map(int,sys.stdin.buffer.read().split()));p=1;cases=[];maximum=1
+for _ in range(v[0]):
+ n=v[p];p+=1;a=v[p:p+n];p+=n;cases.append(a);maximum=max(maximum,max(a))
+boundaries=[0,1];grundy=[0,1];events=[2,3,4,5,6];queued=set(events)
+while events:
+ x=heapq.heappop(events);queued.remove(x)
+ if x>maximum:break
+ options={grundy[bisect.bisect_right(boundaries,x//d)-1] for d in range(2,7)};g=0
+ while g in options:g+=1
+ if g!=grundy[-1]:
+  boundaries.append(x);grundy.append(g)
+  for d in range(2,7):
+   event=x*d
+   if event<=maximum and event not in queued:heapq.heappush(events,event);queued.add(event)
+out=[]
+for a in cases:
+ value=0
+ for x in a:value^=grundy[bisect.bisect_right(boundaries,x)-1]
+ out.append('Henry' if value else 'Derek')
+print('\\n'.join(out))
+''','Each integer is an impartial subgame with options floor(x/d), d=2..6; XOR the Sprague-Grundy values. The Grundy function is piecewise constant. A successor value can change only at d times an already discovered boundary, so process these events in increasing order, compute the exact mex there, and schedule new events only when the value changes. This derives the intervals from the recurrence rather than guessing a repeating pattern, and reaches10^18 with fewer than200 processed events.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH69.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

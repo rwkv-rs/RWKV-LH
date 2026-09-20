@@ -1,0 +1,21 @@
+from pathlib import Path
+import json,random,subprocess,sys,itertools,math
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH71.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,s,want):
+ p=subprocess.run([sys.executable,by[k]['candidate_path']],input=s,text=True,capture_output=True,timeout=30);assert p.returncode==0,p.stderr;assert p.stdout.split()==str(want).split(),(k,s,p.stdout,want);counts[k]+=1
+rng=random.Random(20260920)
+for _ in range(90):
+ n=rng.randrange(1,11);w=rng.randrange(1,n+1);a=[rng.randrange(1,100) for _ in range(n)];ordered=sorted(a,reverse=True);answer=None
+ for cuts in itertools.combinations(range(1,n),w-1):
+  boundaries=(0,)+cuts+(n,);value=sum(right*sum(ordered[left:right]) for left,right in zip(boundaries,boundaries[1:]))
+  if answer is None or value<answer:answer=value
+ run(551,f'1\n{n} {w}\n'+' '.join(map(str,a)),f'{answer/sum(a):.4f}')
+for _ in range(50):
+ n=rng.randrange(1,20);a=[rng.randrange(2,40) for i in range(n)];answer=[];greater=False
+ for x in a:
+  y=2 if greater else x
+  while any(math.gcd(y,z)!=1 for z in answer):y+=1
+  if not greater and y>x:greater=True
+  answer.append(y)
+ run(621,str(n)+'\n'+' '.join(map(str,a)),' '.join(map(str,answer)))
+(D/'PUBLIC_CROSSCHECKS_BATCH71.json').write_text(json.dumps({'status':'passed','cases':counts,'seed':20260920,'private_cases_read':False,'oracles':{'551':'Enumerate all group cuts on small sorted probability arrays','621':'Trial every next integer with pairwise gcd checks, independent of sieve'}},indent=2)+'\n');print(counts)

@@ -1,0 +1,54 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+551:('''import sys
+from collections import deque
+v=list(map(int,sys.stdin.buffer.read().split()));p=1;out=[]
+for _ in range(v[0]):
+ n,w=v[p:p+2];p+=2;a=sorted(v[p:p+n],reverse=True);p+=n;prefix=[0]
+ for x in a:prefix.append(prefix[-1]+x)
+ old=[0]+[None]*n
+ for groups in range(1,min(w,n)+1):
+  new=[None]*(n+1);hull=deque()
+  for i in range(groups,n+1):
+   t=i-1
+   if old[t] is not None:
+    line=(-prefix[t],old[t])
+    while len(hull)>1:
+     a0,b0=hull[-2];a1,b1=hull[-1];a2,b2=line
+     if (b1-b0)*(a1-a2)>=(b2-b1)*(a0-a1):hull.pop()
+     else:break
+    hull.append(line)
+   while len(hull)>1 and hull[0][0]*i+hull[0][1]>=hull[1][0]*i+hull[1][1]:hull.popleft()
+   if hull:new[i]=i*prefix[i]+hull[0][0]*i+hull[0][1]
+  old=new
+ out.append(f'{old[n]/prefix[n]:.4f}')
+print('\\n'.join(out))
+''','Earlier groups should contain the larger probabilities by an exchange argument, so sort descending. If a group ends at position i and starts after t, its contribution to the expectation numerator is i*(prefix[i]-prefix[t]). The exact-group partition recurrence is a lower envelope of lines with decreasing slopes -prefix[t], queried at increasing i. A monotone convex hull gives O(w*n) time using exact integer comparisons; divide by total weight only when formatting four decimals.'),
+621:('''import sys,math
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];a=v[1:];limit=2000000;prime=bytearray(b'\\x01')*(limit+1);prime[:2]=b'\\x00\\x00'
+for p in range(2,math.isqrt(limit)+1):
+ if prime[p]:prime[p*p:limit+1:p]=b'\\x00'*((limit-p*p)//p+1)
+primes=[i for i in range(2,limit+1) if prime[i]];blocked=bytearray(limit+1);out=[];greater=False;position=0
+for x in a:
+ if greater:
+  while blocked[primes[position]]:position+=1
+  y=primes[position];position+=1;out.append(y);blocked[y]=1;continue
+ y=x
+ while blocked[y]:y+=1
+ greater=y>x;out.append(y);remaining=y;factors=[]
+ for p in primes:
+  if p*p>remaining:break
+  if remaining%p==0:
+   factors.append(p)
+   while remaining%p==0:remaining//=p
+ if remaining>1:factors.append(remaining)
+ for p in factors:blocked[p:limit+1:p]=b'\\x01'*((limit-p)//p+1)
+print(*out)
+''','Preserve each input element while it shares no prime with the chosen prefix. At the first conflict choose the smallest larger integer with no used prime factor, which is forced by lexicographic minimality. Once greater, fill the suffix with the smallest unused primes: every admissible composite has a smaller admissible prime divisor. Before the first increase, used primes are at most100000; together with at most100000 suffix primes the two-million sieve covers all required choices. Multiple marking implements exact pairwise coprimality, not just adjacency checks.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH71.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

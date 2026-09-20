@@ -1,0 +1,68 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+134:('''import sys
+from collections import deque
+v=list(map(int,sys.stdin.buffer.read().split()));n,k=v[:2];delta=sorted({x-n for x in v[2:]})
+if 0 in delta:print(1)
+elif delta[0]>0 or delta[-1]<0:print(-1)
+else:
+ bound=max(abs(delta[0]),abs(delta[-1]));distance={0:0};queue=deque([0]);answer=-1
+ while queue and answer<0:
+  u=queue.popleft()
+  for d in delta:
+   w=u+d
+   if w==0:answer=distance[u]+1;break
+   if -bound<=w<=bound and w not in distance:distance[w]=distance[u]+1;queue.append(w)
+ print(answer)
+''','Subtract the required concentration from each type. A positive-length mixture is exactly a nonempty zero-sum sequence of these integer differences, and its length is the volume. Breadth-first search finds the shortest return to zero. Any zero-sum multiset can be ordered by choosing a nonpositive next difference when the partial sum is positive and conversely; therefore all partial sums stay within the largest absolute input difference. This proves the finite search bound without imposing an arbitrary volume cap.'),
+52:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n,m=v[:2];p=2;edges=[];graph=[[] for _ in range(n)]
+for _ in range(m):
+ k=v[p];p+=1;path=[x-1 for x in v[p:p+k]];p+=k
+ for a,b in zip(path,path[1:]):
+  e=len(edges);edges.append((a,b));graph[a].append((b,e));graph[b].append((a,e))
+parent=[-1]*n;pe=[-1]*n;depth=[-1]*n;depth[0]=0;order=[0];cycles=[];cyclic=set()
+for u in order:
+ for w,e in graph[u]:
+  if e==pe[u]:continue
+  if depth[w]<0:depth[w]=depth[u]+1;parent[w]=u;pe[w]=e;order.append(w)
+# Use a true DFS tree: a stack with adjacency iterators ensures every non-tree edge joins ancestors.
+parent=[-1]*n;pe=[-1]*n;depth=[-1]*n;depth[0]=0;order=[0];stack=[(0,iter(graph[0]))]
+while stack:
+ u,it=stack[-1]
+ try:w,e=next(it)
+ except StopIteration:stack.pop();continue
+ if e==pe[u]:continue
+ if depth[w]<0:parent[w]=u;pe[w]=e;depth[w]=depth[u]+1;order.append(w);stack.append((w,iter(graph[w])))
+ elif depth[w]<depth[u]:
+  cycle=[w];cyclic.add(e);x=u
+  while x!=w:cycle.append(x);cyclic.add(pe[x]);x=parent[x]
+  cycles.append(cycle)
+size=[1]*n;answer=0
+for u in reversed(order[1:]):
+ if pe[u] not in cyclic:answer+=size[u]*(n-size[u])-1
+ size[parent[u]]+=size[u]
+dsu=list(range(n));sizes=[1]*n
+def root(x):
+ while dsu[x]!=x:dsu[x]=dsu[dsu[x]];x=dsu[x]
+ return x
+bridges=0
+for e,(a,b) in enumerate(edges):
+ if e not in cyclic:
+  bridges+=1;a=root(a);b=root(b)
+  if sizes[a]<sizes[b]:a,b=b,a
+  dsu[b]=a;sizes[a]+=sizes[b]
+base=sum(sizes[i]*(sizes[i]-1)//2 for i in range(n) if root(i)==i)-bridges
+for cycle in cycles:
+ total=0;pairs=0
+ for u in cycle:s=sizes[root(u)];pairs+=total*s;total+=s
+ length=len(cycle);answer+=length*(base+pairs-length)
+print(answer)
+''','For a bridge, deleting it separates components of sizes s and n-s; any reconnection between them preserves a cactus, except the identical old edge. For a cycle edge, deletion merges that cycle vertices bridge-only components into one tree. A legal new cycle must use only bridges, so count nonedges within every bridge-only tree component after the deletion, excluding the old edge. DSU gives original bridge-component sizes; each cycle contributes its length times the same merged-component pair count. Iterative DFS identifies all cactus cycles and bridge subtree sizes in linear time.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH67.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

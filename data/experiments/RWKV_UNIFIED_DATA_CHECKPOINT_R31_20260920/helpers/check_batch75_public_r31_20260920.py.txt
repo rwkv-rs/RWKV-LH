@@ -1,0 +1,39 @@
+from pathlib import Path
+import json,random,subprocess,sys,itertools,collections
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH75.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,s,want):
+ p=subprocess.run([sys.executable,by[k]['candidate_path']],input=s,text=True,capture_output=True,timeout=30);assert p.returncode==0,p.stderr;assert p.stdout.split()==str(want).split(),(k,s,p.stdout,want);counts[k]+=1
+rng=random.Random(20260920)
+for _ in range(100):
+ n=rng.randrange(2,8);edges=[(i,rng.randrange(i)) for i in range(1,n)];g=[[] for _ in range(n)]
+ for a,b in edges:g[a].append(b);g[b].append(a)
+ nexts={}
+ for root in range(n):
+  queue=[root];seen={root}
+  for u in queue:
+   for w in g[u]:
+    if w not in seen:seen.add(w);queue.append(w);nexts[root,w]=w if u==root else nexts[root,u]
+ start=tuple(rng.randrange(2) for i in range(n))
+ if not any(start):start=(1,)+(0,)*(n-1)
+ queue=collections.deque([(start,0)]);seen={start};answer=-1
+ while queue:
+  state,depth=queue.popleft();occupied=[i for i,x in enumerate(state) if x]
+  if len(occupied)==1:answer=depth;break
+  for u,v in itertools.combinations(occupied,2):
+   if v in g[u]:continue
+   new=list(state);new[u]-=1;new[v]-=1;new[nexts[u,v]]+=1;new[nexts[v,u]]+=1;new=tuple(new)
+   if new not in seen:seen.add(new);queue.append((new,depth+1))
+ run(495,str(n)+'\n'+''.join(map(str,start))+'\n'+'\n'.join(f'{a+1} {b+1}' for a,b in edges),answer)
+valid={}
+for n in range(1,9):
+ valid[n]=set()
+ for parents in itertools.product(*(range(i) for i in range(1,n))):
+  children=[0]*n;sizes=[1]*n
+  for p in parents:children[p]+=1
+  if 1 in children:continue
+  for i in range(n-1,0,-1):sizes[parents[i-1]]+=sizes[i]
+  valid[n].add(tuple(sorted(sizes)))
+ for values in valid[n]:run(520,str(n)+'\n'+' '.join(map(str,values)),'YES')
+for _ in range(130):
+ n=rng.randrange(1,9);values=tuple(sorted(rng.randrange(1,n+1) for i in range(n)));run(520,str(n)+'\n'+' '.join(map(str,values)),'YES' if values in valid[n] else 'NO')
+(D/'PUBLIC_CROSSCHECKS_BATCH75.json').write_text(json.dumps({'status':'passed','cases':counts,'seed':20260920,'private_cases_read':False,'oracles':{'495':'Breadth-first search over actual piece-count configurations and legal paired moves','520':'Enumerate all increasing-parent tree shapes up to8 vertices and subtree-size multisets'}},indent=2)+'\n');print(counts)

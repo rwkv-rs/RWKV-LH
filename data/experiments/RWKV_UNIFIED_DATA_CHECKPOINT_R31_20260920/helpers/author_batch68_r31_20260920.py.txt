@@ -1,0 +1,76 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+231:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));out=[]
+for day in v[1:]:
+ if day>=2299161:
+  a=day+32044;b=(4*a+3)//146097;c=a-146097*b//4;d=(4*c+3)//1461;e=c-1461*d//4;m=(5*e+2)//153
+  year=100*b+d-4800+m//10
+ else:
+  c=day+32082;d=(4*c+3)//1461;e=c-1461*d//4;m=(5*e+2)//153;year=d-4800+m//10
+ date=e-(153*m+2)//5+1;month=m+3-12*(m//10)
+ out.append(f'{date} {month} {year}' if year>0 else f'{date} {month} {1-year} BC')
+print('\\n'.join(out))
+''','Invert the count of whole March-based calendar cycles using exact integer divisions. Julian dates use1461-day four-year cycles; Gregorian dates additionally use146097-day400-year cycles. Switch at Julian day2299161, the first Gregorian date1582-10-15, preserving the historical ten-day gap. Intermediate astronomical year0 is rendered as1BC, with earlier BC years shifted accordingly. Constant work per query handles years up to10^9.'),
+98:('''import sys,random
+v=sys.stdin.buffer.read().split();n,m,k=map(int,v[:3]);s=[x-97 for x in v[3]];counts=[[0]*k for _ in range(k)]
+for a,b in zip(s,s[1:]):counts[a][b]+=1
+rng=random.Random(918273)
+class Node:
+ __slots__=('start','end','c','priority','left','right')
+ def __init__(self,start,end,c):self.start=start;self.end=end;self.c=c;self.priority=rng.getrandbits(64);self.left=None;self.right=None
+def merge(a,b):
+ if a is None:return b
+ if b is None:return a
+ if a.priority>b.priority:a.right=merge(a.right,b);return a
+ b.left=merge(a,b.left);return b
+def split(t,key):
+ if t is None:return None,None
+ if t.start<key:t.right,b=split(t.right,key);return t,b
+ a,t.left=split(t.left,key);return a,t
+def find(t,pos):
+ answer=None
+ while t is not None:
+  if t.start<=pos:answer=t;t=t.right
+  else:t=t.left
+ return answer
+root=None;start=0
+for end in range(1,n+1):
+ if end==n or s[end]!=s[start]:root=merge(root,Node(start,end,s[start]));start=end
+def boundary(pos):
+ global root
+ if pos==0 or pos==n:return
+ t=find(root,pos)
+ if t.start==pos:return
+ extra=Node(pos,t.end,t.c);t.end=pos;a,b=split(root,pos);root=merge(merge(a,extra),b)
+p=4;out=[]
+for _ in range(m):
+ kind=int(v[p]);p+=1
+ if kind==2:
+  permutation=v[p];p+=1;rank=[0]*k
+  for i,c in enumerate(permutation):rank[c-97]=i
+  out.append(str(1+sum(counts[a][b] for a in range(k) for b in range(k) if rank[a]>=rank[b])));continue
+ l,r,c=int(v[p])-1,int(v[p+1]),v[p+2][0]-97;p+=3;boundary(l);boundary(r)
+ oldfirst=find(root,l).c;oldlast=find(root,r-1).c
+ left=find(root,l-1).c if l else None;right=find(root,r).c if r<n else None
+ if left is not None:counts[left][oldfirst]-=1
+ if right is not None:counts[oldlast][right]-=1
+ a,b=split(root,l);middle,b=split(b,r);stack=[];t=middle;previous=None
+ while stack or t is not None:
+  while t is not None:stack.append(t);t=t.left
+  t=stack.pop();counts[t.c][t.c]-=t.end-t.start-1
+  if previous is not None:counts[previous][t.c]-=1
+  previous=t.c;t=t.right
+ counts[c][c]+=r-l-1
+ if left is not None:counts[left][c]+=1
+ if right is not None:counts[c][right]+=1
+ root=merge(merge(a,Node(l,r,c)),b)
+print('\\n'.join(out))
+''','For a permutation p, each adjacent pair whose ranks do not increase forces a new copy; therefore the answer is1 plus the relevant global ordered-pair counts. A randomized ordered treap stores constant-character intervals. Split at update endpoints, subtract only deleted interval interiors and their boundaries, then add the replacement interval. Every deleted node was initially present or created by an earlier update, giving amortized linear interval enumeration plus logarithmic tree operations. No per-character update or k-squared matrix is stored at each tree node.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH68.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "2f44221fc0c11f03ad7c8e29a5451a02d51ab6ad724f96976011fd8c70030724",
+  "solution_sha256": "f856fda4f359e887e7c17131f4c1d35fdf2c763e3d8fdf120867cba26a68cb2e",
+  "reasoning": "For a rooted component, track the total downward movement work H and the minimum unmatched work L that must be paired with movement outside that component. Possible unmatched amounts have parity H and range from L to H. A child contributes [L_child+piece_count, H_child+piece_count] because every piece must cross its parent edge. Pair work between child branches; the residual minimum is max(H mod2, max_i(L_i+H_i)-H), where L_i,H_i include that edge work. This explicitly permits pairs meeting at internal branching vertices, which the rejected whole-branch-sum candidate missed. Reroot directed component messages to test all gathering roots; L=0 means all distance work can be paired, achieving H/2 operations. Preserve the failing first candidate and independent configuration-BFS counterexample.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

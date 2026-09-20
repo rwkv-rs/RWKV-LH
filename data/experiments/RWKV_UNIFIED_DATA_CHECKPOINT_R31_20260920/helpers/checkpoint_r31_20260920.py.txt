@@ -13,6 +13,7 @@ out={'status':'checkpoint_not_goal_complete','formal_rows':len(rows),'remaining_
 save(D/'CHECKPOINT_INVENTORY.json',out);save(O/'INVENTORY.json',out)
 save(D/'STATUS.json',{'status':'in_progress_not_complete','formal_rows':len(rows),'minimum_goal':1000,'remaining_to_minimum':1000-len(rows),'corrected_base':refs[0],'batches_since_formatfix':batches,'training_order':'formatfix then >=1000 then fresh zero-init one epoch then independent tests','r29_interrupted':{'steps':87,'samples':348,'full_epochs':0,'resume_allowed':False},'subagents_started':0,'model_generation_calls_this_expansion':0,'background_authorship':False})
 owner=['rwkv_lh/controller.py','rwkv_lh/model.py','rwkv_lh/supervisor_openai.py','tests/test_hybrid_supervisor.py','tests/test_supervisor_openai.py'];identity={str(p.relative_to(R)):sha(p) for folder in ('rwkv_lh','scripts','tests') for p in sorted((R/folder).rglob('*.py'))};log=O/'PYTEST_RETRY.log';assert '1910 passed, 1 warning' in log.read_text()
+assert read(O/'SOURCE_AND_TESTS.json')['source_identity']==identity, 'Production/test source changed: rerun regression before reusing its evidence'
 save(O/'SOURCE_AND_TESTS.json',{'local_head':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'source_identity':identity,'owner_file_sha256':{p:sha(R/p) for p in owner},'pytest':{'passed':1910,'skipped':0,'warnings':1,'seconds':351.37,'log_sha256':sha(log)},'original_pytest':{'exit_code':0,'log_lost':True,'reason':'pytest basetemp cleanup unlinked logfile; rerun saved outside basetemp'},'producer_sha256':{str(p.relative_to(R)):sha(p) for p in [R/'temp/prepare_authored_batch_wire_r31_20260920.py',R/'temp/freeze_expansion_batch_r23_wire_r28_20260920.py']},'phase_note':'Post-R28 canonical function/params producer; R30 production change was separately tested and real zero-profile replays verified. No production edits during this expansion.'})
 helpers=O/'helpers';helpers.mkdir(exist_ok=True)
 for pattern in ['author_batch*20260920*.py','check_batch*20260920*.py','fix_*r31_20260920.py','prepare_*r31_20260920.py','check_bob_theorem_r31_20260920.py','prepare_authored_batch_wire_r31_20260920.py','freeze_expansion_batch_r23_wire_r28_20260920.py','checkpoint_r31_20260920.py']:
@@ -23,7 +24,7 @@ report=f'''# R31 数据扩量检查点（非目标完成）
 
 正式合格训练边界 {len(rows)} 条，距1000还差 {1000-len(rows)}。以 R28 格式修复647条为基座，仅累加35以后 frozen_loader_accepted 批次；旧格式包不重复计数。每条新增纠正绑定原始真实输入与 State 边界，由当前Codex依据公开任务亲自修正，通过真实前失败/后通过、语义说明、生产重放、去重、回归隔离、token与target-only mask准入。候选、失败与排除记录保留。数据主要新增stdio代码写入，并不等于完整工程任务能力。
 
-工程回归1910通过、0跳过、1历史临时脚本转义warning，耗时351.37秒。原测试exit0但日志被basetemp清理，已完整重跑并在本目录保存。没有使用子代理或教师API，owner五处修改保留，未push。
+工程回归1910通过、0跳过、1历史临时脚本转义warning，耗时351.37秒。原测试exit0但日志被basetemp清理，已完整重跑并在本目录保存。没有使用子代理或教师API，接手时已有五处修改保留，未push。
 
 下一步继续补足1000，冻结完整包和源码，再从zero初始化训练1epoch；随后同源码运行固定独立zero两遍与candidate两遍，保留原评分，不读holdout、不以训练题验收。若未达门槛不保留候选。
 
@@ -31,7 +32,7 @@ report=f'''# R31 数据扩量检查点（非目标完成）
 ''';(O/'REPORT.zh-CN.md').write_text(report)
 h=R/'docs/HANDOFF.zh-CN.md';text=h.read_text();text=re.sub(r'^# 当前 R31 进行中：.*?(?=^# Owner最新顺序：)', '', text, count=1, flags=re.S|re.M);prefix=f'''# 当前 R31 进行中：正式{len(rows)}条，满1000后训练（2026-09-20）
 
-最新owner要求不中断完成“真实格式1000→StateTune→独立测试→缺陷总结”。当前正式{len(rows)}条，仍差{1000-len(rows)}；尚未启动新训练，不恢复R29中断State。R28 corrected647为基座，仅累加35以后已通过加载器批次。公开验证候选不计数。1910工程回归全绿、0跳过；无子代理、教师API、未push，owner五处修改保持。准确库存与SHA见 `data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920/INVENTORY.json`；R23 STATUS已同步。此为工作中检查点，任务尚未完成；下方旧数量为历史。
+最新owner要求不中断完成“真实格式1000→StateTune→独立测试→缺陷总结”。当前正式{len(rows)}条，仍差{1000-len(rows)}；尚未启动新训练，不恢复R29中断State。R28 corrected647为基座，仅累加35以后已通过加载器批次。公开验证候选不计数。1910工程回归全绿、0跳过；无子代理、教师API、未push，接手时已有五处修改保持。准确库存与SHA见 `data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920/INVENTORY.json`；R23 STATUS已同步。此为工作中检查点，任务尚未完成；下方旧数量为历史。
 
 ''';h.write_text(prefix+text)
 print(json.dumps({k:v for k,v in out.items() if k!='packages'},indent=2));print('report_sha',sha(O/'REPORT.zh-CN.md'))

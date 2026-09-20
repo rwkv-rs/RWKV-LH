@@ -1,0 +1,21 @@
+from pathlib import Path
+import json,random,subprocess,sys,itertools,functools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH66.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,s,want):
+ p=subprocess.run([sys.executable,by[k]['candidate_path']],input=s,text=True,capture_output=True,timeout=30);assert p.returncode==0,p.stderr;assert p.stdout.split()==str(want).split(),(k,s,p.stdout,want);counts[k]+=1
+for n in range(2,16):
+ sets=[set() for _ in range(n+1)]
+ for s in itertools.product(range(2),repeat=n):
+  a=sum(s)
+  if a in (0,n):continue
+  period=next(k for k in range(1,n+1) if all(s[i]==s[i%k] for i in range(n)));sets[a].add(period)
+ for a in range(1,n):run(41,f'{a} {n-a}\n',len(sets[a]))
+rng=random.Random(20260920)
+for _ in range(160):
+ n,m=rng.randrange(1,4),rng.randrange(1,5);grid=[''.join(rng.choice('...#') for j in range(m)) for i in range(n)];cells=[(i,j) for i in range(n) for j in range(m) if grid[i][j]=='.'];index={p:i for i,p in enumerate(cells)};adj=[]
+ for i,j in cells:adj.append([index[p] for p in ((i-1,j),(i+1,j),(i,j-1),(i,j+1)) if p in index])
+ @functools.lru_cache(None)
+ def win(u,visited):return any(not win(v,visited|1<<v) for v in adj[u] if not visited>>v&1)
+ winners=[cells[i] for i in range(len(cells)) if not win(i,1<<i)];expected='WIN\n'+'\n'.join(f'{i+1} {j+1}' for i,j in winners) if winners else 'LOSE'
+ run(85,f'{n} {m}\n'+'\n'.join(grid),expected)
+(D/'PUBLIC_CROSSCHECKS_BATCH66.json').write_text(json.dumps({'status':'passed','cases':counts,'seed':20260920,'private_cases_read':False,'oracles':{'41':'Exhaustively enumerate every binary string lengths2..15 and its true minimum period','85':'Exhaustive visited-set minimax on small grids'}},indent=2)+'\n');print(counts)

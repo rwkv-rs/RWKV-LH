@@ -1,0 +1,50 @@
+{
+  "targets": [
+    {
+      "id": "CODING-7957f4b68ed046cde286097f",
+      "ordinal": 495,
+      "candidate_path": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919/tasks/CODING-7957f4b68ed046cde286097f/candidate_02/solution.py",
+      "review_note": "For a rooted component, track the total downward movement work H and the minimum unmatched work L that must be paired with movement outside that component. Possible unmatched amounts have parity H and range from L to H. A child contributes [L_child+piece_count, H_child+piece_count] because every piece must cross its parent edge. Pair work between child branches; the residual minimum is max(H mod2, max_i(L_i+H_i)-H), where L_i,H_i include that edge work. This explicitly permits pairs meeting at internal branching vertices, which the rejected whole-branch-sum candidate missed. Reroot directed component messages to test all gathering roots; L=0 means all distance work can be paired, achieving H/2 operations. Preserve the failing first candidate and independent configuration-BFS counterexample.",
+      "solution_sha256": "f856fda4f359e887e7c17131f4c1d35fdf2c763e3d8fdf120867cba26a68cb2e",
+      "task_sha256": "2f44221fc0c11f03ad7c8e29a5451a02d51ab6ad724f96976011fd8c70030724",
+      "checkpoint": "CP-49d970ef1f684bbc",
+      "input_sha256": "c9381c83caf516a47dc933c1714785d9d3f75df8d86fb1a38492c8629762a0b2",
+      "model_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+      "review": {
+        "reviewer": "current Codex assistant, candidate author and explicit source/algorithm reviewer",
+        "accepted": true,
+        "visible_evidence_only": true,
+        "source_consistent": true,
+        "output_contract": "exact_unique",
+        "algorithm_assessment": "For a rooted component, track the total downward movement work H and the minimum unmatched work L that must be paired with movement outside that component. Possible unmatched amounts have parity H and range from L to H. A child contributes [L_child+piece_count, H_child+piece_count] because every piece must cross its parent edge. Pair work between child branches; the residual minimum is max(H mod2, max_i(L_i+H_i)-H), where L_i,H_i include that edge work. This explicitly permits pairs meeting at internal branching vertices, which the rejected whole-branch-sum candidate missed. Reroot directed component messages to test all gathering roots; L=0 means all distance work can be paired, achieving H/2 operations. Preserve the failing first candidate and independent configuration-BFS counterexample.",
+        "private_answers_read": false,
+        "execution_claims_in_target": false,
+        "limitations": "One source reviewer plus actual isolated tests, not independent dual semantic review."
+      },
+      "training_admitted": false
+    },
+    {
+      "id": "CODING-834c092706d70f51d4669ddd",
+      "ordinal": 520,
+      "candidate_path": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919/tasks/CODING-834c092706d70f51d4669ddd/candidate_01/solution.py",
+      "review_note": "Build subtrees in increasing required size. Initially every size1 vertex is an available leaf tree. To create a vertex of size c, choose at least two available components whose sizes sum to c-1, replace them by the new component of size c, and continue. Enumerating component multiplicities, not labeled subsets, avoids duplicate branches; memoize the sorted forest and next internal vertex. Every valid tree admits this construction order, and each completed merge is a valid subtree, so the existence search is both necessary and sufficient for n<=24.",
+      "solution_sha256": "205ca4d6613d5631706510f746e72c37974a337a28b852db880d79c3594d30f2",
+      "task_sha256": "b995f6756332b32c6ad41fa2c24236a03cfbb5a3e7d11b7b79c90fbbcfe79d99",
+      "checkpoint": "CP-9d0d712b68834c0d",
+      "input_sha256": "6b7c15dc8bc39add6527cdc4badd488617f0602ed1524f7f7096fa7b3b76f2e8",
+      "model_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+      "review": {
+        "reviewer": "current Codex assistant, candidate author and explicit source/algorithm reviewer",
+        "accepted": true,
+        "visible_evidence_only": true,
+        "source_consistent": true,
+        "output_contract": "exact_unique",
+        "algorithm_assessment": "Build subtrees in increasing required size. Initially every size1 vertex is an available leaf tree. To create a vertex of size c, choose at least two available components whose sizes sum to c-1, replace them by the new component of size c, and continue. Enumerating component multiplicities, not labeled subsets, avoids duplicate branches; memoize the sorted forest and next internal vertex. Every valid tree admits this construction order, and each completed merge is a valid subtree, so the existence search is both necessary and sufficient for n<=24.",
+        "private_answers_read": false,
+        "execution_claims_in_target": false,
+        "limitations": "One source reviewer plus actual isolated tests, not independent dual semantic review."
+      },
+      "training_admitted": false
+    }
+  ]
+}

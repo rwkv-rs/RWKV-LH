@@ -1,0 +1,19 @@
+from pathlib import Path
+import json,random,subprocess,sys,itertools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH73.json').read_text())['candidates'];by={r['ordinal']:r for r in rows};counts={k:0 for k in by}
+def run(k,s,want):
+ p=subprocess.run([sys.executable,by[k]['candidate_path']],input=s,text=True,capture_output=True,timeout=30);assert p.returncode==0,p.stderr;assert p.stdout.split()==str(want).split(),(k,s,p.stdout,want);counts[k]+=1
+rng=random.Random(20260920)
+for _ in range(160):
+ words=[''.join(rng.choice('abc') for j in range(rng.randrange(1,15))) for i in range(rng.randrange(1,10))];sets=[{w[i:j] for i in range(len(w)) for j in range(i+1,len(w)+1)} for w in words];answers=[len(s-set().union(*(t for j,t in enumerate(sets) if j!=i))) for i,s in enumerate(sets)];run(980,str(len(words))+'\n'+'\n'.join(words),'\n'.join(map(str,answers)))
+for _ in range(100):
+ n=rng.randrange(1,13);positions=rng.sample(list(itertools.product(range(-2,3),repeat=2)),n);weights=[rng.randrange(1,20) for i in range(n)];patterns=set()
+ for i,(x,y) in enumerate(positions):
+  if x%2 or y%2:continue
+  neighbors=[j for j,(a,b) in enumerate(positions) if j!=i and abs(a-x)<=1 and abs(b-y)<=1]
+  for triple in itertools.combinations(neighbors,3):
+   for opposite in triple:
+    a,b=[positions[j] for j in triple if j!=opposite];o=positions[opposite]
+    if x+o[0]==a[0]+b[0] and y+o[1]==a[1]+b[1] and (a[0]-x)*(b[1]-y)!=(a[1]-y)*(b[0]-x) and (a[1]==y or b[1]==y):patterns.add((1<<i)|sum(1<<j for j in triple))
+ answer=max(sum(weights[i] for i in range(n) if mask>>i&1) for mask in range(1<<n) if not any(mask&p==p for p in patterns));run(969,str(n)+'\n'+'\n'.join(f'{x} {y} {w}' for (x,y),w in zip(positions,weights)),answer)
+(D/'PUBLIC_CROSSCHECKS_BATCH73.json').write_text(json.dumps({'status':'passed','cases':counts,'seed':20260920,'private_cases_read':False,'oracles':{'980':'Explicit substring sets and subtraction of all other names','969':'Enumerate geometric parallelograms by diagonal sums and every retained subset'}},indent=2)+'\n');print(counts)
