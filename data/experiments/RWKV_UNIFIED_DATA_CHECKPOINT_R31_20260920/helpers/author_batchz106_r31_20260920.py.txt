@@ -1,0 +1,34 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={705:('''import sys
+v=sys.stdin.buffer.read().split();rows,cols=map(int,v[:2]);grid=v[2:];n=rows*cols;huge=n+1;cost=[[huge]*n for _ in range(n)];directions=[(76,0,-1),(82,0,1),(85,-1,0),(68,1,0)]
+for y in range(rows):
+ for x in range(cols):
+  u=y*cols+x
+  for code,dy,dx in directions:
+   w=((y+dy)%rows)*cols+(x+dx)%cols;cost[u][w]=min(cost[u][w],int(grid[y][x]!=code))
+u=[0]*(n+1);vpot=[0]*(n+1);owner=[0]*(n+1);way=[0]*(n+1)
+for row in range(1,n+1):
+ owner[0]=row;j0=0;best=[10**9]*(n+1);used=[False]*(n+1)
+ while True:
+  used[j0]=True;i0=owner[j0];delta=10**9;j1=0;values=cost[i0-1]
+  for j in range(1,n+1):
+   if not used[j]:
+    candidate=values[j-1]-u[i0]-vpot[j]
+    if candidate<best[j]:best[j]=candidate;way[j]=j0
+    if best[j]<delta:delta=best[j];j1=j
+  for j in range(n+1):
+   if used[j]:u[owner[j]]+=delta;vpot[j]-=delta
+   else:best[j]-=delta
+  j0=j1
+  if owner[j0]==0:break
+ while j0:
+  before=way[j0];owner[j0]=owner[before];j0=before
+print(-vpot[0])
+''','Every cell already has one outgoing edge. All starts return to themselves exactly when the functional graph consists entirely of cycles, equivalently every cell has indegree one. Thus choose a minimum-cost perfect matching between source and destination cells: each of the four wrapped neighbors costs zero for retaining the original direction and one otherwise. If different directions lead to the same neighbor on a narrow grid, take their minimum cost. A uniform direction always provides a feasible perfect matching, so forbidden-edge penalty n+1 exceeds every feasible optimum. Hungarian assignment returns the exact number of modified arrows.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCHz106.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

@@ -1,0 +1,73 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={46:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n,m,k=v[:3];a=[v[3+i*m:3+(i+1)*m] for i in range(n)]
+if n>m:a=list(map(list,zip(*a)));n,m=m,n
+answer=0
+for top in range(n):
+ columns=[0]*m
+ for bottom in range(top,n):
+  row=a[bottom];frequency={0:1};prefix=0
+  for j in range(m):
+   columns[j]+=row[j];prefix=(prefix+columns[j])%k;answer+=frequency.get(prefix,0);frequency[prefix]=frequency.get(prefix,0)+1
+print(answer)
+''','Choose the smaller matrix dimension for the pair of rectangle boundaries. Accumulate column sums for each row strip, and count equal prefix-sum residues modulo k in that strip. Every equal-residue prefix pair corresponds to exactly one nonempty rectangle with sum divisible by k, including single cells and the entire matrix. Dictionary residue counts avoid allocating storage proportional to a possibly large modulus; integer totals avoid overflow.'),5:('''import sys,random
+from array import array
+sys.setrecursionlimit(100000);rng=random.Random(1701);parent=array('I');weight=array('I');height=array('I')
+def fresh(value):
+ i=len(parent);parent.append(i);weight.append(1);height.append(value);return i
+def find(i):
+ while parent[i]!=i:parent[i]=parent[parent[i]];i=parent[i]
+ return i
+def unite(a,b):
+ a=find(a);b=find(b)
+ if a==b:return a
+ if weight[a]<weight[b]:a,b=b,a
+ parent[b]=a;weight[a]+=weight[b];return a
+class Node:
+ __slots__=('key','priority','rep','left','right')
+ def __init__(self,key,rep):self.key=key;self.rep=rep;self.priority=rng.getrandbits(64);self.left=self.right=None
+def split(root,key):
+ if root is None:return None,None
+ if root.key<key:
+  root.right,b=split(root.right,key);return root,b
+ a,root.left=split(root.left,key);return a,root
+def merge(a,b):
+ if a is None:return b
+ if b is None:return a
+ if a.priority>b.priority:a.right=merge(a.right,b);return a
+ b.left=merge(a,b.left);return b
+def put(root,key,rep):
+ a,b=split(root,key);same,b=split(b,key+1)
+ if same is not None:rep=unite(rep,same.rep);same.rep=rep
+ else:same=Node(key,rep)
+ height[find(rep)]=key;return merge(merge(a,same),b)
+def collapse(root,value):
+ rep=root.rep;stack=[root]
+ while stack:
+  node=stack.pop();rep=unite(rep,node.rep)
+  if node.left is not None:stack.append(node.left)
+  if node.right is not None:stack.append(node.right)
+ height[find(rep)]=value;return rep
+it=iter(map(int,sys.stdin.buffer.read().split()));n=next(it);handles=array('I');root=None
+for _ in range(n):
+ value=next(it);rep=fresh(value);handles.append(rep);root=put(root,value,rep)
+q=next(it);out=[]
+for _ in range(q):
+ kind=next(it)
+ if kind==1:
+  k=next(it)-1;value=next(it);rep=fresh(value);handles[k]=rep;root=put(root,value,rep)
+ elif kind==2:out.append(str(height[find(handles[next(it)-1])]))
+ else:
+  l=next(it);r=next(it);mid=(l+r)//2;a,b=split(root,l);low,b=split(b,mid+1);high,b=split(b,r+1)
+  if low is not None:a=put(a,l-1,collapse(low,l-1))
+  if high is not None:b=put(b,r+1,collapse(high,r+1))
+  root=merge(a,b)
+print('\\n'.join(out))
+''','Each criticism maps heights l..floor((l+r)/2) to l-1 and the rest to r+1; odd r-l makes these nearest endpoints unique. An ordered treap holds current height groups and supports range isolation. Disjoint-set representatives bind individual buildings to groups, so merging a whole range never requires revisiting every building. Individual reassignment installs a fresh handle and cannot be affected by later merges of its former group. Every collapsed treap node is removed, giving amortized work proportional to initial groups plus created groups, with logarithmic ordered operations and path-compressed union by size.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH92.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

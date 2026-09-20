@@ -1,0 +1,22 @@
+from pathlib import Path
+import json,random,subprocess,itertools
+from fractions import Fraction
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCHz101.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+def intersection(l,r):
+ a,b,c=l;d,e,f=r;den=a*e-b*d
+ return None if den==0 else (Fraction(c*e-b*f,den),Fraction(a*f-c*d,den))
+def determinant(a,b,c):return a[0]*(b[1]*c[2]-b[2]*c[1])-a[1]*(b[0]*c[2]-b[2]*c[0])+a[2]*(b[0]*c[1]-b[1]*c[0])
+for trial in range(160):
+ n=rng.randrange(3,14);lines=[]
+ while len(lines)<n:
+  line=(rng.randrange(-12,13),rng.randrange(-12,13),rng.randrange(-15,16))
+  if line[:2]==(0,0):continue
+  if any(intersection(line,other) is None for other in lines):continue
+  if any((lambda p:line[0]*p[0]+line[1]*p[1]==line[2])(intersection(a,b)) for a,b in itertools.combinations(lines,2)):continue
+  lines.append(line)
+ expected=0
+ for a,b,c in itertools.combinations(lines,3):
+  vertices=[intersection(a,b),intersection(a,c),intersection(b,c)];rows=[(x*x+y*y,x,y) for x,y in vertices];expected+=determinant(*rows)==0
+ text=str(n)+'\n'+''.join(f'{a} {b} {c}\n' for a,b,c in lines);actual=int(subprocess.check_output([str(R/'.venv/bin/python'),path],input=text.encode(),timeout=10));assert actual==expected,(text,actual,expected)
+for text,want in [('4\n1 0 0\n0 1 0\n1 1 -1\n1 -1 2\n',2),('3\n0 1 1\n1 1 2\n1 -1 -2\n',1)]:assert int(subprocess.check_output([str(R/'.venv/bin/python'),path],input=text.encode()))==want
+(D/'PUBLIC_CROSSCHECKS_BATCHz101.json').write_text(json.dumps({'status':'passed','cases':{'491':162},'seed':20260920,'private_cases_read':False,'oracle':'Enumerate all line triples; compute triangle vertices as exact fractions and test the circle-through-origin determinant directly'},indent=2)+'\n');print('public passed')

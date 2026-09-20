@@ -1,0 +1,23 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={972:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));p=0;out=[]
+while p<len(v):
+ n=v[p];p+=1
+ if n==0:break
+ prices=v[p:p+n];p+=n;dp={0:(0,0)}
+ for price in prices:
+  change=(-price)%1000;updated=dp.copy()
+  for coins,(saved,cost) in dp.items():
+   gain=int(coins+change>=500);remaining=coins+change-500*gain;candidate=(saved+gain,cost+price);old=updated.get(remaining)
+   if old is None or candidate[0]>old[0] or (candidate[0]==old[0] and candidate[1]<old[1]):updated[remaining]=candidate
+  dp=updated
+ saved,cost=max(dp.values(),key=lambda p:(p[0],-p[1]));out.append(f'{saved} {cost}')
+print('\\n'.join(out))
+''','Track the total value of spendable non-500-yen coins, and for each such balance keep the largest saved-coin count then smallest souvenir expense. Paying with bills supplies change r=(-price) mod 1000. One 500-yen coin is obtainable iff the existing small-coin balance plus r is at least 500; enough small coins can be handed over without overshooting the required threshold by 500 because every spendable denomination is at most 100. The new balance is old+r-500 when saving, otherwise old+r. Saving whenever possible dominates declining that coin: it trades exactly 500 of future spendable value for one already secured coin, and any future opportunity can at worst exchange the same one coin. Each shop has skip/buy transitions, and lexicographic dominance at identical balances is safe for every future suffix.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCHz107.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

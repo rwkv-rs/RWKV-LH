@@ -1,0 +1,15 @@
+from pathlib import Path
+import json,random,subprocess,itertools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=json.loads((D/'AUTHORED_BATCHz106.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920);moves={'L':(0,-1),'R':(0,1),'U':(-1,0),'D':(1,0)}
+for trial in range(180):
+ rows=rng.randrange(1,4);cols=rng.randrange(1,4);n=rows*cols;grid=[''.join(rng.choice('LRUD') for _ in range(cols)) for _ in range(rows)];dp={0:0}
+ for cell in range(n):
+  y,x=divmod(cell,cols);nxt={}
+  for mask,total in dp.items():
+   for arrow,(dy,dx) in moves.items():
+    target=((y+dy)%rows)*cols+(x+dx)%cols
+    if mask>>target&1:continue
+    key=mask|1<<target;value=total+(arrow!=grid[y][x]);nxt[key]=min(nxt.get(key,10**9),value)
+  dp=nxt
+ expected=dp[(1<<n)-1];text=f'{rows} {cols}\n'+'\n'.join(grid)+'\n';actual=int(subprocess.check_output([str(R/'.venv/bin/python'),path],input=text.encode(),timeout=10));assert actual==expected,(text,actual,expected)
+(D/'PUBLIC_CROSSCHECKS_BATCHz106.json').write_text(json.dumps({'status':'passed','cases':{'705':180},'seed':20260920,'private_cases_read':False,'oracle':'Exhaustive occupied-destination subset DP over all four actual arrow choices, including wrapped duplicate destinations'},indent=2)+'\n');print('public passed')

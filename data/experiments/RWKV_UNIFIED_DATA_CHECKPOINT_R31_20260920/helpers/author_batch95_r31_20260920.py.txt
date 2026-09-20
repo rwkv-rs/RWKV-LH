@@ -1,0 +1,32 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={305:('''import sys,heapq
+v=sys.stdin.buffer.read().split();p=0;out=[]
+while p<len(v):
+ n=int(v[p]);p+=1
+ if n==0:break
+ words=v[p:p+n];p+=n;distance={};queue=[]
+ for a in words:
+  for b in words:
+   if a!=b and b.startswith(a):
+    suffix=b[len(a):];cost=len(b)
+    if cost<distance.get(suffix,10**30):distance[suffix]=cost;heapq.heappush(queue,(cost,suffix))
+ answer=-1
+ while queue:
+  cost,suffix=heapq.heappop(queue)
+  if distance[suffix]!=cost:continue
+  if not suffix:answer=cost;break
+  for word in words:
+   if suffix.startswith(word):rest=suffix[len(word):];value=cost
+   elif word.startswith(suffix):rest=word[len(suffix):];value=cost+len(rest)
+   else:continue
+   if value<distance.get(rest,10**30):distance[rest]=value;heapq.heappush(queue,(value,rest))
+ out.append(str(answer))
+print('\\n'.join(out))
+''','Compare two distinct codeword sequences while cancelling their common prefix. Their only relevant state is the nonempty unmatched suffix on the longer side, always a suffix of a codeword. Initialize with different prefix-comparable first codewords; append a codeword to the shorter side. If it fits inside the residual, total longer-message length is unchanged; if it extends beyond the residual, add exactly that extension. Dijkstra over these nonnegative transitions reaches an empty residual at the shortest ambiguous message. Keeping the two sides unordered is safe because both use the same code; an exhausted state space proves unique decipherability.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH95.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

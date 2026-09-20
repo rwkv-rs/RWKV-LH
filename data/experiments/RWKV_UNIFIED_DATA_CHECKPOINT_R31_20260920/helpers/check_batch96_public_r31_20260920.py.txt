@@ -1,0 +1,24 @@
+from pathlib import Path
+import json,random,itertools,subprocess
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';paths={r['ordinal']:r['candidate_path'] for r in json.loads((D/'AUTHORED_BATCH96.json').read_text())['candidates']};rng=random.Random(20260920)
+def run(o,s):return int(subprocess.check_output([str(R/'.venv/bin/python'),paths[o]],input=s.encode(),timeout=10))
+for trial in range(220):
+ n=rng.randrange(1,12);s=''.join(rng.choice('ABC') for _ in range(n));best=1
+ for mask in range(1<<(n-1)):
+  levels=[{}];x=0;direction=1
+  for i,c in enumerate(s):
+   levels[-1][x]=c
+   if i<n-1:
+    if mask>>i&1:levels.append({});direction=-direction
+    else:x+=direction
+  for x,c in levels[0].items():
+   pile=[lev.get(x) for lev in levels];occupied=[i for i,v in enumerate(pile) if v is not None]
+   if occupied==list(range(len(occupied))) and all(v==c for v in pile[:len(occupied)]):best=max(best,len(occupied))
+ actual=run(1018,s+'\n');assert actual==best,(s,actual,best)
+for s,w in [('ABRACADABRA',3),('ABBBCBDB',3),('AB',1)]:assert run(1018,s+'\n')==w
+for trial in range(220):
+ n=rng.randrange(1,8);L=rng.randrange(1,31);a=[rng.randrange(L) for _ in range(n)];b=[rng.randrange(L) for _ in range(n)]
+ expected=min(max(min(abs(x-y),L-abs(x-y)) for x,y in zip(a,p)) for p in itertools.permutations(b))
+ text=f'{n} {L}\n'+ ' '.join(map(str,a))+'\n'+' '.join(map(str,b))+'\n';actual=run(999,text);assert actual==expected,(text,actual,expected)
+assert run(999,'10 100\n3 14 15 92 65 35 89 79 32 38\n2 71 82 81 82 84 5 90 45 23\n')==27
+(D/'PUBLIC_CROSSCHECKS_BATCH96.json').write_text(json.dumps({'status':'passed','cases':{'1018':223,'999':221},'seed':20260920,'private_cases_read':False,'oracles':{'1018':'Enumerate every fold subset, construct all physical levels and inspect entire ungapped bottom piles','999':'Enumerate all bijections and directly minimize maximum circular distance'}},indent=2)+'\n');print('public passed')

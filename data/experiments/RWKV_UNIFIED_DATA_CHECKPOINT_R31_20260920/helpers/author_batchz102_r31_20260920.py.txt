@@ -1,0 +1,18 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={144:('''import sys,re
+s=sys.stdin.read().strip();out=[]
+for match in re.finditer(r'([+-]?)([0-9]+)',s):
+ sign,digits=match.groups()
+ if sign!='-' or len(digits)==1:out.append(sign+digits);continue
+ out.append('-'+digits[0]);rest=digits[1:]
+ while rest.startswith('0'):out.append('+0');rest=rest[1:]
+ if rest:out.append('+'+rest)
+print(''.join(out))
+''','Original operators separate independent digit blocks. A nonnegative block is maximized by retaining its entire decimal numeral. A negative block is maximized by keeping only its first digit negative and making the remaining suffix positive; any longer negative prefix both increases the subtraction and reduces the remaining positive suffix. Leading zeroes in that suffix must be split into individual +0 terms to obey the original validity rule. Existing signs and all original digits are preserved, including an initial explicit plus or minus.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCHz102.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

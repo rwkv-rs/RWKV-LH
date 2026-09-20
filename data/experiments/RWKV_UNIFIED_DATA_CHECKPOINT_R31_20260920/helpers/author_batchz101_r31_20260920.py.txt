@@ -1,0 +1,24 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={491:('''import sys,math
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];points=[];zeros=0
+for i in range(n):
+ a,b,c=v[1+3*i:4+3*i]
+ if c==0:zeros+=1
+ else:points.append((a*c,b*c,a*a+b*b,1))
+if zeros:points.append((0,0,1,zeros))
+answer=zeros*(zeros-1)//2*(n-zeros)
+for i,(x,y,d,weight) in enumerate(points):
+ directions={}
+ for xx,yy,dd,w in points[i+1:]:
+  dx=xx*d-x*dd;dy=yy*d-y*dd;g=math.gcd(dx,dy);dx//=g;dy//=g
+  if dx<0 or (dx==0 and dy<0):dx=-dx;dy=-dy
+  key=(dx,dy);previous=directions.get(key,0);answer+=weight*w*previous;directions[key]=previous+w
+print(answer)
+''','For three nonparallel, nonconcurrent lines, the origin lies on their circumcircle exactly when its perpendicular projections onto the three lines are collinear (equivalently, the determinant of rows [a*c,b*c,a*a+b*b] vanishes). Represent each projection as an exact rational point and count collinear triples by normalized integer direction vectors, charging each triple to its first point. Distinct nonparallel lines have distinct nonzero projections; lines through the origin share its projection and are collapsed with a multiplicity. Account separately for triples using two origin projections, and weight all remaining distinct-projection triples. No floating-point tolerances enter the count.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCHz101.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

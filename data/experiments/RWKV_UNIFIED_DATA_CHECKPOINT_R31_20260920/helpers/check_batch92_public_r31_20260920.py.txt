@@ -1,0 +1,25 @@
+from pathlib import Path
+import json,subprocess,random
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';paths={x['ordinal']:x['candidate_path'] for x in json.loads((D/'AUTHORED_BATCH92.json').read_text())['candidates']};rng=random.Random(20260920)
+def run(o,s):return subprocess.check_output([str(R/'.venv/bin/python'),paths[o]],input=s.encode(),timeout=20).decode().strip()
+for trial in range(150):
+ n=rng.randrange(1,8);m=rng.randrange(1,8);k=rng.randrange(1,30);a=[[rng.randrange(1,k+1) for _ in range(m)] for _ in range(n)];answer=0
+ for top in range(n):
+  for bottom in range(top,n):
+   for left in range(m):
+    for right in range(left,m):answer+=sum(a[i][j] for i in range(top,bottom+1) for j in range(left,right+1))%k==0
+ inp=f'{n} {m} {k}\n'+''.join(' '.join(map(str,row))+'\n' for row in a);assert int(run(46,inp))==answer
+for trial in range(160):
+ n=rng.randrange(1,35);a=[rng.randrange(1,45) for _ in range(n)];initial=a[:];operations=[];expected=[]
+ for step in range(150):
+  kind=rng.randrange(1,4)
+  if kind==1:
+   k=rng.randrange(n);value=rng.randrange(1,45);a[k]=value;operations.append(f'1 {k+1} {value}')
+  elif kind==2:
+   k=rng.randrange(n);expected.append(a[k]);operations.append(f'2 {k+1}')
+  else:
+   l=rng.randrange(2,42);r=l+2*rng.randrange(0,12)+1;operations.append(f'3 {l} {r}')
+   for i,value in enumerate(a):
+    if l<=value<=r:a[i]=l-1 if value-(l-1)<r+1-value else r+1
+ inp=f'{n}\n'+' '.join(map(str,initial))+f'\n{len(operations)}\n'+'\n'.join(operations)+'\n';assert list(map(int,run(5,inp).split()))==expected,(trial,inp,expected)
+(D/'PUBLIC_CROSSCHECKS_BATCH92.json').write_text(json.dumps({'status':'passed','cases':{'46':150,'5':24000},'seed':20260920,'private_cases_read':False,'oracles':{'46':'Enumerate every rectangle and directly sum its cells','5':'Literal per-building simulation of assignments, reads and unique nearest permitted heights'}},indent=2)+'\n');print('public passed')

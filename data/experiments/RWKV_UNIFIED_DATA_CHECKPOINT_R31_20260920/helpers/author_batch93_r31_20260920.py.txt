@@ -1,0 +1,26 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={208:('''import sys
+from collections import deque
+v=list(map(int,sys.stdin.buffer.read().split()));p=1;out=[]
+for _ in range(v[0]):
+ n=v[p];p+=1;a=v[p:p+n];b=v[p+n:p+2*n];p+=2*n;frequency=[0]*(n+1)
+ for x in a:frequency[x]+=1
+ common=max(range(1,n+1),key=frequency.__getitem__);graph=[[] for _ in range(n+1)];degree=[0]*(n+1);edges=0
+ for x,y in zip(a,b):
+  if x!=common and y!=common:graph[x].append(y);degree[y]+=1;edges+=1
+ queue=deque(i for i in range(1,n+1) if i!=common and degree[i]==0);removed=0
+ while queue:
+  u=queue.popleft()
+  for w in graph[u]:
+   removed+=1;degree[w]-=1
+   if degree[w]==0:queue.append(w)
+ out.append('AC' if removed==edges else 'WA')
+print('\\n'.join(out))
+''','Represent each position as a directed edge from its desired value to its current value. This balanced multigraph decomposes into cycles; maximizing the number of cycles minimizes swaps. A most frequent value with multiplicity f forces at least f simple cycles, and the maximum possible sadness is n-f. If deleting that value leaves a directed cycle, extract it and then at least f more cycles, so sadness is smaller. If no such cycle remains, every simple cycle must contain that value and exactly f cycles are possible. Thus a linear-time topological cycle check after removing one most frequent value gives the criterion, retaining parallel edges and self-loops.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH93.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

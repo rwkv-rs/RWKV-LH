@@ -1,0 +1,70 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={49:('''import sys,re,bisect
+v=sys.stdin.buffer.read().split();text=v[1];q=int(v[2]);matches=list(re.finditer(rb'[0-9]+',text));starts=[m.start() for m in matches];ends=[m.end() for m in matches];numbers=[int(m.group()) for m in matches];ops=[text[ends[i]:starts[i+1]] for i in range(len(numbers)-1)];xor_prefix=[0]
+for x in numbers:xor_prefix.append(xor_prefix[-1]^x)
+xstart=[0];xend=[];xid=[0]*len(numbers);separators=[]
+for i,op in enumerate(ops):
+ if op!=b'^':xend.append(i);xstart.append(i+1);separators.append(op)
+ xid[i+1]=len(xstart)-1
+xend.append(len(numbers)-1);xvalues=[xor_prefix[r+1]^xor_prefix[l] for l,r in zip(xstart,xend)];astart=[0];aend=[];aid=[0]*len(xvalues)
+for i,op in enumerate(separators):
+ if op==b'|':aend.append(i);astart.append(i+1)
+ aid[i+1]=len(astart)-1
+aend.append(len(xvalues)-1);MASK=(1<<31)-1
+class Tree:
+ def __init__(self,values,is_and):
+  self.is_and=is_and;self.identity=MASK if is_and else 0;self.size=1
+  while self.size<len(values):self.size*=2
+  self.data=[self.identity]*(2*self.size);self.data[self.size:self.size+len(values)]=values
+  for i in range(self.size-1,0,-1):self.data[i]=(self.data[2*i]&self.data[2*i+1]) if is_and else (self.data[2*i]|self.data[2*i+1])
+ def query(self,l,r):
+  value=self.identity;l+=self.size;r+=self.size
+  while l<r:
+   if l&1:value=(value&self.data[l]) if self.is_and else (value|self.data[l]);l+=1
+   if r&1:r-=1;value=(value&self.data[r]) if self.is_and else (value|self.data[r])
+   l//=2;r//=2
+  return value
+andt=Tree(xvalues,True);avalues=[andt.query(l,r+1) for l,r in zip(astart,aend)];ort=Tree(avalues,False);out=[]
+for l,r in zip(map(int,v[3::2]),map(int,v[4::2])):
+ a=bisect.bisect_right(starts,l)-1;b=bisect.bisect_right(starts,r)-1
+ if a==b:out.append(str(int(text[l:r+1])));continue
+ first=int(text[l:ends[a]]);last=int(text[starts[b]:r+1]);u=xid[a];w=xid[b]
+ if u==w:answer=xor_prefix[b+1]^xor_prefix[a]^numbers[a]^first^numbers[b]^last
+ else:
+  left=xor_prefix[xend[u]+1]^xor_prefix[a]^numbers[a]^first;right=xor_prefix[b+1]^xor_prefix[xstart[w]]^numbers[b]^last;g=aid[u];h=aid[w]
+  if g==h:answer=left&right&andt.query(u+1,w)
+  else:answer=(left&andt.query(u+1,aend[g]+1))|(right&andt.query(astart[h],w))|ort.query(g+1,h)
+ out.append(str(answer))
+print('\\n'.join(out))
+''','Respect the explicitly unusual precedence XOR before AND before OR. Precompute maximal XOR blocks and AND groups; XOR prefix sums and range-AND/range-OR trees evaluate full interior blocks. Query endpoints are character positions and may cut a decimal token, so parse the two boundary numeric substrings rather than treating them as whole original operands. Handle same-token, same-XOR-block and same-AND-group cases separately as structural cases, not source-specific exceptions.'),63:('''import sys
+from array import array
+s=sys.stdin.buffer.read().strip();n=len(s);text=bytearray([255])
+for i in range(n//2):text.append(s[i]);text.append(s[n-1-i])
+MOD=1000000007;length=array('i',[-1,0]);link=array('i',[0,0]);diff=array('i',[0,0]);series=array('i',[0,0]);values=array('I',[0,0]);edges={};last=1;dp=array('I',[0])*(n+1);dp[0]=1
+for i in range(1,n+1):
+ c=text[i];u=last
+ while text[i-1-length[u]]!=c:u=link[u]
+ key=u*26+c-97;node=edges.get(key)
+ if node is None:
+  node=len(length);edges[key]=node;length.append(length[u]+2)
+  if length[node]==1:parent=1
+  else:
+   p=link[u]
+   while text[i-1-length[p]]!=c:p=link[p]
+   parent=edges[p*26+c-97]
+  link.append(parent);difference=length[node]-length[parent];diff.append(difference);series.append(series[parent] if difference==diff[parent] else parent);values.append(0)
+ last=node;u=node;total=0
+ while length[u]>0:
+  value=dp[i-(length[series[u]]+diff[u])]
+  if diff[u]==diff[link[u]]:value+=values[link[u]]
+  values[u]=value%MOD;total+=values[u];u=series[u]
+ if i%2==0:dp[i]=total%MOD
+print(dp[n])
+''','Interleave the original string from the left and right ends. A pair of identical outer blocks of length k becomes one even palindrome of length2k, so the desired symmetric even-block partitions correspond bijectively to partitions of this interleaving into even palindromes. Count them with an online palindromic tree and equal-difference series links, retaining zero DP on odd prefix lengths. Series values aggregate the standard palindromic-suffix recurrence without enumerating a quadratic number of repeated-character palindromes; packed arrays bound memory for million-character inputs.')}
+records=[]
+for ordinal,(code,note) in solutions.items():
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+ (folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+(D/'AUTHORED_BATCH91.json').write_text(json.dumps({'candidates':records},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))
