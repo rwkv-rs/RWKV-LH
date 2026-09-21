@@ -1,12 +1,11 @@
 """Run document QA or code inspection with isolated RWKV State and raw evidence."""
 import argparse
-from dataclasses import replace
 import json
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from rwkv_lh.read_only_agent import ReadOnlyJob, run_read_only_jobs
-from rwkv_lh.runtime.settings import direct_agent_settings, get_runtime_settings, load_local_env
+from rwkv_lh.runtime.settings import direct_agent_settings, RuntimeSettings, load_local_env
 
 
 def main():
@@ -18,9 +17,8 @@ def main():
     parser.add_argument('--model-sha256')
     args = parser.parse_args()
     load_local_env(Path(__file__).resolve().parents[1] / '.env.local')
-    settings = get_runtime_settings()
     overrides = {name: getattr(args, name) for name in ('base_url', 'model', 'model_sha256') if getattr(args, name)}
-    settings = direct_agent_settings(replace(settings, **overrides))
+    settings = direct_agent_settings(RuntimeSettings.from_env(overrides=overrides))
     jobs = [ReadOnlyJob(**row) for row in json.loads(args.jobs.read_text())]
     results = run_read_only_jobs(jobs, settings=settings, concurrency=args.concurrency)
     print(json.dumps(results, ensure_ascii=False, indent=2))

@@ -21,7 +21,7 @@ def test_product_entrypoint_preserves_selected_profile(entry,configured,tmp_path
     else:
         name={'batch':'run_rwkv_agent','coding':'run_rwkv_coding_agent','read':'run_rwkv_read_only_agent'}[entry]
         spec=importlib.util.spec_from_file_location(name,ROOT/'scripts'/f'{name}.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
-        monkeypatch.setattr(module,'get_runtime_settings',lambda:settings);monkeypatch.setattr(module,'load_local_env',lambda *a,**k:None)
+        monkeypatch.setattr(module.RuntimeSettings,'from_env',lambda **kwargs:settings);monkeypatch.setattr(module,'load_local_env',lambda *a,**k:None)
         def dispatch(job,*,settings,**kwargs):
             captured.append(settings)
             result={'termination':'submitted'}

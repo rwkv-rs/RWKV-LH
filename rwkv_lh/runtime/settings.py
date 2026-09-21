@@ -93,7 +93,7 @@ class RuntimeSettings:
     state_profile_delivery: str = "request"
 
     @classmethod
-    def from_env(cls) -> "RuntimeSettings":
+    def from_env(cls, *, overrides=None) -> "RuntimeSettings":
         load_local_env()
         settings = cls(
             base_url=role_env(
@@ -225,6 +225,8 @@ class RuntimeSettings:
                 default="request",
             ).casefold(),
         )
+        if overrides:
+            settings = replace(settings, **overrides)
         settings.validate()
         return settings
 

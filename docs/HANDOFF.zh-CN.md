@@ -1,3 +1,7 @@
+# R37 当前工作（2026-09-21）
+
+Owner 已授权清理入口、完成数据管线后开始小批量生成。训练和旧评测仍暂停。统一入口为 rwkv-lh，离线管线为 rwkv-lh-data；证据见 data/experiments/R37/，试运行配置见 data/pipeline/r37/。以下较早的暂停说明和路径为历史记录，以本段及本轮 RESULT 为准。
+
 > **2026-09-21 owner 最新状态：训练、Agent 评测和付费生成暂停；只做数据管线。禁止 zero-a/zero-b 和默认重复运行。data/ 旧实验、旧训练集、旧 State 与 temp/ 已按 owner 指令删除；下文历史路径不再代表当前可用资源，禁止按旧状态恢复任务。当前保留范围见 data/README.md，删除证据见 docs/cleanup/20260921/。R35 首遍 candidate 4/12 提交、5道编程题均改检查脚本，不保留为正式版本。**
 
 # 最新：Owner要求停止，交接Claude（2026-09-20）

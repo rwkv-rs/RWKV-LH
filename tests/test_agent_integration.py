@@ -116,7 +116,7 @@ def test_cli_exposes_dependencies_in_same_entry(tmp_path, monkeypatch, capsys):
         'output_dir': str(tmp_path / 'out'), 'tool_scope': 'coding', 'depends_on': []}]))
     monkeypatch.setattr('sys.argv', ['run_rwkv_agent', '--jobs', str(jobs)])
     monkeypatch.setattr(cli, 'load_local_env', lambda *a: None)
-    monkeypatch.setattr(cli, 'get_runtime_settings', settings)
+    monkeypatch.setattr(cli.RuntimeSettings, 'from_env', lambda **kwargs: settings())
     seen = []
     monkeypatch.setattr(cli, 'run_agent_jobs', lambda jobs, **kwargs:
         seen.extend(jobs) or [{'termination': 'submitted'}])

@@ -82,3 +82,12 @@ def test_report_keeps_rejections_and_never_claims_dataset_ready(prepared):
     assert result['dataset_ready'] is False and result['training_admitted'] == 0
     with pytest.raises(ValueError, match='duplicate'):
         p.summarize([out, out])
+
+
+def test_generator_change_rejected_before_api(prepared, monkeypatch):
+    directory, sha, _ = prepared
+    teacher = Teacher({})
+    monkeypatch.setattr(p, 'pipeline_identity', lambda: {})
+    with pytest.raises(ValueError, match='pipeline code changed'):
+        p.run(directory, expected_packet_sha256=sha, teacher=teacher)
+    assert teacher.calls == 0

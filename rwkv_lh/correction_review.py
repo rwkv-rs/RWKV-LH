@@ -147,8 +147,9 @@ def require_source_bound_reviews(reviews, *, input_sha256, target_sha256,
     """Check truthful review identity; execution validation remains a separate gate.
 
     Single-author reviews are admitted only for labels with sealed, freshly
-    re-executed command/edit proofs. They are never called independent reviews.
-    Legacy independent final-answer admission is unchanged.
+    re-executed command/edit/read proofs or sealed visible execution evidence for
+    final labels. They are never called independent reviews. The independent_review
+    authority still requires two reviewers; verified_final is explicitly single review.
     """
     _require(isinstance(reviews, list) and bool(reviews)
              and all(isinstance(r, dict) for r in reviews), 'source-bound reviews required')

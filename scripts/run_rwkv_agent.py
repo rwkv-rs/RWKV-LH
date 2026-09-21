@@ -10,18 +10,41 @@ from rwkv_lh.assisted_agent import AssistedJob
 from rwkv_lh.coding_agent import CodingJob
 from rwkv_lh.goal_delivery import GoalJob
 from rwkv_lh.read_only_agent import ReadOnlyJob
-from rwkv_lh.runtime.settings import direct_agent_settings, get_runtime_settings, load_local_env
+from rwkv_lh.runtime.settings import direct_agent_settings, RuntimeSettings, load_local_env
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--jobs', type=Path, required=True,
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument('--jobs', type=Path,
                         help='JSON array: task_id, request, workspace, output_dir, tool_scope, budgets')
+    source.add_argument('--source-workspace')
+    parser.add_argument('--request')
+    parser.add_argument('--output-dir')
+    parser.add_argument('--task-id', default='coding-task')
+    parser.add_argument('--max-calls', type=int, default=12)
+    parser.add_argument('--max-seconds', type=float, default=600)
     parser.add_argument('--concurrency', type=int, default=1)
-    args = parser.parse_args()
+    for name in ('base-url', 'model', 'model-sha256'):
+        parser.add_argument('--' + name)
+    args = parser.parse_args(argv)
+    if args.concurrency < 1:
+        parser.error('concurrency must be positive')
     jobs = []
     dependencies = {}
-    for row in json.loads(args.jobs.read_text()):
+    if args.source_workspace:
+        if not args.request or not args.output_dir:
+            parser.error('single coding task requires --request and --output-dir')
+        rows = [dict(task_id=args.task_id, request=args.request, workspace=args.source_workspace,
+                     output_dir=args.output_dir, tool_scope='coding', max_calls=args.max_calls,
+                     max_seconds=args.max_seconds)]
+    else:
+        if args.request or args.output_dir:
+            parser.error('--request and --output-dir belong to single coding tasks')
+        rows = json.loads(args.jobs.read_text())
+    if not isinstance(rows, list) or not rows or not all(isinstance(row, dict) for row in rows):
+        parser.error('jobs must be a nonempty array of objects')
+    for row in rows:
         row = dict(row)
         parents = row.pop('depends_on', [])
         if not isinstance(parents, list):
@@ -44,7 +67,9 @@ def main():
         else:
             parser.error('tool_scope must be files, inspect or coding')
     load_local_env(Path(__file__).resolve().parents[1] / '.env.local')
-    settings = direct_agent_settings(get_runtime_settings())
+    overrides = {name: getattr(args, name) for name in ('base_url', 'model', 'model_sha256')
+                 if getattr(args, name) is not None}
+    settings = direct_agent_settings(RuntimeSettings.from_env(overrides=overrides))
     results = (run_agent_workflow(jobs, dependencies, settings=settings, concurrency=args.concurrency)
                if dependencies else run_agent_jobs(jobs, settings=settings, concurrency=args.concurrency))
     print(json.dumps(results, ensure_ascii=False, indent=2))

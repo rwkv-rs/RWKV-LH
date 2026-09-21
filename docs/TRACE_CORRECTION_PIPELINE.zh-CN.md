@@ -1,3 +1,5 @@
+> 当前实现以本文末尾 R37 节为准：已有批次、读取/最终回答验证、候选导出和冻结入口。下文早期“缺少这些入口”的描述是 R36 历史状态；真实完整训练集仍未冻结。
+
 # DeepSeek 真实轨迹纠正管线
 
 2026-09-21：owner 已暂停训练、Agent 评测与付费生成；目前只实现和离线验证管线。
@@ -79,3 +81,21 @@ API 配置包含 `directory`（共享费用账本绝对目录）、`key_file`（
 data/pipeline/sources 只保留少量真实 trace 用于开发；data/test_fixtures 仅供回归，不可用于批量生成。
 旧1k、历史 State 和临时脚本已删除。删除身份记录在 docs/cleanup/20260921。
 只有同一冻结环境的一份 zero 基线；禁止 zero-a/zero-b 及默认重复两遍。
+
+## R37：统一入口与可执行批次（2026-09-21）
+
+安装后统一使用 `rwkv-lh`：`--source-workspace/--request/--output-dir` 运行单题，`--jobs` 运行批次，二者互斥。`--model`、`--base-url`、`--model-sha256` 在配置校验前应用。空任务批次报错，不再以零个任务“全部完成”返回成功。原单题脚本保留为明确的 `rwkv-lh-coding` 入口。
+
+离线管线入口 `rwkv-lh-data` 提供：
+
+1. `prepare --input PLAN.json --output JOB_DIR`：封存真实 trace 和模型输入边界，固定公开检查与权限。
+2. `batch --input BATCH.json --api-config API_CONFIG.json`：每个边界至多一次作者请求和一次审核请求，共用落盘预算账本；全批次预检包 SHA 和重复边界。已有结果不重复付费，网络不确定错误停止后续请求。
+3. `report --input JOB_DIRS.json`：按所有提交任务统计，包括拒绝、失败和未运行。
+4. `export --input EXPORT.json --output REVIEWED_ROWS.json`：导出带原始输入、精确 token、来源身份、审核和验证证明的候选行。EXPORT 含 jobs、sources、vocab_size、bos_token_id；source 格式沿用 direct freeze 的来源登记，额外提供 content_reference.path。缺 collector/server attestation 时拒绝导出，禁止用虚构 SHA 填充。
+5. `freeze --input FREEZE_REGISTRATION.json --output DATASET_DIR`：调用现有 `freeze_direct_dataset`，校验授权、固定回归、来源家族与内容相似度隔离、预登记覆盖、token/协议一致性，并重新执行验证。该入口不会启动训练。
+
+读取、搜索、列目录使用 `verified_read`：在封存快照副本实际调用生产 Harness，必须成功且工作区不变。最终回答使用 `verified_final`：单人审核逐条引用原始可见输入，记录这一边界祖先中真正发生的工具结果；没有执行证据不能靠审核文字准入。这两类均存放 observation_validation，冻结时重放再验证，训练准入校验冻结证明的 SHA 和数量。旧 independent_review 标签仍需真正独立的两名审核者，不能将两次相同 API 调用冒充独立审核。
+
+修改使用原有失败→修改→通过验证；命令使用预先登记的实际退出码与输出证据。修改、命令、读取、最终回答共享同一生产协议和 RWKV tokenizer，禁止截断目标适配长度。
+
+R37 首批配置在 `data/pipeline/r37/`。它仅验证链路；一个来源家族不满足完整训练集覆盖。冻结准入仍有来源身份、隔离和覆盖门槛，不能将导出候选数作为合格入训数。判断语义正确与任务完整性仍依赖具名审核者，引用定位与执行成功不等于语义证明。

@@ -34,6 +34,15 @@ def file_sha(path):
         return hashlib.file_digest(handle, 'sha256').hexdigest()
 
 
+def pipeline_identity():
+    root = Path(__file__).resolve().parents[1]
+    names = ('rwkv_lh/trace_correction_pipeline.py', 'rwkv_lh/offline_teacher_api.py',
+             'rwkv_lh/observation_corrections.py', 'rwkv_lh/correction_review.py',
+             'rwkv_lh/coding_corrections.py', 'rwkv_lh/command_corrections.py',
+             'rwkv_lh/direct_trace_data.py', 'scripts/run_trace_correction_pipeline.py')
+    return {name: file_sha(root / name) for name in names}
+
+
 def sealed_files(root, inventory):
     root = Path(root).resolve(strict=True)
     required = {'RESULT.json', 'model_trace.jsonl', 'state_snapshot.json'}
@@ -103,7 +112,8 @@ def prepare(plan, output):
         raise ValueError('public verification contract provenance required')
     packet = {'plan': plan, 'actual': actual, 'snapshot': str(snapshot.relative_to(root)),
               'snapshot_sha256': tree_sha256(tree_identity(snapshot)),
-              'protocol_identity': list(protocol_identity()), 'training_admitted': False}
+              'protocol_identity': list(protocol_identity()), 'pipeline_identity': pipeline_identity(),
+              'training_admitted': False}
     out.mkdir(parents=True)
     write_json(out / 'PACKET.json', packet)
     return {'packet_sha256': file_sha(out / 'PACKET.json'), 'status': 'prepared_no_api_calls'}
@@ -125,6 +135,8 @@ def run(directory, *, expected_packet_sha256, teacher):
                 raise ValueError('existing result belongs to another packet')
             return result
         packet = json.loads((directory / 'PACKET.json').read_text())
+        if packet.get('pipeline_identity') != pipeline_identity():
+            raise ValueError('pipeline code changed or unregistered; prepare a new job')
         plan, actual = packet['plan'], packet['actual']
         root = sealed_files(plan['run_root'], plan['source_files'])
         current = replay_run(root, plan['model_sha256'])[plan['checkpoint_id']]
@@ -187,9 +199,11 @@ def run(directory, *, expected_packet_sha256, teacher):
                 authority, field = 'verified_command', 'command_validation'
                 after = proof.get('after_tree')
             else:
-                # Do not fake independent final review or label a proposed read
-                # as executed. Keep these candidates for the appropriate gate.
-                return finish('reviewed_pending_admission', 'requires_read_or_final_evidence_gate')
+                from .observation_corrections import validate_observation_correction
+                proof = validate_observation_correction(**common, judgment=judgment)
+                authority = 'verified_final' if command.name == 'final_answer' else 'verified_read'
+                field = 'observation_validation'
+                after = proof.get('after_tree')
             if proof['status'] != 'validated_candidate':
                 return finish('quarantined', proof['status'])
             before = tree_identity(root / packet['snapshot'])
@@ -205,6 +219,8 @@ def run(directory, *, expected_packet_sha256, teacher):
                 'candidate_checkpoint_id': plan['checkpoint_id'], 'reviews': reviews,
                 'label_authority': authority, field: {'path': str(directory / 'execution/VALIDATION.json'),
                     'sha256': file_sha(directory / 'execution/VALIDATION.json')},
+                'public_validation_policy': {'read_only': plan['read_only'],
+                    'protected_paths': plan['protected_paths']},
                 'author': author, 'training_admitted': False})
             return finish('execution_validated_pending_dataset_gate')
         except BaseException as exc:
@@ -229,5 +245,105 @@ def summarize(directories):
             'rejection_reasons': dict(Counter(r.get('reason') for r in rows if r.get('reason'))),
             'functions': dict(Counter(r.get('function', 'not_generated') for r in rows)),
             'training_admitted': 0, 'dataset_ready': False,
-            'limitation': 'No automatic freeze; final/read coverage and source isolation require dataset admission.',
+            'limitation': 'Candidate report only; use export and freeze for coverage, source isolation and fresh proof verification.',
             'rows': rows}
+
+
+def run_batch(registration, *, teacher):
+    """Run a frozen, bounded list once, sharing one durable provider budget."""
+    jobs = registration['jobs']
+    if not isinstance(jobs, list) or not jobs:
+        raise ValueError('nonempty registered jobs required')
+    paths, boundaries = set(), set()
+    for job in jobs:
+        path = Path(job['directory']).resolve(strict=True)
+        if path in paths or file_sha(path / 'PACKET.json') != job['packet_sha256']:
+            raise ValueError('duplicate job or packet identity changed')
+        packet = json.loads((path / 'PACKET.json').read_text())
+        if packet.get('pipeline_identity') != pipeline_identity():
+            raise ValueError('pipeline code changed before batch')
+        plan = packet['plan']
+        sealed_files(plan['run_root'], plan['source_files'])
+        boundary = (plan['source_files']['model_trace.jsonl'], plan['checkpoint_id'])
+        if boundary in boundaries:
+            raise ValueError('duplicate production boundary')
+        paths.add(path)
+        boundaries.add(boundary)
+    # Validate the ENTIRE registration before the first billable request.
+    for job in jobs:
+        try:
+            run(job['directory'], expected_packet_sha256=job['packet_sha256'], teacher=teacher)
+        except Exception:
+            # Fail closed on transport/uncertain attempts; do not spend the rest
+            # of a campaign repeatedly encountering the same provider failure.
+            break
+    return summarize([job['directory'] for job in jobs])
+
+
+def export_candidates(registration, output):
+    """Materialize exact-token rows for the existing independent freeze gate.
+
+    Sources must carry actual attestation and a sealed content reference; this
+    function never invents server identity or treats a successful job as admission.
+    """
+    from .direct_trace_data import ROW_SCHEMA, ROLE, normalize_direct_row
+    from .token_budget import VOCAB_PATH
+    from .statetune_data import sealed
+    out = Path(output).resolve()
+    if out.exists():
+        raise ValueError('export output must be new')
+    sources = {s['source_id']: s for s in registration['sources']}
+    if len(sources) != len(registration['sources']):
+        raise ValueError('duplicate source identity')
+    rows, rejected, identities = [], [], set()
+    for job in registration['jobs']:
+        directory = Path(job['directory']).resolve()
+        if file_sha(directory / 'PACKET.json') != job['packet_sha256']:
+            raise ValueError('packet identity changed')
+        packet = json.loads((directory / 'PACKET.json').read_text())
+        if packet.get('pipeline_identity') != pipeline_identity():
+            raise ValueError('export requires the registered generator identity')
+        plan = packet['plan']
+        result_path = directory / 'RESULT.json'
+        result = json.loads(result_path.read_text()) if result_path.exists() else {'status': 'not_run'}
+        if result['status'] != 'execution_validated_pending_dataset_gate':
+            rejected.append({'directory': str(directory), 'status': result['status']})
+            continue
+        source = sources[plan['source_id']]
+        manifest = sealed(source['manifest'])
+        if (manifest.get('source_type') != 'native_production_trace'
+                or not manifest.get('collector_source_manifest_sha256')
+                or not manifest.get('server_identity_sha256')
+                or manifest.get('model_sha256') != plan['model_sha256']
+                or manifest['files'] != plan['source_files']
+                or source['family'] != plan['family']
+                or Path(source['run_root']).resolve() != Path(plan['run_root']).resolve()):
+            raise ValueError('source attestation differs or is missing')
+        if file_sha(source['content_reference']['path']) != source['source_content_sha256']:
+            raise ValueError('source content identity differs')
+        target = json.loads((directory / 'VALIDATED_TARGET.json').read_text())
+        version, protocol_sha = protocol_identity()
+        sample = digest(job['packet_sha256'] + target['target_text'])
+        if sample in identities:
+            raise ValueError('duplicate candidate')
+        identities.add(sample)
+        row = {**target, 'schema_version': ROW_SCHEMA, 'role': ROLE, 'split': 'train',
+               'recomputed': True, 'sample_id': sample, 'source_id': plan['source_id'],
+               'family': plan['family'], 'source_manifest_sha256': source['manifest']['sha256'],
+               'source_content_sha256': source['source_content_sha256'],
+               'model_sha256': plan['model_sha256'], 'tokenizer_sha256': file_sha(VOCAB_PATH),
+               'input_protocol': version, 'protocol_sha256': protocol_sha,
+               'input_token_source': 'server_returned_full',
+               'generator_files': packet['pipeline_identity']}
+        actual = replay_run(Path(plan['run_root']), plan['model_sha256'])[plan['checkpoint_id']]
+        for key in ('input_text', 'input_token_ids', 'input_checkpoint_id', 'request_id'):
+            if row[key] != actual[key]:
+                raise ValueError('export differs from production boundary')
+        normalize_direct_row(row, model_sha256=plan['model_sha256'], context_tokens=plan['context_tokens'],
+                             vocab_size=registration['vocab_size'], bos_token_id=registration['bos_token_id'])
+        rows.append(row)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    write_json(out, {'rows': rows, 'excluded_jobs': rejected, 'training_admitted': False,
+                     'next_gate': 'freeze with source isolation, coverage and fresh proof execution'})
+    return {'rows': len(rows), 'excluded': len(rejected), 'path': str(out), 'sha256': file_sha(out),
+            'training_admitted': False}

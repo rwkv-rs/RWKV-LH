@@ -1,13 +1,12 @@
 """Execute a coding task in a copied workspace; submission is not acceptance."""
 import argparse
-from dataclasses import replace
 import json
 from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from rwkv_lh.coding_agent import CodingJob, run_coding_job
-from rwkv_lh.runtime.settings import direct_agent_settings, get_runtime_settings, load_local_env
+from rwkv_lh.runtime.settings import direct_agent_settings, RuntimeSettings, load_local_env
 
 
 def main():
@@ -23,9 +22,8 @@ def main():
     parser.add_argument('--model-sha256')
     args = parser.parse_args()
     load_local_env(Path(__file__).resolve().parents[1] / '.env.local')
-    settings = get_runtime_settings()
     overrides = {name: getattr(args, name) for name in ('base_url', 'model', 'model_sha256') if getattr(args, name)}
-    settings = direct_agent_settings(replace(settings, **overrides))
+    settings = direct_agent_settings(RuntimeSettings.from_env(overrides=overrides))
     job = CodingJob(**{name: getattr(args, name) for name in CodingJob.__dataclass_fields__})
     result = run_coding_job(job, settings=settings)
     print(json.dumps(result, ensure_ascii=False, indent=2))

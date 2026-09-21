@@ -14,7 +14,7 @@
 
 ## 当前架构与统一入口
 
-[当前架构和职责](docs/ARCHITECTURE.zh-CN.md) · [独立任务批量运行](docs/AGENT_BATCH.zh-CN.md)。单个编程任务使用 `rwkv-lh`，执行现有的 `scripts/run_rwkv_coding_agent.py`。批量独立任务使用 `scripts/run_rwkv_agent.py`；不自动合并并行修改。
+[当前架构和职责](docs/ARCHITECTURE.zh-CN.md) · [独立任务批量运行](docs/AGENT_BATCH.zh-CN.md)。统一入口 `rwkv-lh` 执行 `scripts/run_rwkv_agent.py`：单题用 `--source-workspace`，批量用 `--jobs`。离线数据管线入口为 `rwkv-lh-data`；不自动合并并行修改。
 
 配置并核验 RWKV 服务后，给出源工作区和一句任务：
 
