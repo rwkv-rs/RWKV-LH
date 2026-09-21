@@ -102,12 +102,11 @@ def main() -> int:
                         recurrent[1].copy_(profiles.resolve('mechanism').wkv_state.unsqueeze(1))
                     reference = serving.forward_all_logits(tokens, recurrent)
                     actual = model(tokens)
-                    core.require(actual.shape == reference.shape and bool(torch.isfinite(actual).all())
-                                 and bool(torch.isfinite(reference).all()), 'alignment logit geometry or finiteness differs')
-                    max_error = float((actual - reference).abs().max())
-                    core.require(max_error <= registration['max_logit_error'], 'serving/training logits differ')
+                    max_error = core.max_logit_difference(actual, reference)
                     record('all_vocab_alignment', state='nonzero' if nonzero else 'zero', tokens=length,
-                           compared_logits=actual.numel(), max_absolute_error=max_error)
+                           compared_logits=actual.numel(), max_absolute_error=max_error,
+                           comparison_passed=max_error <= registration['max_logit_error'])
+                    core.require(max_error <= registration['max_logit_error'], 'serving/training logits differ')
                     del actual, reference, recurrent
         del serving
         gc.collect()

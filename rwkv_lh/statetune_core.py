@@ -126,3 +126,25 @@ def portable_state(model, *, layers: int, heads: int, head_size: int) -> dict[st
         result[name] = tensor
     # Portable PEFT [H,V,K] stays unchanged; the runtime loader transposes once.
     return result
+
+
+def max_logit_difference(actual, reference) -> float:
+    """Exact maximum over all logits, with at most 64 positions of scratch.
+
+    A 24K-by-64K vocabulary matrix contains over 1.6 billion values. Keeping
+    subtraction, finiteness checks and reduction bounded avoids allocating
+    several additional full-size matrices during numerical admission.
+    """
+    import torch
+    require(actual.ndim == 3 and actual.shape == reference.shape
+            and actual.shape[0] == 1 and actual.shape[1] > 0 and actual.shape[2] > 0
+            and actual.is_floating_point() and reference.is_floating_point()
+            and actual.device == reference.device,
+            'alignment logit geometry differs')
+    largest = 0.0
+    for begin in range(0, actual.shape[1], 64):
+        left, right = actual[:, begin:begin + 64], reference[:, begin:begin + 64]
+        require(bool(torch.isfinite(left).all()) and bool(torch.isfinite(right).all()),
+                'alignment logit finiteness differs')
+        largest = max(largest, float((left - right).abs().max()))
+    return largest
