@@ -1,7 +1,7 @@
 from pathlib import Path
 import json,tarfile
 import pytest
-R=Path(__file__).resolve().parents[1];ARCHIVE=R/'data/experiments/RWKV_REPLAY_INITIAL_SNAPSHOT_R1_20260915/REAL_TRACE_FIXTURES.tar.gz';MODEL='559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65'
+R=Path(__file__).resolve().parents[1];ARCHIVE=R/'data/test_fixtures/source_bound_regressions/RWKV_REPLAY_INITIAL_SNAPSHOT_R1_20260915_REAL_TRACE_FIXTURES.tar.gz';MODEL='559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65'
 def replay(root):
  from rwkv_lh.direct_trace_data import replay_run
  return replay_run(root,MODEL)

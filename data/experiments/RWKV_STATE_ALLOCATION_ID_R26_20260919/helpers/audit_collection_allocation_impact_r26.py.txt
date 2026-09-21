@@ -1,9 +1,0 @@
-from pathlib import Path
-import json,hashlib,collections
-R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_STATE_ALLOCATION_ID_R26_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';B=R/'data/experiments/RWKV_QWEN38_TEACHER_R17_20260916/bulk_deployment/inputs';rows=json.loads((P/'INVENTORY.json').read_text())['tasks'];refs=collections.defaultdict(list);errors=[];terms=collections.Counter();audited=[]
-for row in rows:
- root=B/row['id']/'original';path=root/'state_snapshot.json';raw=path.read_bytes();s=json.loads(raw);initial=next(iter(s['model_states'].values()),None);export=(initial or {}).get('native_state_export') or {};ref=export.get('state_ref');result=json.loads((root/'RESULT.json').read_text());reason=result.get('termination_reason');terms[reason]+=1
- if ref:refs[ref].append(row['id'])
- if reason=='model_transport_unavailable':errors.append(row['id'])
- audited.append({'id':row['id'],'snapshot_sha256':hashlib.sha256(raw).hexdigest(),'first_checkpoint':(initial or {}).get('checkpoint_id'),'first_state_ref':ref,'termination_reason':reason})
-out={'source_tasks':len(rows),'audited':len(audited),'distinct_first_handles':len(refs),'shared_first_handles':{k:v for k,v in refs.items() if len(v)>1},'transport_failure_tasks':errors,'termination_reasons':dict(terms),'records':audited,'scope':'First native checkpoint of every existing1024 RL task. No private tests/answers read. No rescore or training labels changed. Shared handles are a risk signal, not proof of polluted numerical State.'};(D/'ORIGINAL_COLLECTION_IMPACT.json').write_text(json.dumps(out,indent=2)+'\n');print({k:v for k,v in out.items() if k not in ('records','shared_first_handles')});print('shared first handle groups',len(out['shared_first_handles']))

@@ -1,8 +1,0 @@
-{
-  "author": "current Codex assistant",
-  "task_sha256": "5766ef46dc9c77d80ca5a96889424b1858a43826a2d5b62fc21d1ae5cd7f538b",
-  "solution_sha256": "e13ef17915f57782a4b5cf3d5479c58a3e05ff171c0e7ca2d27c307c3a33c3d6",
-  "reasoning": "The tournament has 2^n leaves; input b encodes rank 2^b. At a subtree of height h, keep the maximum unchanged leaf ranks for each possible final rank exponent b<=n-h of its champion. The losing child champion receives exponent n-h+1, while the other child retains the selected final exponent; maximize over the two winner choices. Avoid expanding 2^n leaves: if the entire subtree lies in one constant input run, all internal loser-rank multiplicities are fixed powers of two, and only the champion contributes a possible extra match. Split only dyadic nodes crossing run boundaries; binary search identifies uniform runs. The final answer is total leaves minus maximum retained ranks with global champion exponent zero.",
-  "hidden_cases_read": false,
-  "training_admitted": false
-}

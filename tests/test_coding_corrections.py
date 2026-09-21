@@ -88,18 +88,21 @@ def test_takeover_is_not_rwkv_correction_source(candidate):
         validate_coding_correction(**candidate)
 
 
-def test_real_failed_write_is_replayed_and_rejected_as_noop(tmp_path):
+def test_real_failed_write_is_replayed_and_rejected_as_noop(tmp_path, monkeypatch):
     import tarfile
     from pathlib import Path
     from rwkv_lh.direct_trace_data import replay_run
-    archive = Path(__file__).resolve().parents[1] / 'data/experiments/RWKV_EXPLICIT_EDIT_R1_20260914/EVIDENCE.tar.gz'
+    archive = Path(__file__).resolve().parents[1] / 'data/test_fixtures/source_bound_regressions/RWKV_EXPLICIT_EDIT_R1_20260914_EVIDENCE.tar.gz'
     prefix = 'runs/atomic-2/execution/'
     with tarfile.open(archive) as tar:
         members = [m for m in tar.getmembers() if m.isfile() and m.name.startswith(prefix)
                    and (m.name[len(prefix):] in ('RESULT.json', 'model_trace.jsonl', 'state_snapshot.json')
                         or '/tool_snapshots/' in m.name)]
+        members += [m for m in tar.getmembers() if m.isfile() and m.name.startswith('runs/atomic-2/workspace/')]
         tar.extractall(tmp_path, members=members, filter='data')
     root = tmp_path / prefix
+    from trace_fixture_paths import use_fixture_workspace
+    use_fixture_workspace(monkeypatch, root.parent / 'workspace')
     model_sha = '559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65'
     rows = replay_run(root, model_sha)
     cp, row = next((cp, row) for cp, row in rows.items()

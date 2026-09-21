@@ -1,7 +1,0 @@
-[
-  {
-    "request_id": "MR-e971aee950054557",
-    "raw_output": "{\"type\":\"json_object\",\"content\":{\"tool\":\"final_answer\",\"params\":{\"text\":\"依据 README.md 的原文，现回答如下。\\n\\n**一、模型与检索方式**\\n\\n- 模型：仅使用指定的 **RWKV7 G1j 2.9B**（README 概述处写作“RWKV 2.9B”）。基于 `bm250820` 的 `2bbc406125e7e030eda98b11993dc13fc4534ca4` 开发，当前优化分支为 `chase/rwkv-native-rag-rebuild`。训练后的 state 必须显式选择；训练完成不等于应用默认配置已经切换。\\n- 检索方式：**OpenSearch BM25，不使用 embedding**。模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。原始模型输出保持不变。\\n\\n**二、现有实验能说明什么**\\n\\n- Reader 在 60 道受控阅读挑战中从 48/60 提高到 60/60。\\n- Writer 明显减少失控重复；固定 36 题的独立抽样中，Writer300 有据可用 17/36，零 state 为 10/36。\\n- 这说明 StateTune 让上述受控任务的具体指标得到了改善。\\n\\n**三、现有实验不能说明什么**\\n\\n- 这些结果**不是全场景准确率**，也不代表**模型能力上限**。\\n- Writer 从 36 题扩大到 1400 条**没有继续提高**。\\n- Planner 出现格式退步，**空证据和冲突处理仍不可靠**。\\n- **复杂多问、长历史、缺证据与引用仍有已知错误**；服务可访问不代表所有场景已可靠。\\n\\n以上仅依据 README.md 的文件内容作答。\"}}",
-    "error": "model output is not one JSON object: Expecting ',' delimiter: line 1 column 782 (char 781)"
-  }
-]

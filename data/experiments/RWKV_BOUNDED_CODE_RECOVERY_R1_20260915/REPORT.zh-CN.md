@@ -1,9 +1,0 @@
-# 显式局部代码接管 R1：未完成
-
-任务级0/2、提交0、修改0；strong两题合计3次请求，均真实返回。offset先实际运行原测试（exit1），随后读源码即中断；query第一次读原测试即中断。源RWKV失败全部保留，不能算RWKV独立成绩，也不能据此判接管模型不会修复。
-
-根因证据：强模型拿到新的12calls/900s预算，却在读取时使用父运行累计成功结果次数，立即触发identical_success_budget_exhausted。现有Goal失败次数已经按run_yielded续跑边界计算，成功读取及协议错误两类遗漏。6项回归里成功/协议两模式4红，失败计数两项原本通过；工程候选使用既有epoch，无新状态机，不删历史。
-
-Provider实际wire包含model/max_tokens/stream/thinking disabled，没有显式sampling，实际供应商默认值未知；strong阶段不能拿Session本地sampling记录当已传给供应商的值。精确供应商usage见FINAL_USAGE；此观测限制不属于RWKV采样R2对照，后者真实native参数已核验。
-
-保持原任务验收：原测试不改、实现通过原测试、实际验证和忠实报告；下一R2仅在工程全绿后从同两个原RWKV父任务重新显式接管。新结果不替换本轮，不把接管成果直接当训练数据。

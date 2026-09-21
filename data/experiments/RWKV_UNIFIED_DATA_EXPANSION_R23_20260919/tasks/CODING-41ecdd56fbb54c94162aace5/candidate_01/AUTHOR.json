@@ -1,8 +1,0 @@
-{
-  "author": "current Codex assistant",
-  "task_sha256": "7190e3c7e66170206b2f982838ddbf19ba380bfc4c383b8f72b1aa01f252190d",
-  "solution_sha256": "85283b60cd2eac92dccd9792814d5f5bd6b047471f016861db41ca100a64ad72",
-  "reasoning": "An attack only moves a boundary or deletes an entire run; it cannot reorder run colors or create a new color occurrence. Therefore a final compressed run sequence is exactly a subsequence of the original compressed sequence with adjacent colors different. Conversely keep one representative of each chosen run, erase unchosen runs into neighboring chosen runs, and move the retained boundaries to realize any positive run lengths. For r retained runs there are C(n-1,r-1) length compositions. Count distinct compressed subsequences by length and last color: when reading c, replace ending[c][r] by total[r-1]-ending[c][r-1], excluding an adjacent repeated c and deduplicating earlier occurrences. Update lengths descending to use the prior prefix state. Sum the distinct counts times the composition counts modulo the prime.",
-  "hidden_cases_read": false,
-  "training_admitted": false
-}

@@ -1,9 +1,0 @@
-from pathlib import Path
-import json,subprocess,itertools,collections,time
-R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz151.json').read_text())['candidates'][0]['candidate_path'];counts=collections.Counter()
-for length in range(1,10):
- for s in itertools.product('BGM',repeat=length):
-  if all(c!='G' or (i>0 and s[i-1]!='G') or (i+1<length and s[i+1]!='G') for i,c in enumerate(s)) and any((a=='M')!=(b=='M') for a,b in zip(s,s[1:])):counts[s.count('B'),s.count('G'),s.count('M')]+=1
-cases=[(p,q,k) for p in range(6) for q in range(6) for k in range(4) if p+q+k<=9];text=str(len(cases))+'\n'+'\n'.join(f'{p} {q} {k}' for p,q,k in cases)+'\n';r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=10);assert r.returncode==0,r.stderr;actual=list(map(int,r.stdout.split()));assert actual==[counts[c] for c in cases],[(c,a,counts[c]) for c,a in zip(cases,actual) if a!=counts[c]]
-start=time.monotonic();r=subprocess.run([str(R/'.venv/bin/python'),p],input='20\n'+('1000 1000 10\n'*20),text=True,capture_output=True,timeout=10);elapsed=time.monotonic()-start;assert r.returncode==0,r.stderr
-out={'status':'passed','cases':{'275':len(cases)},'private_cases_read':False,'oracle':'Enumerate every B/G/M word up to length nine and directly inspect both neighboring constraints','max_20_cases_seconds':elapsed};(D/'PUBLIC_CROSSCHECKS_BATCHz151.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

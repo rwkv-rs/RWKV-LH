@@ -1,8 +1,0 @@
-from pathlib import Path
-import json,hashlib
-R=Path('/home/chase/GitHub/RWKV-LH');O=R/'data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920';old=json.loads((O/'SOURCE_AND_TESTS.json').read_text());sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
-for rel,digest in old['source_identity'].items():assert sha(R/rel)==digest,rel
-p=R/'temp/checkpoint_r31_20260920.py';s=p.read_text();s=s.replace("text=h.read_text();prefix=f", "text=h.read_text();text=re.sub(r'^# 当前 R31 进行中：.*?(?=^# Owner最新顺序：)', '', text, count=1, flags=re.S|re.M);prefix=f")
-s=s.replace("'author_batch*_20260920.py','check_batch*_20260920.py'", "'author_batch*20260920*.py','check_batch*20260920*.py','fix_*r31_20260920.py','prepare_*r31_20260920.py','check_bob_theorem_r31_20260920.py'")
-p.write_text(s)
-print('source identity unchanged; refreshed checkpoint writer')

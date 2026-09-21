@@ -36,17 +36,19 @@ def test_direct_freeze_accepts_independent_source_families():
                               {'family':'project-b','split':'dev','source_content_sha256':'b'*64}])
 
 
-def test_obsolete_advice_labelling_is_rejected_by_current_production_builder(tmp_path):
+def test_obsolete_advice_labelling_is_rejected_by_current_production_builder(tmp_path, monkeypatch):
     from pathlib import Path
     from rwkv_lh.direct_trace_data import replay_run
     root = Path(__file__).resolve().parents[1]
     import tarfile
-    archive = root / 'data/experiments/RWKV_SUMMARY_ADVICE_DIAGNOSTIC_R3_20260913/RAW_EVIDENCE.tar.gz'
+    archive = root / 'data/test_fixtures/source_bound_regressions/RWKV_SUMMARY_ADVICE_DIAGNOSTIC_R3_20260913_RAW_EVIDENCE.tar.gz'
     with tarfile.open(archive) as tar:
         members = [m for m in tar.getmembers() if m.name.startswith('runs/trial-1/') and m.isfile()
                    and ('/workspace/' in m.name or m.name.endswith(('state_snapshot.json', 'model_trace.jsonl')))]
         tar.extractall(tmp_path, members=members, filter='data')
     run = tmp_path / 'runs/trial-1'
+    from trace_fixture_paths import use_fixture_workspace
+    use_fixture_workspace(monkeypatch, run / 'workspace')
     with pytest.raises(ValueError, match='production observation replay differs'):
         replay_run(run, '559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65')
 
@@ -83,12 +85,14 @@ def test_executed_read_binding_accepts_documented_omission_not_wrong_parameters(
         executed_arguments(invalid)
 
 
-def test_current_read_only_advice_trace_replays_only_new_calls_with_real_parent_history(tmp_path):
+def test_current_read_only_advice_trace_replays_only_new_calls_with_real_parent_history(tmp_path, monkeypatch):
     from pathlib import Path
     import tarfile
     from rwkv_lh.direct_trace_data import replay_run
-    archive=Path(__file__).resolve().parents[1]/'data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/CURRENT_REPLAY_FIXTURE.tar.gz'
+    archive=Path(__file__).resolve().parents[1]/'data/test_fixtures/source_bound_regressions/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913_CURRENT_REPLAY_FIXTURE.tar.gz'
     with tarfile.open(archive) as tar:tar.extractall(tmp_path,filter='data')
+    from trace_fixture_paths import use_fixture_workspace
+    use_fixture_workspace(monkeypatch, tmp_path / 'current/workspace')
     rows=replay_run(tmp_path/'current','559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65')
     assert len(rows)==1
     row=next(iter(rows.values()))
@@ -99,19 +103,23 @@ def test_current_read_only_advice_trace_replays_only_new_calls_with_real_parent_
 def _recent_coding_trace(tmp_path):
     from pathlib import Path
     import tarfile
-    archive = Path(__file__).resolve().parents[1] / 'data/experiments/RWKV_EXPLICIT_EDIT_R1_20260914/EVIDENCE.tar.gz'
+    archive = Path(__file__).resolve().parents[1] / 'data/test_fixtures/source_bound_regressions/RWKV_EXPLICIT_EDIT_R1_20260914_EVIDENCE.tar.gz'
     prefix = 'runs/atomic-2/execution/'
     with tarfile.open(archive) as tar:
         members = [m for m in tar.getmembers() if m.name in
                    [prefix + name for name in ('RESULT.json', 'state_snapshot.json', 'model_trace.jsonl')]]
         assert len(members) == 3
+        members += [m for m in tar.getmembers() if m.isfile() and m.name.startswith('runs/atomic-2/workspace/')]
         tar.extractall(tmp_path, members=members, filter='data')
     return tmp_path / prefix
 
 
-def test_current_coding_trace_replays_original_menu_and_workspace_identity(tmp_path):
+def test_current_coding_trace_replays_original_menu_and_workspace_identity(tmp_path, monkeypatch):
     from rwkv_lh.direct_trace_data import replay_run
-    rows = replay_run(_recent_coding_trace(tmp_path), '559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65')
+    root = _recent_coding_trace(tmp_path)
+    from trace_fixture_paths import use_fixture_workspace
+    use_fixture_workspace(monkeypatch, root.parent / 'workspace')
+    rows = replay_run(root, '559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65')
     assert len(rows) == 4
     assert all(row['recomputed'] for row in rows.values())
     assert any('write_file' in row['raw_generation']['raw_output'] for row in rows.values())
@@ -154,7 +162,7 @@ def test_coding_training_rows_only_accept_reviewed_atomic_edits(function,params,
     from rwkv_lh.direct_trace_data import normalize_direct_row
     from rwkv_lh.token_budget import tokenizer
     from test_unified_controller import call
-    source=Path(__file__).resolve().parents[1]/'data/datasets/rwkv_direct_fact_fidelity_v1/train.jsonl'
+    source=Path(__file__).resolve().parents[1]/'data/test_fixtures/source_bound_regressions/direct_row.jsonl'
     row=json.loads(source.read_text().splitlines()[0])
     row['target_text']=json.dumps(call(function,**params))+model_io.JSON_CALL_STOP_SUFFIXES[0]
     row['target_token_ids']=tokenizer().encode(row['target_text'])
@@ -177,7 +185,7 @@ def test_command_training_label_accepts_real_failure_feedback_authority_only_for
     from rwkv_lh.direct_trace_data import normalize_direct_row
     from rwkv_lh.token_budget import tokenizer
     from test_unified_controller import call
-    path=Path(__file__).resolve().parents[1]/'data/datasets/rwkv_direct_fact_fidelity_v1/train.jsonl'
+    path=Path(__file__).resolve().parents[1]/'data/test_fixtures/source_bound_regressions/direct_row.jsonl'
     row=json.loads(path.read_text().splitlines()[0])
     row.update(label_authority='verified_command',command_validation={'path':'fixture.json','sha256':'a'*64})
     row['target_text']=json.dumps(call('check_command',argv=['python3','-m','unittest']))+model_io.JSON_CALL_STOP_SUFFIXES[0]

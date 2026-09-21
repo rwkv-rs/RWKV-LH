@@ -64,7 +64,7 @@ def test_stdio_row_authority_requires_explicit_execution_and_review():
     from pathlib import Path
     from rwkv_lh.direct_trace_data import normalize_direct_row
     from rwkv_lh.token_budget import tokenizer
-    p=Path(__file__).resolve().parents[1]/'data/datasets/rwkv_direct_fact_fidelity_v1/train.jsonl'
+    p=Path(__file__).resolve().parents[1]/'data/test_fixtures/source_bound_regressions/direct_row.jsonl'
     row=json.loads(p.read_text().splitlines()[0]);target=json.dumps(call('write_file',path='solution.py',content='print(int(input())*2)\n'))+model_io.JSON_CALL_STOP_SUFFIXES[0]
     row.update(target_text=target,target_token_ids=tokenizer().encode(target),label_authority='verified_stdio',stdio_validation={'path':'proof.json','sha256':'a'*64},stdio_review={'reviewer':'source reviewer','accepted':True,'visible_evidence_only':True,'source_consistent':True,'output_contract':'exact_unique','target_sha256':hashlib.sha256(target.encode()).hexdigest(),'input_sha256':hashlib.sha256(row['input_text'].encode()).hexdigest()})
     args=dict(model_sha256=row['model_sha256'],context_tokens=32768,vocab_size=65536,bos_token_id=0)

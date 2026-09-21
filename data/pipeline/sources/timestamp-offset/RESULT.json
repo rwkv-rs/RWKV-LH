@@ -1,0 +1,590 @@
+{
+  "id": "timestamp-offset",
+  "final": null,
+  "termination": "budget",
+  "termination_reason": "identical_success_budget_exhausted",
+  "termination_evidence": {
+    "schema_version": "rwkv-lh.causal-event.v2",
+    "event_id": "CE-000031",
+    "run_id": "timestamp-offset",
+    "sequence": 31,
+    "parent_id": "CE-000030",
+    "cause_id": "CE-000030",
+    "subject_id": "timestamp-offset",
+    "event_type": "run_yielded",
+    "payload_schema": "rwkv-lh.run-yielded.v1",
+    "payload": {
+      "reason": "identical_success_budget_exhausted",
+      "boundary_type": "run_interrupted",
+      "resumable": true,
+      "termination_permitted": false,
+      "continuation": "controller_resume",
+      "candidate_decision_id": "",
+      "candidate_output_source": "none",
+      "candidate_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "candidate_output": "",
+      "at": "2026-09-20T10:54:26.675+00:00"
+    },
+    "created_at": "2026-09-20T10:54:26.683+00:00",
+    "digest": "c8830b5710a9cdccaa9d872d1dbc52474c3831918ad317d74f318740ce51a348"
+  },
+  "command_executions": [],
+  "acceptance": "not_evaluated",
+  "assistance": "rwkv_independent",
+  "execution_model": "rwkv-direct-engineering-r34-ctx24576",
+  "execution_authority": "rwkv",
+  "continuation": null,
+  "error": null,
+  "status": "interrupted",
+  "state_status": "running",
+  "trace_complete": true,
+  "trace_persistence_ok": true,
+  "generation_returned": 7,
+  "unresolved_request_ids": [],
+  "trace_errors": [],
+  "tool_scope": "coding",
+  "generation_started": 7,
+  "protocol_rejections": 0,
+  "actions": [
+    {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "list_directory",
+      "arguments": {
+        "path": ".",
+        "recursive": false,
+        "max_entries": 1024,
+        "start_after": "",
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "."
+      },
+      "action_fingerprint": "463f0d4912d882149246ef06a8a848e6d2485f6a70237a26c07d13cd58e61769",
+      "idempotency_key": "c9876db0d25e91c26b72d1fff793a6a404dc79247dd8fa0788f4fa76d5ebb06a",
+      "decision_id": "D-619436d106234412",
+      "request_id": "MR-c4b1b4046e764956",
+      "started_at": "2026-09-20T10:54:14.841+00:00",
+      "ended_at": "2026-09-20T10:54:14.849+00:00",
+      "result": {
+        "action_type": "list_directory",
+        "success": true,
+        "output": "{\"entries\": [{\"path\": \"README.md\", \"size_bytes\": 1988, \"type\": \"file\"}, {\"path\": \"test_timestamp_offset.py\", \"size_bytes\": 1577, \"type\": \"file\"}, {\"path\": \"timebook.py\", \"size_bytes\": 3918, \"type\": \"file\"}], \"entry_count\": 3, \"next_cursor\": \"\", \"path\": \".\", \"recursive\": false, \"truncated\": false}",
+        "exit_code": null,
+        "artifacts": [],
+        "evidence": [],
+        "metadata": {
+          "path": ".",
+          "recursive": false,
+          "entries": [
+            {
+              "path": "README.md",
+              "type": "file",
+              "size_bytes": 1988
+            },
+            {
+              "path": "test_timestamp_offset.py",
+              "type": "file",
+              "size_bytes": 1577
+            },
+            {
+              "path": "timebook.py",
+              "type": "file",
+              "size_bytes": 3918
+            }
+          ],
+          "entry_count": 3,
+          "truncated": false,
+          "next_cursor": "",
+          "complete": true
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [],
+      "workspace_digest_before": "37cba03b601b3ea4b809bb6660b9fb76bc11780dd407eb3e04ac60b96df9e5d5",
+      "workspace_digest_after": "37cba03b601b3ea4b809bb6660b9fb76bc11780dd407eb3e04ac60b96df9e5d5",
+      "failure_key": "",
+      "observation_fingerprint": "49d9edae60054d49d78c7703ca7f32152eec69798f7fc0a6f25e31d1b883771f",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00002",
+      "sequence": 2,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "timebook.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "timebook.py"
+      },
+      "action_fingerprint": "e37570001833d366cfec9bc6700ea5c151ef5a8fb77c3726ca01b73f20d356c4",
+      "idempotency_key": "d5800af5caf2f32978a5157056f7635dfab5a6b6da7a9d775c5163bf51a377c6",
+      "decision_id": "D-cd286c6e2b0e4774",
+      "request_id": "MR-b0eb020f18024457",
+      "started_at": "2026-09-20T10:54:16.333+00:00",
+      "ended_at": "2026-09-20T10:54:16.352+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "#!/usr/bin/env python3\n\"\"\"Team timebook CLI - add subcommand only (this round).\"\"\"\n\nimport argparse\nimport json\nimport re\nimport sqlite3\nimport sys\nfrom datetime import datetime, timedelta, timezone\n\nISO_RE = re.compile(\n    r\"^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$\"\n)\n\n\ndef parse_timestamp(value):\n    \"\"\"Parse ISO 8601 with explicit offset/Z, whole-second precision.\"\"\"\n    if not isinstance(value, str) or not ISO_RE.match(value):\n        raise ValueError(\"invalid timestamp: %r\" % (value,))\n    if \".\" in value:\n        frac = value.split(\".\", 1)[1]\n        digits = \"\"\n        for ch in frac:\n            if ch.isdigit():\n                digits += ch\n            else:\n                break\n        if digits.strip(\"0\"):\n            raise ValueError(\"timestamp must be whole-second precision: %r\" % (value,))\n    text = value\n    if text.endswith(\"Z\"):\n        text = text[:-1] + \"+00:00\"\n    dt = datetime.fromisoformat(text)\n    if dt.microsecond != 0:\n        raise ValueError(\"timestamp must be whole-second precision: %r\" % (value,))\n    if dt.tzinfo is None:\n        raise ValueError(\"timestamp requires explicit UTC offset: %r\" % (value,))\n    return dt.astimezone(timezone.utc)\n\n\ndef validate_event(event_id, project, start, end):\n    if not isinstance(event_id, str) or not event_id.strip():\n        raise ValueError(\"id must be a nonempty, non-whitespace string\")\n    if not isinstance(project, str) or not project.strip():\n        raise ValueError(\"project must be a nonempty, non-whitespace string\")\n    start_dt = parse_timestamp(start)\n    end_dt = parse_timestamp(end)\n    if not end_dt > start_dt:\n        raise ValueError(\"end must be strictly after start\")\n    return start_dt, end_dt\n\n\ndef normalize_iso(dt):\n    dt = dt.astimezone(timezone.utc)\n    return dt.strftime(\"%Y-%m-%dT%H:%M:%SZ\")\n\n\ndef open_db(path):\n    conn = sqlite3.connect(path)\n    conn.execute(\n        \"\"\"CREATE TABLE IF NOT EXISTS events (\n            id TEXT PRIMARY KEY,\n            project TEXT NOT NULL,\n            start_utc TEXT NOT NULL,\n            end_utc TEXT NOT NULL\n        )\"\"\"\n    )\n    conn.commit()\n    return conn\n\n\ndef add_event(conn, event_id, project, start, end):\n    start_dt, end_dt = validate_event(event_id, project, start, end)\n    start_utc = normalize_iso(start_dt)\n    end_utc = normalize_iso(end_dt)\n    cur = conn.execute(\"SELECT project, start_utc, end_utc FROM events WHERE id = ?\", (event_id,))\n    row = cur.fetchone()\n    if row is not None:\n        if row[0] == project and row[1] == start_utc and row[2] == end_utc:\n            return {\"inserted\": 0, \"duplicates\": 1}\n        raise ValueError(\"conflicting ID: %s\" % (event_id,))\n    conn.execute(\n        \"INSERT INTO events (id, project, start_utc, end_utc) VALUES (?, ?, ?, ?)\",\n        (event_id, project, start_utc, end_utc),\n    )\n    conn.commit()\n    return {\"inserted\": 1, \"duplicates\": 0}\n\n\ndef cmd_add(args):\n    conn = open_db(args.db)\n    try:\n        result = add_event(conn, args.id, args.project, args.start, args.end)\n    finally:\n        conn.close()\n    return result\n\n\ndef main(argv=None):\n    parser = argparse.ArgumentParser(description=\"Team timebook\")\n    sub = parser.add_subparsers(dest=\"command\", required=True)\n\n    p_add = sub.add_parser(\"add\")\n    p_add.add_argument(\"db\")\n    p_add.add_argument(\"--id\", required=True)\n    p_add.add_argument(\"--project\", required=True)\n    p_add.add_argument(\"--start\", required=True)\n    p_add.add_argument(\"--end\", required=True)\n\n    args = parser.parse_args(argv)\n\n    try:\n        if args.command == \"add\":\n            result = cmd_add(args)\n        else:\n            raise ValueError(\"unsupported command\")\n    except ValueError as exc:\n        sys.stderr.write(\"error: %s\\n\" % (exc,))\n        return 1\n\n    json.dump(result, sys.stdout)\n    sys.stdout.write(\"\\n\")\n    return 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main())\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "timebook.py",
+            "sha256": "14c86f2ce77892ebd7b49a9baf9155f6b5ed4b75d4207bcdda3f29ca88056dbd",
+            "media_type": "text/x-python",
+            "size_bytes": 3918,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-695aebf764bcc6d5",
+            "source_ref": "timebook.py",
+            "source_sha256": "14c86f2ce77892ebd7b49a9baf9155f6b5ed4b75d4207bcdda3f29ca88056dbd",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 3918,
+            "core_start": 0,
+            "core_end": 3918,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "14c86f2ce77892ebd7b49a9baf9155f6b5ed4b75d4207bcdda3f29ca88056dbd",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 1143
+          },
+          "start_byte": 0,
+          "end_byte": 3918,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 3918,
+          "observed_tokens": 1143,
+          "source_start_line": 1,
+          "source_end_line": 127
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-7a8c11c0bd5d89e642e7"
+      ],
+      "workspace_digest_before": "37cba03b601b3ea4b809bb6660b9fb76bc11780dd407eb3e04ac60b96df9e5d5",
+      "workspace_digest_after": "37cba03b601b3ea4b809bb6660b9fb76bc11780dd407eb3e04ac60b96df9e5d5",
+      "failure_key": "",
+      "observation_fingerprint": "c279b6c604d96177e43271ff72e4f28c9aa7cef63cc7d54a4d8bc4c344e3b8b3",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00003",
+      "sequence": 3,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "test_timestamp_offset.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "test_timestamp_offset.py"
+      },
+      "action_fingerprint": "ac6233ffc02095d6f2459db7868af8e76c7f8013513f0463bde398033e154b4f",
+      "idempotency_key": "cc28224a324b4afbd9f41f0f86288545d76b8e420348054d3733b23416cc3b5b",
+      "decision_id": "D-6c530908d4954a0e",
+      "request_id": "MR-e4dfec2b77b54ffe",
+      "started_at": "2026-09-20T10:54:18.429+00:00",
+      "ended_at": "2026-09-20T10:54:18.446+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from pathlib import Path\nimport json, subprocess, sys, tempfile, unittest\nSCRIPT = Path(__file__).resolve().parent / 'timebook.py'\nclass OffsetTests(unittest.TestCase):\n    def test_offset_validation_and_existing_add(self):\n        with tempfile.TemporaryDirectory() as td:\n            db = Path(td) / 'time.sqlite'\n            def invoke(ident, offset):\n                return subprocess.run([sys.executable, str(SCRIPT), 'add', str(db), '--id', ident, '--project', 'team', '--start', '2024-02-29T08:00:00' + offset, '--end', '2024-02-29T09:00:00' + offset], capture_output=True, text=True, timeout=10)\n            for n, offset in enumerate(('Z', '+00:00', '+08:00', '-08:00', '+05:30')):\n                with self.subTest(valid=offset):\n                    first = invoke('valid-' + str(n), offset)\n                    self.assertEqual(first.returncode, 0, first.stderr)\n                    self.assertEqual(json.loads(first.stdout), {'inserted': 1, 'duplicates': 0})\n                    second = invoke('valid-' + str(n), offset)\n                    self.assertEqual(second.returncode, 0, second.stderr)\n                    self.assertEqual(json.loads(second.stdout), {'inserted': 0, 'duplicates': 1})\n            for n, offset in enumerate(('+00:60', '+00:99', '-00:60', '+24:00', '+99:00')):\n                with self.subTest(invalid=offset):\n                    bad = invoke('bad-' + str(n), offset)\n                    self.assertNotEqual(bad.returncode, 0, bad.stdout)\n                    self.assertTrue(bad.stderr.strip())\nif __name__ == '__main__': unittest.main()\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "test_timestamp_offset.py",
+            "sha256": "50c635791a962ec61a48ec763cae35553583e47bc7fe781d171fe6210e9a47cd",
+            "media_type": "text/x-python",
+            "size_bytes": 1577,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-22a96fa6b8fd2809",
+            "source_ref": "test_timestamp_offset.py",
+            "source_sha256": "50c635791a962ec61a48ec763cae35553583e47bc7fe781d171fe6210e9a47cd",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1577,
+            "core_start": 0,
+            "core_end": 1577,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "50c635791a962ec61a48ec763cae35553583e47bc7fe781d171fe6210e9a47cd",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 435
+          },
+          "start_byte": 0,
+          "end_byte": 1577,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1577,
+          "observed_tokens": 435,
+          "source_start_line": 1,
+          "source_end_line": 23
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-8511385d4a307836980a"
+      ],
+      "workspace_digest_before": "37cba03b601b3ea4b809bb6660b9fb76bc11780dd407eb3e04ac60b96df9e5d5",
+      "workspace_digest_after": "37cba03b601b3ea4b809bb6660b9fb76bc11780dd407eb3e04ac60b96df9e5d5",
+      "failure_key": "",
+      "observation_fingerprint": "e2ba771bd581e77694136e4fc0a13d21d4f5351b5fca15a73587f51727c9e29c",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00004",
+      "sequence": 4,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "README.md",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "README.md"
+      },
+      "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+      "idempotency_key": "fccc1d07b148123f56b72833a61aead288ddec78a63481a6977232c992281722",
+      "decision_id": "D-680372feda1147b3",
+      "request_id": "MR-e40502ca223646b6",
+      "started_at": "2026-09-20T10:54:20.309+00:00",
+      "ended_at": "2026-09-20T10:54:20.335+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "# Team timebook\n\nImplement `timebook.py` using only Python's standard library and durable SQLite storage. Commands:\n\n- `python timebook.py add DB --id ID --project PROJECT --start ISO --end ISO`\n- `python timebook.py import DB INPUT_JSON`\n- `python timebook.py stats DB --from YYYY-MM-DD --to YYYY-MM-DD`\n\nAn event has exactly `id`, `project`, `start`, `end`, all nonempty strings. Preserve nonempty IDs/project names exactly; reject whitespace-only ones. Timestamps use ISO 8601 with explicit UTC offset or Z, whole-second precision, and end strictly after start. Import is a JSON array of events. No overlap restriction is imposed: recorded durations are summed independently.\n\nEvents are identified globally by ID. Normalize timestamps to UTC for duplicate comparisons. Reimporting an identical ID/project/time interval is a no-op; a conflicting ID is an error. An invalid record or conflicting ID rejects the entire import transaction, including earlier valid records from that batch. Empty imports are valid. Add and import print `{\"inserted\": N, \"duplicates\": N}`; add follows the same duplicate rules. A new DB is created as needed.\n\nStats uses UTC calendar dates and a half-open range `[from, to)`, where `to` is the excluded midnight. Reject invalid or reversed/empty date ranges. Split intervals at UTC midnight and clip to the requested range, including leap days and offset conversions. Return `{\"days\": [{\"date\": \"YYYY-MM-DD\", \"projects\": {\"project\": integer_seconds}, \"total_seconds\": integer_seconds}], \"total_seconds\": integer_seconds}`. Include only days with recorded duration, ordered chronologically; project keys must be emitted in sorted order. Empty results contain an empty days array and total 0. Each CLI invocation is a new process, so persistence and duplicate detection must survive restarts. Errors exit nonzero with diagnostics; successful stdout is one JSON document. Include your own tests and update this README with usage and verification instructions.\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "README.md",
+            "sha256": "2104c21d27b554108203cf006101ed8b8e565d82598f6c2c5d11c85d5507dfb6",
+            "media_type": "text/markdown",
+            "size_bytes": 1988,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-92e8525d08bd79a6",
+            "source_ref": "README.md",
+            "source_sha256": "2104c21d27b554108203cf006101ed8b8e565d82598f6c2c5d11c85d5507dfb6",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1988,
+            "core_start": 0,
+            "core_end": 1988,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "2104c21d27b554108203cf006101ed8b8e565d82598f6c2c5d11c85d5507dfb6",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 455
+          },
+          "start_byte": 0,
+          "end_byte": 1988,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1988,
+          "observed_tokens": 455,
+          "source_start_line": 1,
+          "source_end_line": 13
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-2d15382284189120e022"
+      ],
+      "workspace_digest_before": "37cba03b601b3ea4b809bb6660b9fb76bc11780dd407eb3e04ac60b96df9e5d5",
+      "workspace_digest_after": "37cba03b601b3ea4b809bb6660b9fb76bc11780dd407eb3e04ac60b96df9e5d5",
+      "failure_key": "",
+      "observation_fingerprint": "dedf440a65a55dcb7188ba11fc474cb7f3c22d811d562bc1b8f5ee7b8e48a935",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00005",
+      "sequence": 5,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "test_timestamp_offset.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "test_timestamp_offset.py"
+      },
+      "action_fingerprint": "ac6233ffc02095d6f2459db7868af8e76c7f8013513f0463bde398033e154b4f",
+      "idempotency_key": "75a6c14b1b3ddaeb572364756e591aae2c4143b74f0225878e3f10825f5135d0",
+      "decision_id": "D-233484c8b9d5480f",
+      "request_id": "MR-a3d5648aec3c4e89",
+      "started_at": "2026-09-20T10:54:22.321+00:00",
+      "ended_at": "2026-09-20T10:54:22.346+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from pathlib import Path\nimport json, subprocess, sys, tempfile, unittest\nSCRIPT = Path(__file__).resolve().parent / 'timebook.py'\nclass OffsetTests(unittest.TestCase):\n    def test_offset_validation_and_existing_add(self):\n        with tempfile.TemporaryDirectory() as td:\n            db = Path(td) / 'time.sqlite'\n            def invoke(ident, offset):\n                return subprocess.run([sys.executable, str(SCRIPT), 'add', str(db), '--id', ident, '--project', 'team', '--start', '2024-02-29T08:00:00' + offset, '--end', '2024-02-29T09:00:00' + offset], capture_output=True, text=True, timeout=10)\n            for n, offset in enumerate(('Z', '+00:00', '+08:00', '-08:00', '+05:30')):\n                with self.subTest(valid=offset):\n                    first = invoke('valid-' + str(n), offset)\n                    self.assertEqual(first.returncode, 0, first.stderr)\n                    self.assertEqual(json.loads(first.stdout), {'inserted': 1, 'duplicates': 0})\n                    second = invoke('valid-' + str(n), offset)\n                    self.assertEqual(second.returncode, 0, second.stderr)\n                    self.assertEqual(json.loads(second.stdout), {'inserted': 0, 'duplicates': 1})\n            for n, offset in enumerate(('+00:60', '+00:99', '-00:60', '+24:00', '+99:00')):\n                with self.subTest(invalid=offset):\n                    bad = invoke('bad-' + str(n), offset)\n                    self.assertNotEqual(bad.returncode, 0, bad.stdout)\n                    self.assertTrue(bad.stderr.strip())\nif __name__ == '__main__': unittest.main()\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "test_timestamp_offset.py",
+            "sha256": "50c635791a962ec61a48ec763cae35553583e47bc7fe781d171fe6210e9a47cd",
+            "media_type": "text/x-python",
+            "size_bytes": 1577,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-22a96fa6b8fd2809",
+            "source_ref": "test_timestamp_offset.py",
+            "source_sha256": "50c635791a962ec61a48ec763cae35553583e47bc7fe781d171fe6210e9a47cd",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1577,
+            "core_start": 0,
+            "core_end": 1577,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "50c635791a962ec61a48ec763cae35553583e47bc7fe781d171fe6210e9a47cd",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 435
+          },
+          "start_byte": 0,
+          "end_byte": 1577,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1577,
+          "observed_tokens": 435,
+          "source_start_line": 1,
+          "source_end_line": 23
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-0d44af6bcf3bf101daf9"
+      ],
+      "workspace_digest_before": "37cba03b601b3ea4b809bb6660b9fb76bc11780dd407eb3e04ac60b96df9e5d5",
+      "workspace_digest_after": "37cba03b601b3ea4b809bb6660b9fb76bc11780dd407eb3e04ac60b96df9e5d5",
+      "failure_key": "",
+      "observation_fingerprint": "e2ba771bd581e77694136e4fc0a13d21d4f5351b5fca15a73587f51727c9e29c",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00006",
+      "sequence": 6,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "timebook.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "timebook.py"
+      },
+      "action_fingerprint": "e37570001833d366cfec9bc6700ea5c151ef5a8fb77c3726ca01b73f20d356c4",
+      "idempotency_key": "0583b84efe1bbd32e119b065ba674e316f511110919996da456be2709c89c0d7",
+      "decision_id": "D-f7ee123158184a36",
+      "request_id": "MR-78468a994f364995",
+      "started_at": "2026-09-20T10:54:24.303+00:00",
+      "ended_at": "2026-09-20T10:54:24.339+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "#!/usr/bin/env python3\n\"\"\"Team timebook CLI - add subcommand only (this round).\"\"\"\n\nimport argparse\nimport json\nimport re\nimport sqlite3\nimport sys\nfrom datetime import datetime, timedelta, timezone\n\nISO_RE = re.compile(\n    r\"^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$\"\n)\n\n\ndef parse_timestamp(value):\n    \"\"\"Parse ISO 8601 with explicit offset/Z, whole-second precision.\"\"\"\n    if not isinstance(value, str) or not ISO_RE.match(value):\n        raise ValueError(\"invalid timestamp: %r\" % (value,))\n    if \".\" in value:\n        frac = value.split(\".\", 1)[1]\n        digits = \"\"\n        for ch in frac:\n            if ch.isdigit():\n                digits += ch\n            else:\n                break\n        if digits.strip(\"0\"):\n            raise ValueError(\"timestamp must be whole-second precision: %r\" % (value,))\n    text = value\n    if text.endswith(\"Z\"):\n        text = text[:-1] + \"+00:00\"\n    dt = datetime.fromisoformat(text)\n    if dt.microsecond != 0:\n        raise ValueError(\"timestamp must be whole-second precision: %r\" % (value,))\n    if dt.tzinfo is None:\n        raise ValueError(\"timestamp requires explicit UTC offset: %r\" % (value,))\n    return dt.astimezone(timezone.utc)\n\n\ndef validate_event(event_id, project, start, end):\n    if not isinstance(event_id, str) or not event_id.strip():\n        raise ValueError(\"id must be a nonempty, non-whitespace string\")\n    if not isinstance(project, str) or not project.strip():\n        raise ValueError(\"project must be a nonempty, non-whitespace string\")\n    start_dt = parse_timestamp(start)\n    end_dt = parse_timestamp(end)\n    if not end_dt > start_dt:\n        raise ValueError(\"end must be strictly after start\")\n    return start_dt, end_dt\n\n\ndef normalize_iso(dt):\n    dt = dt.astimezone(timezone.utc)\n    return dt.strftime(\"%Y-%m-%dT%H:%M:%SZ\")\n\n\ndef open_db(path):\n    conn = sqlite3.connect(path)\n    conn.execute(\n        \"\"\"CREATE TABLE IF NOT EXISTS events (\n            id TEXT PRIMARY KEY,\n            project TEXT NOT NULL,\n            start_utc TEXT NOT NULL,\n            end_utc TEXT NOT NULL\n        )\"\"\"\n    )\n    conn.commit()\n    return conn\n\n\ndef add_event(conn, event_id, project, start, end):\n    start_dt, end_dt = validate_event(event_id, project, start, end)\n    start_utc = normalize_iso(start_dt)\n    end_utc = normalize_iso(end_dt)\n    cur = conn.execute(\"SELECT project, start_utc, end_utc FROM events WHERE id = ?\", (event_id,))\n    row = cur.fetchone()\n    if row is not None:\n        if row[0] == project and row[1] == start_utc and row[2] == end_utc:\n            return {\"inserted\": 0, \"duplicates\": 1}\n        raise ValueError(\"conflicting ID: %s\" % (event_id,))\n    conn.execute(\n        \"INSERT INTO events (id, project, start_utc, end_utc) VALUES (?, ?, ?, ?)\",\n        (event_id, project, start_utc, end_utc),\n    )\n    conn.commit()\n    return {\"inserted\": 1, \"duplicates\": 0}\n\n\ndef cmd_add(args):\n    conn = open_db(args.db)\n    try:\n        result = add_event(conn, args.id, args.project, args.start, args.end)\n    finally:\n        conn.close()\n    return result\n\n\ndef main(argv=None):\n    parser = argparse.ArgumentParser(description=\"Team timebook\")\n    sub = parser.add_subparsers(dest=\"command\", required=True)\n\n    p_add = sub.add_parser(\"add\")\n    p_add.add_argument(\"db\")\n    p_add.add_argument(\"--id\", required=True)\n    p_add.add_argument(\"--project\", required=True)\n    p_add.add_argument(\"--start\", required=True)\n    p_add.add_argument(\"--end\", required=True)\n\n    args = parser.parse_args(argv)\n\n    try:\n        if args.command == \"add\":\n            result = cmd_add(args)\n        else:\n            raise ValueError(\"unsupported command\")\n    except ValueError as exc:\n        sys.stderr.write(\"error: %s\\n\" % (exc,))\n        return 1\n\n    json.dump(result, sys.stdout)\n    sys.stdout.write(\"\\n\")\n    return 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main())\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "timebook.py",
+            "sha256": "14c86f2ce77892ebd7b49a9baf9155f6b5ed4b75d4207bcdda3f29ca88056dbd",
+            "media_type": "text/x-python",
+            "size_bytes": 3918,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-695aebf764bcc6d5",
+            "source_ref": "timebook.py",
+            "source_sha256": "14c86f2ce77892ebd7b49a9baf9155f6b5ed4b75d4207bcdda3f29ca88056dbd",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 3918,
+            "core_start": 0,
+            "core_end": 3918,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "14c86f2ce77892ebd7b49a9baf9155f6b5ed4b75d4207bcdda3f29ca88056dbd",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 1143
+          },
+          "start_byte": 0,
+          "end_byte": 3918,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 3918,
+          "observed_tokens": 1143,
+          "source_start_line": 1,
+          "source_end_line": 127
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-81f841be3a072a186db6"
+      ],
+      "workspace_digest_before": "37cba03b601b3ea4b809bb6660b9fb76bc11780dd407eb3e04ac60b96df9e5d5",
+      "workspace_digest_after": "37cba03b601b3ea4b809bb6660b9fb76bc11780dd407eb3e04ac60b96df9e5d5",
+      "failure_key": "",
+      "observation_fingerprint": "c279b6c604d96177e43271ff72e4f28c9aa7cef63cc7d54a4d8bc4c344e3b8b3",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00007",
+      "sequence": 7,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "test_timestamp_offset.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "test_timestamp_offset.py"
+      },
+      "action_fingerprint": "ac6233ffc02095d6f2459db7868af8e76c7f8013513f0463bde398033e154b4f",
+      "idempotency_key": "3419def7fa577b06927c292c78786505c6cb432d632683e1bea315ef63f8dc18",
+      "decision_id": "D-b79b2e598af94fbb",
+      "request_id": "MR-9c74c752083e40ce",
+      "started_at": "2026-09-20T10:54:26.606+00:00",
+      "ended_at": "2026-09-20T10:54:26.642+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from pathlib import Path\nimport json, subprocess, sys, tempfile, unittest\nSCRIPT = Path(__file__).resolve().parent / 'timebook.py'\nclass OffsetTests(unittest.TestCase):\n    def test_offset_validation_and_existing_add(self):\n        with tempfile.TemporaryDirectory() as td:\n            db = Path(td) / 'time.sqlite'\n            def invoke(ident, offset):\n                return subprocess.run([sys.executable, str(SCRIPT), 'add', str(db), '--id', ident, '--project', 'team', '--start', '2024-02-29T08:00:00' + offset, '--end', '2024-02-29T09:00:00' + offset], capture_output=True, text=True, timeout=10)\n            for n, offset in enumerate(('Z', '+00:00', '+08:00', '-08:00', '+05:30')):\n                with self.subTest(valid=offset):\n                    first = invoke('valid-' + str(n), offset)\n                    self.assertEqual(first.returncode, 0, first.stderr)\n                    self.assertEqual(json.loads(first.stdout), {'inserted': 1, 'duplicates': 0})\n                    second = invoke('valid-' + str(n), offset)\n                    self.assertEqual(second.returncode, 0, second.stderr)\n                    self.assertEqual(json.loads(second.stdout), {'inserted': 0, 'duplicates': 1})\n            for n, offset in enumerate(('+00:60', '+00:99', '-00:60', '+24:00', '+99:00')):\n                with self.subTest(invalid=offset):\n                    bad = invoke('bad-' + str(n), offset)\n                    self.assertNotEqual(bad.returncode, 0, bad.stdout)\n                    self.assertTrue(bad.stderr.strip())\nif __name__ == '__main__': unittest.main()\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "test_timestamp_offset.py",
+            "sha256": "50c635791a962ec61a48ec763cae35553583e47bc7fe781d171fe6210e9a47cd",
+            "media_type": "text/x-python",
+            "size_bytes": 1577,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-22a96fa6b8fd2809",
+            "source_ref": "test_timestamp_offset.py",
+            "source_sha256": "50c635791a962ec61a48ec763cae35553583e47bc7fe781d171fe6210e9a47cd",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1577,
+            "core_start": 0,
+            "core_end": 1577,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "50c635791a962ec61a48ec763cae35553583e47bc7fe781d171fe6210e9a47cd",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 435
+          },
+          "start_byte": 0,
+          "end_byte": 1577,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1577,
+          "observed_tokens": 435,
+          "source_start_line": 1,
+          "source_end_line": 23
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-135b1a9313bd4a566c03"
+      ],
+      "workspace_digest_before": "37cba03b601b3ea4b809bb6660b9fb76bc11780dd407eb3e04ac60b96df9e5d5",
+      "workspace_digest_after": "37cba03b601b3ea4b809bb6660b9fb76bc11780dd407eb3e04ac60b96df9e5d5",
+      "failure_key": "",
+      "observation_fingerprint": "e2ba771bd581e77694136e4fc0a13d21d4f5351b5fca15a73587f51727c9e29c",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    }
+  ],
+  "elapsed_seconds": 13.803698151372373
+}

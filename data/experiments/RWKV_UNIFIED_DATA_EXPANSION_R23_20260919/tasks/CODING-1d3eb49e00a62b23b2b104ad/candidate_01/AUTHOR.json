@@ -1,8 +1,0 @@
-{
-  "author": "current Codex assistant",
-  "task_sha256": "9ac295af0885d37032fc7b13907d7656e16525eae981c497b13c5ce9ec4d3c2f",
-  "solution_sha256": "659818631c970d99bee2199b50a61092269cc000db897ad24530c676b2fa54f3",
-  "reasoning": "Optimal wallet can be normalized digitbydigit: let r be maximum unitsdigit of any requiredsubsettotal. Any wallet needs atleastr unitcoins. Replace surplusc-r units byceil((c-r)/10)tens; this costs no more and preserves payments by reducing usedunits to targetresidue. Repeat on flooredtargets, so optimum is sum of maximum reachable decimaldigit at eachposition. Compute eachdigit without enumerating2^N sums: residues modulo10*place have10buckets ofwidthplace. Keep minimum andmaximum reachable residue perbucket. This pruning is exact for any eventual digitquery: under any fixed futureaddend, the preimage of a targetbucket is a cyclicinterval ofwidthplace; a set withinonebucket has span<place, so if any member lies in thatinterval at leastone extreme does. Union over futuresubsets preservesexistence. Update20extremes peritem; stop oncebucket9 reached. Test fullsubsetenumeration and exhaustive smallwalletsearch, bothpublishedexamples and20klargevalues.",
-  "hidden_cases_read": false,
-  "training_admitted": false
-}

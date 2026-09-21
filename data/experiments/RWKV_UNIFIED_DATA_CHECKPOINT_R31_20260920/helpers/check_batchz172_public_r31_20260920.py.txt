@@ -1,9 +1,0 @@
-from pathlib import Path
-import json,subprocess,random,time
-R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz172.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
-for trial in range(240):
- n=rng.randrange(1,35);s=''.join(rng.choice('abcd') for _ in range(n));w=[rng.randrange(0,50) for _ in range(n)];distinct=sorted({s[i:j] for i in range(n) for j in range(i+1,n+1)},reverse=True);ranks={word:i+1 for i,word in enumerate(distinct)};expected=[(i+1,j) for i in range(n) for j in range(i+1,n+1) if sum(w[i:j])==ranks[s[i:j]]];text=s+'\n'+' '.join(map(str,w))+'\n';r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=3);assert r.returncode==0,r.stderr;values=list(map(int,r.stdout.split()));assert values[0]==len(expected) and list(zip(values[1::2],values[2::2]))==expected,(text,r.stdout,expected)
-performance=[]
-for s in ['a'*100000,''.join(rng.choice('abcd') for _ in range(100000))]:
- text=s+'\n'+' '.join(['1']*len(s))+'\n';start=time.monotonic();r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=5);elapsed=time.monotonic()-start;assert r.returncode==0,r.stderr;performance.append(elapsed)
-out={'status':'passed','cases':{'304':240},'large_case_elapsed_seconds':performance,'private_cases_read':False,'oracle':'Enumerate and lexicographically sort every distinct substring, then compare every occurrence weight sum with its exact descending rank'};(D/'PUBLIC_CROSSCHECKS_BATCHz172.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

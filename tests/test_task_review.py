@@ -212,7 +212,7 @@ def test_frozen_contract_and_assessment_files_cannot_be_overwritten(bundle):
 
 def test_real_diagnostic_capture_preserves_answer_and_classifies_stop_scope(tmp_path):
     root = Path(__file__).resolve().parents[1]
-    rows = json.loads((root / "data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/DEV_RESULTS.json").read_text())
+    rows = json.loads((root / "data/test_fixtures/source_bound_regressions/RWKV_DISCOVERY_INPUT_MENU_R1_20260913_DEV_RESULTS.json").read_text())
     row = next(r for r in rows if r["final"] is not None)
     (tmp_path / "RESULT.json").write_text(json.dumps(row))
     # A result alone is not proof of a model-origin answer.
@@ -231,7 +231,7 @@ def test_excluding_a_run_requires_registered_evidence(bundle):
 def test_capture_requires_committed_final_and_explicit_attribution(tmp_path):
     import tarfile
     root = Path(__file__).resolve().parents[1]
-    archive = root / 'data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/EVIDENCE.tar.gz'
+    archive = root / 'data/test_fixtures/source_bound_regressions/RWKV_DISCOVERY_INPUT_MENU_R1_20260913_EVIDENCE.tar.gz'
     with tarfile.open(archive) as tar:
         for name in ('RESULT.json', 'model_trace.jsonl'):
             member = next(m for m in tar.getmembers() if m.name.endswith('dev/smoke-readonly-r2/' + name))

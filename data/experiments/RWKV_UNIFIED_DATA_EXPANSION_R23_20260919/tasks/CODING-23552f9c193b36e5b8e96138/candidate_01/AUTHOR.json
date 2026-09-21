@@ -1,8 +1,0 @@
-{
-  "author": "current Codex assistant",
-  "task_sha256": "f8ec3d0094d152737033454a0ad3c2e6cf90c4f78a3c11fd592abc90c3013de8",
-  "solution_sha256": "7f7f847b1cdcfe4080c3610789d1d7c4d3c6a36217cfde1c213cb87a61f74967",
-  "reasoning": "All game rules and deck sizes are textual. After Alice consumes her initial card, a winning trajectory ends at the Nth subsequent a transition, with b<=M and c<=K other transitions. It has (N+b+c-1)!/((N-1)!b!c!) possible orders; unconsumed B/C cards contribute 3^(M+K-b-c). Let C(t)=E_M(t)E_K(t), E_j=sum_{i=0}^j t^i/i!. Its derivative is 2C-t^M/M!*E_K-t^K/K!*E_M. Hence coefficient[i+1]=(2*coefficient[i]-boundary_terms)/(i+1), computed linearly, avoiding quadratic convolution. Multiply coefficients by the rising factorial (N)_i and 3^(M+K-i). Modular inverses exist since all indices are < modulus. Validate with exhaustive complete deck assignments, an independent double-sum formula, all three published samples and maximum dimensions.",
-  "hidden_cases_read": false,
-  "training_admitted": false
-}

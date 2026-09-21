@@ -1000,34 +1000,11 @@ def test_extension_seeded_python_files_compile():
                 compile(path.read_text(encoding="utf-8"), str(path), "exec")
 
 
-def test_frozen_codex_reference_covers_the_same_90_cases_and_digest():
+def test_removed_legacy_reference_dataset_is_not_exposed_as_active_data():
+    # Owner retired this answer bank during the 2026-09-21 cleanup.
+    # The current project suite and protected holdout have separate checks.
     root = Path(__file__).resolve().parents[1]
-    dataset = root / "data" / "datasets" / "rwkv_e2e_90_v1"
-    manifest = json.loads((dataset / "manifest.json").read_text(encoding="utf-8"))
-    reference_path = dataset / "codex_reference_answers.json"
-    references = json.loads(reference_path.read_text(encoding="utf-8"))
-    digest = hashlib.sha256(reference_path.read_bytes()).hexdigest()
-
-    all_tasks = []
-    for suite in ("core30", "lh12", "extension48"):
-        tasks, _ = load_suite(suite)
-        all_tasks.extend(tasks)
-
-    assert manifest["case_count"] == 90
-    assert manifest["difficulty_groups"] == {
-        "basic": 30,
-        "medium": 30,
-        "hard": 30,
-    }
-    assert digest == manifest["reference_answer_policy"]["sha256"]
-    assert digest == "947a4b495951374b4d83a1029a2e3196e98c277e2c5d815919bdc58bf482d89b"
-    assert {item["task_id"] for item in references["cases"]} == {
-        task["task_id"] for task in all_tasks
-    }
-    assert {
-        group: sum(item["group"] == group for item in references["cases"])
-        for group in ("basic", "medium", "hard")
-    } == {"basic": 30, "medium": 30, "hard": 30}
+    assert not (root / "data" / "datasets" / "rwkv_e2e_90_v1").exists()
 
 
 def test_long_horizon_generators_materialize_dynamic_pressure_fixtures():

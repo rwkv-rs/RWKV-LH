@@ -1,8 +1,0 @@
-{
-  "author": "current Codex assistant",
-  "task_sha256": "7972ea31f0e18eb393caee84536d4b19f716c9c03d0459247dda0a9baa3a6f4d",
-  "solution_sha256": "0166f383cd453a7061ba5e8674417e6df253657b92fcf776bbf2be69af4ba73d",
-  "reasoning": "Track total time spent on second side at each permitted interval endpoint, as a bitset for each flip count and final side. In a gap no flip is possible, so second-side states shift by the gap length. Within one permitted interval, zero flips fixes duration, one flip allows every duration in [0,L] and changes side, and two flips allows every duration in [0,L] while retaining side. Any trajectory with more than two flips in that same interval is replaceable by at most two with the same duration and endpoints. Interval dilation uses logarithmic bit shifts. Integer interval endpoints and integer target imply an integer-duration witness whenever a real-time solution exists. Discard second-side duration above n, add final gap, choose least flip count reaching n. No business-path or sample special case.",
-  "hidden_cases_read": false,
-  "training_admitted": false
-}

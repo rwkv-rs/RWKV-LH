@@ -13,7 +13,7 @@ from rwkv_lh.token_budget import get_token_count
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DATASET_PATH = ROOT / "data/datasets/rwkv_lh_search_text_v1_cases.json"
+DATASET_PATH = ROOT / "data/test_fixtures/source_bound_regressions/search_text_cases.json"
 DATASET_SHA256 = "75c86aade196d5f8df2d3ad2be97e44c6b2bae8e31dc0641b8b4bb2ec2fc001f"
 DATASET = json.loads(DATASET_PATH.read_text(encoding="utf-8"))
 LOCATOR_FIELDS = ("path", "line_number", "column", "end_column", "match_text")

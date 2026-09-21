@@ -1,7 +1,0 @@
-from pathlib import Path
-import json,hashlib,shutil
-R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';O=R/'data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920';sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
-files=['PUBLIC_PERFORMANCE_RED_BATCHz161.json','PUBLIC_CROSSCHECKS_BATCHz161.json','PUBLIC_POWER_CHECK_BATCHz161.json','PUBLIC_CROSSCHECKS_BATCHz161a.json','PUBLIC_POWER_CHECK_BATCHz161a.json','batches/z161a/RESULT.json'];record={'status':'public_performance_red_to_green_and_formal_admission','failure':'Original candidate preserved: 5.383292 seconds exceeded both source 5 seconds and fixed stdio 3 seconds.','repair':'Exact DFA Moore minimization of current-Grundy/output-equivalent states with equal successor equivalence classes; no scoring or budget changes.','green':'Same public maximum output 654831888 in 2.211200 seconds; 111 public semantic cases and 60 longer literal stepping cases per version; fresh formal candidate admitted.','evidence':[{'path':str(D/f),'sha256':sha(D/f)} for f in files],'private_cases_read':False}
-(D/'PUBLIC_RED_GREEN_BATCHz161.json').write_text(json.dumps(record,indent=2)+'\n')
-for name in ['bind_early_batchz158_r31_20260920.py','check_carrot_identity_r31_20260920.py','inspect_batchz161_size_r31_20260920.py','record_progress_r31_953_20260920.py']:
- p=R/'temp'/name;shutil.copyfile(p,O/'helpers'/(name+'.txt'))

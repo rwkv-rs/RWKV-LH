@@ -1,7 +1,0 @@
-from pathlib import Path
-import json,re,sys
-R=Path('/home/chase/GitHub/RWKV-LH');O=R/'data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((O/'VISUAL_DEPENDENCY_SCREEN.json').read_text())['records'];start,end=map(int,sys.argv[1:3])
-for r in rows[start:end]:
- if r['ordinal'] is None:continue
- text=(P/'tasks'/r['source_id']/'TASK.md').read_text();parts=re.split(r'(?im)^#{0,3}\s*(?:Sample Input|Examples?|Input and Output Examples|Sample Input and Output|Input-Output Example)',text,maxsplit=1)
- print('\nORDINAL',r['ordinal']);print(parts[0])

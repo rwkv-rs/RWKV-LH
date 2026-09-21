@@ -1,4 +1,0 @@
-from pathlib import Path
-import sys,json
-R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R));from rwkv_lh.stdio_verifier import verify_python_submission
-D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz221.json').read_text())['candidates'][0];result=verify_python_submission(Path(c['candidate_path']).parent,{'call_type':'std','fn_name':None,'inputs':['5\n'],'outputs':['1\n2\n18\n446\n26430\n']});(D/'NUMPY_PUBLIC_SANDBOX_RED.json').write_text(json.dumps(result,indent=2)+'\n');print(result)

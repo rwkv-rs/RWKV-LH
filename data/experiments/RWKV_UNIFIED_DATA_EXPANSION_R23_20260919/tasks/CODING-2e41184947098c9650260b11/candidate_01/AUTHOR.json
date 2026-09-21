@@ -1,9 +1,0 @@
-{
-  "author": "current Codex assistant",
-  "task_sha256": "74a2d09091192b7df2c65ded470cd28d2074b975b8db3076e036ce4289224552",
-  "solution_sha256": "25345c76342b25e7cca18dbf409f2116fccd32556395e1bc5f532449ca0825c7",
-  "reasoning": "Chirp identity i*j=tri(i+j)-tri(i)-tri(j), tri(t)=t(t-1)/2, reduces geometric-point polynomial evaluation to a convolution of reversed a_i*c^-tri(i) with c^tri(k), then scale by c^-tri(j). Use cyclic NTT length>=n+m-1: coefficients wrapping from degree>=length land strictly below n-1, outside extracted range[n-1,n+m-2], so no padding to full3n is needed. Handles c=0 (0^0 evaluation point1) and c=1 directly, with no task-path special handling. Exact int64 modular NumPy NTT, no floating FFT. Runtime dependency NumPy is present in verification environment; record requirement. Validate small random Horner evaluations and full million-point cases.",
-  "hidden_cases_read": false,
-  "training_admitted": false,
-  "runtime_dependency": "numpy"
-}

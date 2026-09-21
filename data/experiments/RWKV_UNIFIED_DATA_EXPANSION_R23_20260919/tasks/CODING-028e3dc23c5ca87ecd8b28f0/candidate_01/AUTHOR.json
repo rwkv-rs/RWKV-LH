@@ -1,8 +1,0 @@
-{
-  "author": "current Codex assistant",
-  "task_sha256": "a98469b7d9b0b4b6106f37acb33196eb82a2d1ee6bd4a0615caa083197c601bc",
-  "solution_sha256": "fcfab3ee2fe17ace50f908554004d78bfea264e4c93b87cc365f315180df6e54",
-  "reasoning": "For an interior point, twice each edge triangle area is an affine half-plane expression. Require the base edge area to be nonnegative and every other edge area at least that base area; these constraints also imply membership in the polygon. Compute their bounded intersection, adding the polygon bounding box as redundant constraints. Sort line directions with exact integer cross products, retain the strictest equal-direction line, and run deque half-plane intersection. All inside/outside and parallel ordering decisions use integer rational numerators, avoiding epsilon topology errors at large coordinates. Translate by the first vertex before forming coefficients. Convert only final vertices to floating point for shoelace area and divide by exact polygon area; ties have zero measure except redundant equal constraints.",
-  "hidden_cases_read": false,
-  "training_admitted": false
-}

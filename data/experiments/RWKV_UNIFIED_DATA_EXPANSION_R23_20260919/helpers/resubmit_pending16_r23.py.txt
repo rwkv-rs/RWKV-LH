@@ -1,4 +1,0 @@
-from pathlib import Path
-import json
-D=Path('/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919/batches');old=D/'16';r=[x for x in json.loads((old/'TARGETS.json').read_text())['targets'] if not (old/'validation'/x['id']/'VALIDATION.json').exists()];assert len(r)==1 and r[0]['ordinal']==668
-p=D/'16c';p.mkdir();(p/'TARGETS.json').write_text(json.dumps({'targets':r},indent=2)+'\n');(p/'RESUBMISSION_REASON.json').write_text(json.dumps({'reason':'Prior batch stopped before this target executed; unchanged resubmission.','ordinals':[668]},indent=2)+'\n')

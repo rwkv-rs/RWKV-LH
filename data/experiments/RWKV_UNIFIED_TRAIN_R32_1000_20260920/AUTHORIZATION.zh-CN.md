@@ -1,1 +1,0 @@
-Owner连续授权：先按真实链路格式检查修复并补足至少1000条合格数据，然后StateTune训练、独立测试、分析缺陷并总结。2026-09-20最新明确要求“进行检查，完成之后接着补到1k”。本轮仅重新冻结既有获准生产trace纠正样本，不新建data/datasets版本、不新增采集；3条关键视觉信息缺失来源排除，1000有效边界后才训练。fresh zero初始化、1epoch、GPU0、target-only、LR1e-4、accum4、seed20260914、250最大optimizersteps、18000秒、80GiB。不恢复R29中断State，不使用子代理/教师API，不push、不读最终holdout。

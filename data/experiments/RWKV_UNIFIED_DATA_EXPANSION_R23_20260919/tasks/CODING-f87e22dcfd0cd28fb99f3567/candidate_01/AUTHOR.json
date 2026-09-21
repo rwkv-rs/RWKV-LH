@@ -1,8 +1,0 @@
-{
-  "author": "current Codex assistant",
-  "task_sha256": "e1e8b5c2b07fb2b19ba1cd5d3e472f9251572fdebf553b158815451ef3b811ec",
-  "solution_sha256": "6a0a4a9c1f392b4108ffdf20607957ffdfa0861c8ef5f2851b7a82913eb90c83",
-  "reasoning": "A legal word over buttons <=j contains j at most once, hence is either a smaller word or L j R. Let G_j=sum A^length for all such words including empty: G_j=G_(j-1)*(I+A*G_(j-1)). Maintain B=A*G, starting B=A, with B_next=B+B^2. For each query maintain the start-row and end-column of words starting/ending at the specified button, measured with length-1 transitions once that button exists. Each is multiplied by F_j=I+B except at its own button level; earlier levels accumulate the smaller-word G factor. New words whose maximum is j contribute identity for a=b=j, one A for exactly one endpoint j, or two A factors connecting nonempty left/right words for j>max(a,b). This counts every legal word once without requiring matrix inverses. Packed 72-bit integer convolution extracts exact modular matrix/vector dot products: at most 60 products of residues below 1e9+7 cannot carry between lanes. No floating arithmetic or probabilistic identity assumption.",
-  "hidden_cases_read": false,
-  "training_admitted": false
-}

@@ -1,8 +1,0 @@
-{
-  "author": "current Codex assistant",
-  "task_sha256": "7c34cb349fca55984e69ed4a10091b67e44cde2e81e68f2f6422714f2145be79",
-  "solution_sha256": "3521b7f0273e0bd75b47a884ea39a12e72d13ff9ca6e8478d3745ddaba62cf95",
-  "reasoning": "Parse the left-associative application tree iteratively. Normalize each surviving expression by first reducing its head spine: I selects its argument, K selects its first argument and discards the second without evaluating it, B replaces three arguments by x applied to (y z), and C by x applied to z then y. Keep any additional outer arguments on the same spine. Once the head lacks sufficient arguments, it can never reduce, so independently normalize its surviving argument subtrees. In the affine BCKI basis no rule duplicates a subtree; reducing an argument that an enclosing K would discard can only add unnecessary work. Head-first reduction therefore performs every needed contraction exactly once and skips precisely such erasable work, attaining the minimum. Explicit stacks avoid recursion failure on the 30000-character input, and only the count is retained.",
-  "hidden_cases_read": false,
-  "training_admitted": false
-}

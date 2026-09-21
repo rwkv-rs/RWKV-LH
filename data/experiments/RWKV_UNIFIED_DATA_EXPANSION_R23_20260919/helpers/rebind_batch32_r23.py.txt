@@ -1,6 +1,0 @@
-from pathlib import Path
-import json
-D=Path('/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919');records=json.loads((D/'AUTHORED_BATCH32.json').read_text());q=D/'batches/32';q.mkdir(exist_ok=True);(q/'PREP_FAILURE.json').write_text(json.dumps({'status':'rejected_over_context','ordinal':320,'tokens':26803,'limit':24576,'raw_candidate_preserved':True})+'\n')
-for r in records['candidates']:
- if r['ordinal']==320:r['checkpoint_override']='CP-55fba7237bac41d2';r['review_note']+=' Original chosen late boundary exceeds24576. Explicitly use actual earlier checkpointCP-55fba7237bac41d2 after fullTASK observation; no future observations inserted.'
-(D/'AUTHORED_BATCH32b.json').write_text(json.dumps(records,indent=2)+'\n')

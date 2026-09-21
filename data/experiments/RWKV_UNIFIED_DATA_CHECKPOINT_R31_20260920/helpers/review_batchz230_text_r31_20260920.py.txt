@@ -1,6 +1,0 @@
-from pathlib import Path
-import json,hashlib
-R=Path('/home/chase/GitHub/RWKV-LH');P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';O=R/'data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920';rows=json.loads((P/'INVENTORY.json').read_text())['tasks'];r=rows[1016];raw=(P/'tasks'/r['id']/'TASK.md').read_bytes();p=O/'TEXT_SUFFICIENCY_REVIEW.json';d=json.loads(p.read_text());print(d.keys())
-key=hashlib.sha256(raw).hexdigest()
-if not any(x['source_sha256']==key for x in d['decisions']):d['decisions'].append({'source_id':r['id'],'source_sha256':key,'decision':'retain','reason':'Odd cycle, edge identifiers, interval deletion, input/output and bounds are fully specified in text. The single image appears solely under sample explanation and is unnecessary for solving or validation.','reviewer':'current Codex assistant','batch':'z230'})
-d['reviewed_flagged_sources']=len(d['decisions']);p.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n')

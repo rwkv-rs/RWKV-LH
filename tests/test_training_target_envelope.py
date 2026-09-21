@@ -11,7 +11,7 @@ from rwkv_lh.token_budget import tokenizer
 
 @pytest.fixture
 def executed_read_row():
-    path = Path(__file__).resolve().parents[1] / 'data/datasets/rwkv_direct_unified_corrections_v6/train.jsonl'
+    path = Path(__file__).resolve().parents[1] / 'data/test_fixtures/source_bound_regressions/executed_read_row.jsonl'
     return next(row for line in path.read_text().splitlines()
                 if (row := json.loads(line))['label_authority'] == 'executed_read')
 

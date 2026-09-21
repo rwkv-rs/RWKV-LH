@@ -1,8 +1,0 @@
-{
-  "author": "current Codex assistant",
-  "task_sha256": "aaf30a033a1317cc402a3d2c345a2a8d0872ee46d108964e5e7bab3eee90f2cb",
-  "solution_sha256": "51806f5e5e1e7af99b2c399a245aec0280056dc679d118f7291e80de1fa32d95",
-  "reasoning": "Checkerboard-color cells and choose connected interfaces as a capacitated bipartite min-cost flow. A one-port pipe selects one direction at its circular rotation distance. A bend selects exactly one vertical and one horizontal direction; each originally absent direction costs one, reproducing its four rotation costs. Straight pipes retain only their original two ports because rotation is forbidden. A three-port pipe selects three directions; assign port cost 2-distance(original_missing,direction), whose sum is rotation_cost+2, then subtract two per such cell from the final cost. Four-port pipes are fixed at cost zero. Each adjacent port pair is one capacity-one edge; boundary ports have no edge, so full quota saturation enforces no leaks. Demand mismatch or incomplete max flow means impossible. Nonnegative initial costs permit Dijkstra potentials, followed by blocking flow through zero-reduced-cost edges to send multiple equal-cost paths per phase. This models every legal orientation exactly without arbitrary orientation enumeration.",
-  "hidden_cases_read": false,
-  "training_admitted": false
-}

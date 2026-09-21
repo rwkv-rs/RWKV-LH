@@ -1,7 +1,0 @@
-from pathlib import Path
-import json,hashlib,shutil
-R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';O=R/'data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920';sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
-p=D/'batches/z179/validation/CODING-4376ff473ed11495d85d80c6/VALIDATION.json';v=json.loads(p.read_text());cases=v['after']['cases'];out={'status':'excluded_verification_failed_root_unresolved','batch':'z179','passed':sum(c['passed'] for c in cases),'total':len(cases),'all_exit_zero':all(c.get('exit_code')==0 for c in cases),'public_cases_passed':34,'private_inputs_or_expected_outputs_read':False,'validation':{'path':str(p),'sha256':sha(p)},'formal_rows':0,'candidate_preserved':True};(D/'CANDIDATE_REJECTION_z179.json').write_text(json.dumps(out,indent=2)+'\n')
-refs=['PUBLIC_SEMANTIC_RED_BATCHz176.json','PUBLIC_SAMPLE_CHECK_BATCHz176.json','PUBLIC_CROSSCHECKS_BATCHz180.json','batches/z180/RESULT.json'];out={'status':'public_semantics_red_to_green_and_fresh_formal_acceptance','root_cause':'Deletion-position multiplicities erased by candidate and its original random oracle; public samples expose the error.','original_formal_result_preserved':True,'hidden_cases_read':False,'evidence':[{'path':str(D/f),'sha256':sha(D/f)} for f in refs]};(D/'PUBLIC_RED_GREEN_BATCHz176.json').write_text(json.dumps(out,indent=2)+'\n')
-for name in ['inspect_task_visibility_z174_r31_20260920.py','record_progress_r31_963_20260920.py']:
- p=R/'temp'/name;shutil.copyfile(p,O/'helpers'/(name+'.txt'))

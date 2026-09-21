@@ -1,8 +1,0 @@
-{
-  "author": "current Codex assistant",
-  "task_sha256": "ee766128578925ad7e441b2ae0ad19415fd465b1fd97e114a2e03071757ec966",
-  "solution_sha256": "44d83e16ac8a686aca5a6a3e389eca090960ef0b9a720d6060302e913a829804",
-  "reasoning": "The task is textual. A power beginning with N satisfies log10(N)+k <= e log10(2) < log10(N+1)+k, with k>=digits(N)+1; equivalently e>=ceil(2*digits/log10(2)) and the fractional part lies in a fixed interval. Count interval hits up to a candidate exponent using the difference of two floor sums; evaluate each floor sum by Euclidean lattice-count reciprocity rather than iterating billions of suffix lengths for 32-bit prefixes. Binary-search the first hit after exponential bracketing. Compute with Decimal at 80 and 120 significant digits and require agreement; this is a high-precision numeric algorithm, not a claim of symbolic logarithm proof. Positive prefixes have hits because log10(2) is irrational; zero cannot lead a positive power. Public tests compare exact small integer powers and an independent suffix-length search, plus direct high-precision inequalities for large prefixes. Count only eligible exponents starting at the digit-length threshold: including small exact powers at excluded prefix endpoints can introduce numerical cancellation at an exact integer floor boundary. The original candidate precision-disagreement failure is retained.",
-  "hidden_cases_read": false,
-  "training_admitted": false
-}

@@ -1,8 +1,0 @@
-{
-  "author": "current Codex assistant",
-  "task_sha256": "3aa3c2e887d184edc33a7c37a053a7532de935a492c40796b1655023fa65de7f",
-  "solution_sha256": "22227c700c1facf6d20d3ea3869ce1c21ea1f4c758ada41ece47a49afee76096",
-  "reasoning": "Every milestone will eventually trigger because its threshold is strictly below its source goal. If resource i has indegree b_i in the milestone multigraph, at least max(a_i-b_i,0) units must be manually produced. These lower bounds are simultaneously achievable: after producing those units and propagating bonuses, suppose some resources remain unfinished. Their unresolved incoming bonuses total at least the remaining deficit, while each unfinished resource has strictly fewer untriggered outgoing milestones than its remaining deficit (thresholds are distinct and below its goal). Finished resources have no untriggered milestones. Summing gives a contradiction, so bonus propagation cannot deadlock even with cycles or self-milestones. Maintain the sum of lower bounds under each replacement by decrementing the old target indegree and incrementing the new target indegree; surplus bonuses beyond the goal do not improve the answer.",
-  "hidden_cases_read": false,
-  "training_admitted": false
-}

@@ -1,6 +1,0 @@
-from pathlib import Path
-import sys,json
-R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
-from rwkv_lh.direct_trace_data import replay_run
-p=R/'data/experiments/RWKV_QWEN38_TEACHER_R17_20260916/bulk_deployment/inputs/CODING-8dff8cf2acf43cb2af088a68';m=json.loads((p/'MANIFEST.json').read_text())
-for k,v in replay_run(p/'original',m['model_sha256']).items():print(k,len(v['input_token_ids']),str(v['raw_generation'].get('raw_output',''))[:170])

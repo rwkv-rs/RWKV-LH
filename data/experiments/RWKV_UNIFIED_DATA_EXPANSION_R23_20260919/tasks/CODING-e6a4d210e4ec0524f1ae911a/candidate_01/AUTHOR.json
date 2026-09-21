@@ -1,8 +1,0 @@
-{
-  "author": "current Codex assistant",
-  "task_sha256": "df7699571568fdc8e55211a868d37d561668338931eea545aa83e490ced99df9",
-  "solution_sha256": "ac4935f643b97da750a02b640f776e7f19ce5dc1976c0a9c0610b7458badc966",
-  "reasoning": "For each nonterminal and each length up to the requested limit, store the lexicographically smallest derivable terminal string, with None distinct from the empty string. Process lengths increasingly. Evaluate a production by bounded min-lex concatenation over possible length allocations, retaining only the smallest prefix at each exact length. Iterate same-length relaxations to a fixed point, allowing epsilon rules and unit/nullable cycles; nonproductive cycles never acquire a value. Replacing a child by a lexicographically smaller string of the same length preserves lexicographic improvement under concatenation, so this dynamic program is exact. Same-length recursive dependencies have only empty surrounding contributions and can be cycle-eliminated, while positive-length dependencies use previously completed smaller lengths. Print an empty line for a legitimate length-zero name and a hyphen only when no derivation exists.",
-  "hidden_cases_read": false,
-  "training_admitted": false
-}

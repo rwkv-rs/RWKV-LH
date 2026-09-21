@@ -9,7 +9,7 @@ from rwkv_lh.collection_retirement import seal_run
 from rwkv_lh.direct_trace_data import replay_run
 
 ROOT = Path(__file__).resolve().parents[1]
-TRACE = ROOT / 'data/experiments/RWKV_UNIFIED_CORRECTION_TRAIN_R6_ONE_EPOCH_20260915/evaluation/runs/release-numbers--candidate--r1/execution'
+TRACE = ROOT / 'data/test_fixtures/source_bound_regressions/candidate_execution'
 MODEL = '559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65'
 
 

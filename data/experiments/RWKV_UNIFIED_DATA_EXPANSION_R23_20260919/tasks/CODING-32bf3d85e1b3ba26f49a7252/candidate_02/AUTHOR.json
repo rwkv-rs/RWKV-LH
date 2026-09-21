@@ -1,8 +1,0 @@
-{
-  "author": "current Codex assistant",
-  "task_sha256": "a133dcf975767614fbfc48ea61b2c18032cdc933970d69a0c1c1dba5d9696123",
-  "solution_sha256": "61fc06081dd86d09d321a65db94f9be89ff3065bd14ec0e42d0dc450bea45660",
-  "reasoning": "The requested value is the expectation of each individual node visit count. Unreachable nodes have zero expectation; reachable closed strongly connected components with at least one outgoing transition are recurrent and have infinite visits to each of their nodes. Terminal singleton components stop execution and are not recurrent. All other reachable nodes are transient even if execution can later enter an infinite component. For finite nodes let y_i=expected_visits_i/max(outdegree_i,1); flow balance gives the integer linear system degree_i*y_i-sum_{j->i}y_j=[i=1]. Ignore transitions into recurrent components as absorbing exits. Solve this nonsingular system using fraction-free Bareiss elimination and exact rational back substitution, avoiding near-singular floating-point cancellation. Format exact expectations to three decimals and preserve per-dataset Case # numbering. Graph successors are sets as specified, not additional probabilities invented from duplicate lines. Back substitution explicitly starts with Fraction(rhs), including an empty suffix sum, so the final row cannot silently use Python int/int floating division. The original runtime failure is preserved.",
-  "hidden_cases_read": false,
-  "training_admitted": false
-}

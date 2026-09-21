@@ -1,8 +1,0 @@
-{
-  "author": "current Codex assistant",
-  "task_sha256": "489fcef42ff4b5136466452608e54d132769b777bc7470b6430e9078d282b540",
-  "solution_sha256": "9101aa127df83502414b1d4175df74072c97699f93069e82e47a832c817d45b8",
-  "reasoning": "Each group is an independent coefficient in GF(5), since choosing 0..4 copies is exactly one field element. Build a normalized echelon basis of the group vectors; every reachable query has 5^(n-rank) coefficient solutions and unreachable queries have zero. Pack each coordinate in a four-bit integer lane for exact parallel field arithmetic. Adding two field elements gives 0..8 without cross-lane carry; identify lanes >=5 by bit predicates, then subtract 5 in precisely those lanes. Precompute negative scalar multiples for each normalized pivot, so elimination uses a few Python big-integer operations rather than scalar O(m) loops. No random hashing or approximate rank decisions.",
-  "hidden_cases_read": false,
-  "training_admitted": false
-}

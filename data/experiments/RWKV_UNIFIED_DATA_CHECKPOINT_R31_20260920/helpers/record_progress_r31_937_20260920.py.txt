@@ -1,8 +1,0 @@
-from pathlib import Path
-import json,hashlib,shutil
-R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';O=R/'data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920';sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
-p=D/'batches/z142/validation/CODING-1156c6e2383516c8b1d6b367/VALIDATION.json';v=json.loads(p.read_text());cases=v['after']['cases'];record={'batch':'z142','ordinal':75,'status':v['status'],'formal_rows_added':0,'validation_sha256':sha(p),'cases_total':len(cases),'cases_passed':sum(bool(c['passed']) for c in cases),'all_exit_zero':all(c.get('exit_code')==0 for c in cases),'public_check':{'path':str(D/'PUBLIC_CROSSCHECKS_BATCHz142.json'),'sha256':sha(D/'PUBLIC_CROSSCHECKS_BATCHz142.json')},'root_cause':'unresolved; published examples and public exhaustive checks pass, formal exact validation fails; private input and expected outputs not inspected','policy':'Preserve candidate and original validation unchanged. Do not rescore or count as admitted.'};(D/'CANDIDATE_REJECTION_z142.json').write_text(json.dumps(record,indent=2)+'\n')
-for name in ['bind_early_batchz135_r31_20260920.py','record_progress_r31_937_20260920.py','fix_public_oracle_z146_r31_20260920.py']:
- p=R/'temp'/name
- if p.exists():shutil.copyfile(p,O/'helpers'/(name+'.txt'))
-print(record)

@@ -1,6 +1,0 @@
-from pathlib import Path
-import json
-D=Path('/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919');x=json.loads((D/'AUTHORED_BATCH17.json').read_text())
-for r in x['candidates']:
- if r['ordinal']==692:r.update(checkpoint_override='CP-fb35a33b8ed74363',boundary_reason='Late total24740 exceeds24576. Explicit actual first write after TASK and solution observation input6578, no later evidence injected.')
-(D/'BATCH17_PREP_FAILURE.json').write_text(json.dumps({'ordinal':692,'total_tokens':24740,'limit':24576,'status':'rejected_over_context','new_registration':'17b'},indent=2)+'\n');(D/'AUTHORED_BATCH17b.json').write_text(json.dumps(x,indent=2)+'\n')

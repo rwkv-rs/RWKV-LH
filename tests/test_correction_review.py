@@ -10,7 +10,7 @@ from rwkv_lh.correction_review import build_review_packet, validate_review
 
 @pytest.fixture
 def source():
-    archive = Path(__file__).resolve().parents[1] / 'data/experiments/RWKV_VERIFIED_CORRECTIONS_R1_20260914/EVIDENCE.tar.gz'
+    archive = Path(__file__).resolve().parents[1] / 'data/test_fixtures/source_bound_regressions/RWKV_VERIFIED_CORRECTIONS_R1_20260914_EVIDENCE.tar.gz'
     with tarfile.open(archive) as tar:
         return {name: json.load(tar.extractfile(f'candidates/{name}/REVIEW_REQUEST.json'))
                 for name in ('numeric', 'execution_claim', 'effective_edit')}

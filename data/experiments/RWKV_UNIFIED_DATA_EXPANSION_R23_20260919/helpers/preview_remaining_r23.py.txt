@@ -1,9 +1,0 @@
-from pathlib import Path
-import sys,json
-R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks'];used=set(p.name for p in (D/'tasks').iterdir());packages=[R/'data/datasets/rwkv_direct_unified_corrections_v6',R/'data/experiments/RWKV_REAL_CODING_DATA_R20_20260917/frozen_increment',R/'data/experiments/RWKV_CODEX_FREEZE_R22_20260919/frozen_increment'];packages+=sorted(p.parent/'frozen_increment' for p in (D/'batches').glob('*/RESULT.json'));hashes=set()
-for p in packages:
- for s in json.loads((p/'manifest.json').read_text())['sources']:hashes.add(s['source_content_sha256'])
-for i in range(int(sys.argv[1]),min(int(sys.argv[2]),len(rows))):
- r=rows[i]
- if r['id'] in used or r['task_sha256'] in hashes:continue
- s=(P/'tasks'/r['id']/'TASK.md').read_text();print('\nORDINAL',i,'LENGTH',len(s),r['id']);print(s[:int(sys.argv[3])])

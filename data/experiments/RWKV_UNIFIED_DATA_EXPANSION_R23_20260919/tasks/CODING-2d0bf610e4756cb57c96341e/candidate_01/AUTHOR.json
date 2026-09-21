@@ -1,8 +1,0 @@
-{
-  "author": "current Codex assistant",
-  "task_sha256": "5a7d9127ce1f4c1c2f5befd9a1f73a60071452e5a7b6d2765ffcd87f24f3245f",
-  "solution_sha256": "85a362e4774dccee0a3682b6f94371162353485a8842e6a3cc78efea0c0e7179",
-  "reasoning": "An egg qualifies only if its entire closed appearance-to-hatching interval is in allowed weekly day/time sets. Build10080-minute weekly availability and prefix forbidden counts; integer endpoints make all eligibility changes integral, so checking integer starts covers every possible set of eligible stages. Include hatching instant, respecting half-open Day/Night boundaries. Success probability is1-(1-1/p)^(n*eligible stages), so maximize eligible stage count. Stage starts advance by t modulo week; split into gcd(t,week) cycles and slide an m-term circular sum, with full-cycle multiplicity when m exceeds cycle length. Use log1p/expm1 for numerical accuracy and handle p=1 and zero trials explicitly. No diagram or missing formula required.",
-  "hidden_cases_read": false,
-  "training_admitted": false
-}

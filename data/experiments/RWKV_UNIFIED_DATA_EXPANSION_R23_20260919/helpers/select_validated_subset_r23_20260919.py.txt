@@ -1,6 +1,0 @@
-from pathlib import Path
-import sys,json
-D=Path('/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919');b=D/'batches'/sys.argv[1];q=D/'batches'/sys.argv[2];passed=[];failed=[]
-for r in json.loads((b/'TARGETS.json').read_text())['targets']:
- p=b/'validation'/r['id']/'VALIDATION.json';v=json.loads(p.read_text()) if p.exists() else {};ok=v.get('status')=='validated_candidate';print(r['ordinal'],v.get('status'));(passed if ok else failed).append(r)
-q.mkdir(exist_ok=False);(q/'TARGETS.json').write_text(json.dumps({'targets':passed},ensure_ascii=False,indent=2)+'\n');(b/'BATCH_DISPOSITION.json').write_text(json.dumps({'formal_rows':0,'status':'rejected_whole_candidate_batch','failed_sources':[r['id'] for r in failed],'passed_artifacts':len(passed),'resubmission':q.name,'private_answers_read':False,'reason':'Preserve all failed candidates and original results. Resubmit unchanged verified targets under a new registration; no rescore.'},indent=2)+'\n')

@@ -51,7 +51,7 @@ def test_scripts_tests_and_temp_use_shared_role_input_builders() -> None:
 
 def test_active_datasets_do_not_expose_retired_synthetic_role_data() -> None:
     manifest = json.loads(ROOT.joinpath(
-        "data/experiments/PROTOCOL_DATA_CHAIN_UNIFICATION_R1_20260907/DELETION_MANIFEST.json"
+        "data/test_fixtures/source_bound_regressions/PROTOCOL_DATA_CHAIN_UNIFICATION_R1_20260907_DELETION_MANIFEST.json"
     ).read_text(encoding="utf-8"))
     retired = [path for path in manifest["deleted_roots"]
                if path.startswith("data/datasets/") and ROOT.joinpath(path).exists()]

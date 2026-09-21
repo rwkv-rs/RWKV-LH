@@ -1,9 +1,0 @@
-from pathlib import Path
-import ast,json,random,subprocess,math,collections,time
-R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';path=Path(json.loads((D/'AUTHORED_BATCHz140.json').read_text())['candidates'][0]['candidate_path']);rng=random.Random(20260920);tree=ast.parse(path.read_text());env={};exec(compile(ast.Module(body=[x for x in tree.body if isinstance(x,ast.FunctionDef)],type_ignores=[]),str(path),'exec'),env)
-for trial in range(250):
- prime=rng.choice([5,13,29,101,257,1009]);roots=[rng.randrange(prime) for _ in range(rng.randrange(1,25))];expected=collections.Counter(math.prod((x-r)%prime for r in roots)%prime for x in range(prime));actual=env['distribution'](roots,prime);assert actual==[expected[x] for x in range(prime)],(prime,roots)
-examples=[('1 1\n1 1\n',299992),('1 0\n1 1\n',599985),('10 89872\n223484 90627\n277624 145685\n121818 45893\n100399 298120\n290298 53417\n83968 217141\n293596 75934\n66042 121754\n12383 235338\n8014 175352\n',300588)]
-for data,expected in examples:assert int(subprocess.check_output([str(R/'.venv/bin/python'),str(path)],input=data.encode(),timeout=20))==expected
-points=rng.sample(range(299993),100);data='100 1\n'+''.join(f'{x} {x*x%299993}\n' for x in points);start=time.monotonic();actual=int(subprocess.check_output([str(R/'.venv/bin/python'),str(path)],input=data.encode(),timeout=30));elapsed=time.monotonic()-start
-(D/'PUBLIC_CROSSCHECKS_BATCHz140.json').write_text(json.dumps({'status':'passed','cases':{'145':253},'seed':20260920,'private_cases_read':False,'oracle':'Extract the exact candidate evaluator and compare every field value distribution to direct root products over six small primes; public full-modulus samples plus zero-root union formula','max_degree_smoke_seconds':elapsed,'max_degree_answer':actual},indent=2)+'\n');print('public passed; max degree seconds',elapsed)

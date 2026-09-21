@@ -1,8 +1,0 @@
-from pathlib import Path
-import json,sys
-R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
-from rwkv_lh.direct_trace_data import replay_run
-P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
-for arg in sys.argv[1:]:
- row=rows[int(arg)];p=R/'data/experiments/RWKV_QWEN38_TEACHER_R17_20260916/bulk_deployment/inputs'/row['id'];m=json.loads((p/'MANIFEST.json').read_text());task=(P/'tasks'/row['id']/'TASK.md').read_bytes().decode();print('ORDINAL',arg,row['id'])
- for k,v in list(replay_run(p/'original',m['model_sha256']).items())[:7]:print(k,len(v['input_token_ids']),task in v['input_text'] or json.dumps(task,ensure_ascii=False)[1:-1] in v['input_text'],repr(v['raw_generation'].get('raw_output','')[:85]))
