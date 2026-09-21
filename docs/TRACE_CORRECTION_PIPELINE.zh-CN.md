@@ -1,3 +1,5 @@
+> R39 当前：owner 已授权并完成一次缺陷诊断与两条针对性生成。新增局部学习合同，实际得到一个诊断命令和一个编辑红→绿候选；完整冻结训练集尚未形成，训练未启动。下面旧暂停文字仅描述早期轮次。报告见 data/experiments/R39/REPORT.zh-CN.md。
+
 > R38 实测更新：真实作者/审核/执行/导出已跑通一个命令候选，冻结按覆盖不足拒绝；预期失败测试的审核误判已修正，明确评测用途的来源不能靠计划字段重命名入训。完整项目中间步骤和多文件连续实现的数据准入尚未实证完成。详情见 data/experiments/R38/REPORT.zh-CN.md。
 
 > 当前实现以本文末尾 R37 节为准：已有批次、读取/最终回答验证、候选导出和冻结入口。下文早期“缺少这些入口”的描述是 R36 历史状态；真实完整训练集仍未冻结。
@@ -101,3 +103,32 @@ data/pipeline/sources 只保留少量真实 trace 用于开发；data/test_fixtu
 修改使用原有失败→修改→通过验证；命令使用预先登记的实际退出码与输出证据。修改、命令、读取、最终回答共享同一生产协议和 RWKV tokenizer，禁止截断目标适配长度。
 
 R37 首批配置在 `data/pipeline/r37/`。它仅验证链路；一个来源家族不满足完整训练集覆盖。冻结准入仍有来源身份、隔离和覆盖门槛，不能将导出候选数作为合格入训数。判断语义正确与任务完整性仍依赖具名审核者，引用定位与执行成功不等于语义证明。
+
+
+## R39：按缺陷组织局部动作
+
+`prepare` 计划可增加 `learning_contract`，包含四个非空字符串：
+
+- `defect_family`：待学习的具体行为类别，例如读后不开始修改。
+- `objective`：原始用户任务之内的局部改进目标。
+- `evidence_quote`：原始可见输入中的准确引用，允许一次 JSON 字符串解码，不允许拼接或捏造。
+- `acceptance_scope`：`local_behavior` 对应编辑；`diagnostic_observation` 对应命令；`grounded_observation` 对应读取/搜索/列目录；`honest_final` 对应最终回答。
+
+输入和 target 的原有唯一协议不变。局部目标发给离线教师作为纠正方向，不注入 RWKV 生产输入。候选动作与局部范围不符则隔离，导出保留该合同，冻结时再次验证范围与引用。证据引用可定位不等于语义正确，仍需审核和实际执行。
+
+编辑 `checks` 应针对待修复的公开局部行为，必须在源快照失败、修改后通过；不必等待整个项目完成。不能以仅创建文件、语法通过或教师自称成功替代应有的行为验证。命令可以复现失败；最终回答仍需可见执行证据。当前并未放行无行为证明的任意中间代码。
+
+诊断命令：
+
+```bash
+.venv/bin/python -m scripts.analyze_rwkv_defects \
+  --run-root /absolute/production/run \
+  --model-sha256 REGISTERED_MODEL_SHA256 \
+  --output /absolute/new/diagnosis.json
+```
+
+诊断器使用生产 replay_run；记录不合法调用、重复观察请求及精确 checkpoint/request/input SHA。续跑按父状态扣除历史动作和拒绝事件。重复请求是待审线索，不自动证明错误；必须检查先前读取是否完整、文件是否变化、失败后重试是否合理。未读最终 holdout。
+
+本轮实际命令和编辑目标完全由 DeepSeek 生成，见 `data/pipeline/r39/`。`DEFECT_PAIRS.json` 保留原错答与纠正关联；训练导出的目标仍只是正确调用。两个原始边界不是强行串接的新轨迹，不伪造修改后 RWKV State。完整连续轨迹应由真实生产续跑另行采集。
+
+`scripts/run_bounded_advice.py` 为显式有界建议续跑的编排入口，调用共享 advice builder 和既有 continue_assisted，要求使用父运行冻结源码的 PYTHONPATH。它只运行一次建议、没有自动接管或重试；可登记后置验收命令。R39 注册文件是已运行证据，不能覆盖原输出再次调用。

@@ -29,6 +29,30 @@ already answered by visible evidence; do not keep writing merely to use a tool.
 No markdown, rationale wrapper or alternative candidates.'''
 
 
+def validate_learning_contract(contract, input_text, *, function=None):
+    """Bind a local learning objective to visible evidence, not project success.
+
+    Evidence location is mechanically checked; its interpretation still requires
+    the explicitly attributed semantic review and the action's execution proof.
+    """
+    if not isinstance(contract, dict) or set(contract) != {
+            'defect_family', 'objective', 'evidence_quote', 'acceptance_scope'}:
+        raise ValueError('learning contract fields differ')
+    if not all(isinstance(v, str) and v.strip() for v in contract.values()):
+        raise ValueError('nonempty learning contract required')
+    from .correction_review import _evidence_binding
+    if _evidence_binding(input_text, contract['evidence_quote']) is None:
+        raise ValueError('learning evidence must occur in visible input')
+    scopes = {'local_behavior': {'write_file', 'replace_text'},
+              'diagnostic_observation': {'run_command', 'check_command'},
+              'grounded_observation': {'read_file', 'search_text', 'list_directory'},
+              'honest_final': {'final_answer'}}
+    scope = contract['acceptance_scope']
+    if scope not in scopes or (function is not None and function not in scopes[scope]):
+        raise ValueError('learning scope does not match the action')
+    return dict(contract)
+
+
 def file_sha(path):
     with Path(path).open('rb') as handle:
         return hashlib.file_digest(handle, 'sha256').hexdigest()
@@ -88,6 +112,8 @@ def prepare(plan, output):
     # Training source remains zero-profile only, matching current admission.
     rows = replay_run(root, plan['model_sha256'])
     actual = rows[plan['checkpoint_id']]
+    if 'learning_contract' in plan:
+        validate_learning_contract(plan['learning_contract'], actual['input_text'])
     snapshot = validate_generation_snapshot(root, actual, plan['source_files'])
     if type(plan['max_target_tokens']) is not int or not 0 < plan['max_target_tokens'] <= 1800:
         raise ValueError('target limit must respect current actor output budget')
@@ -162,7 +188,11 @@ def run(directory, *, expected_packet_sha256, teacher):
         try:
             envelope, author = teacher.complete(AUTHOR_INSTRUCTION,
                 json.dumps({'actual_rwkv_input': actual['input_text'],
-                            'previous_output_untrusted': actual['raw_generation']['raw_output']}, ensure_ascii=False))
+                            'previous_output_untrusted': actual['raw_generation']['raw_output'],
+                            **({'learning_focus': plan['learning_contract'],
+                                'learning_focus_notice': 'A local correction objective, not additional task evidence. '
+                                'Do not claim whole-project completion. Use only the actual visible input.'}
+                               if 'learning_contract' in plan else {})}, ensure_ascii=False))
             write_json(directory / 'AUTHOR.json', {'envelope': envelope, 'identity': author})
             if set(envelope) != {'function', 'params'}:
                 return finish('quarantined', 'wrong_target_envelope')
@@ -172,6 +202,12 @@ def run(directory, *, expected_packet_sha256, teacher):
             result['function'] = command.name
             if command.name not in plan['allowed_functions']:
                 return finish('quarantined', 'action_outside_public_scope')
+            if 'learning_contract' in plan:
+                try:
+                    validate_learning_contract(plan['learning_contract'], actual['input_text'],
+                                               function=command.name)
+                except ValueError:
+                    return finish('quarantined', 'action_outside_learning_scope')
             target = raw + model_io.JSON_CALL_STOP_SUFFIXES[0]
             ids = tokenizer().encode(target)
             if len(ids) > plan['max_target_tokens'] or len(actual['input_token_ids']) + len(ids) - 1 > plan['context_tokens']:
@@ -229,7 +265,9 @@ def run(directory, *, expected_packet_sha256, teacher):
                 'label_authority': authority, field: {'path': str(directory / 'execution/VALIDATION.json'),
                     'sha256': file_sha(directory / 'execution/VALIDATION.json')},
                 'public_validation_policy': {'read_only': plan['read_only'],
-                    'protected_paths': plan['protected_paths']},
+                    'protected_paths': plan['protected_paths'],
+                    **({'learning_contract': plan['learning_contract']}
+                       if 'learning_contract' in plan else {})},
                 'author': author, 'training_admitted': False})
             return finish('execution_validated_pending_dataset_gate')
         except BaseException as exc:
@@ -248,11 +286,16 @@ def summarize(directories):
             raise ValueError('duplicate job directory')
         seen.add(path)
         result = json.loads((path / 'RESULT.json').read_text()) if (path / 'RESULT.json').exists() else {'status': 'not_run'}
-        rows.append({'directory': str(path), **result})
+        packet_path = path / 'PACKET.json'
+        contract = (json.loads(packet_path.read_text())['plan'].get('learning_contract', {})
+                    if packet_path.exists() else {})
+        rows.append({'directory': str(path), **result, 'learning_contract': contract})
     return {'jobs': len(rows), 'statuses': dict(Counter(r['status'] for r in rows)),
             'families': dict(Counter(r.get('family', 'unknown') for r in rows)),
             'rejection_reasons': dict(Counter(r.get('reason') for r in rows if r.get('reason'))),
             'functions': dict(Counter(r.get('function', 'not_generated') for r in rows)),
+            'defect_families': dict(Counter(r['learning_contract'].get('defect_family', 'unclassified') for r in rows)),
+            'acceptance_scopes': dict(Counter(r['learning_contract'].get('acceptance_scope', 'unspecified') for r in rows)),
             'training_admitted': 0, 'dataset_ready': False,
             'limitation': 'Candidate report only; use export and freeze for coverage, source isolation and fresh proof verification.',
             'rows': rows}

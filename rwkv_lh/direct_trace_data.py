@@ -413,6 +413,11 @@ def freeze_direct_dataset(registration: Mapping, *, registration_reference: Mapp
             core.require(row['source_content_sha256'] in content_hashes, 'summary target uses unobserved source')
         policy = row.get('public_validation_policy')
         if policy is not None:
+            if 'learning_contract' in policy:
+                from .trace_correction_pipeline import validate_learning_contract
+                validate_learning_contract(policy['learning_contract'], row['input_text'],
+                    function=model_io.parse_model_command(
+                        row['target_text'][:-len(model_io.JSON_CALL_STOP_SUFFIXES[0])]).name)
             core.require(type(policy.get('read_only')) is bool and isinstance(policy.get('protected_paths'), list),
                          'invalid frozen public validation policy')
             from .correction_snapshots import validate_generation_snapshot

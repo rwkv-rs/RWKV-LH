@@ -1,0 +1,51 @@
+F...                                                                     [100%]
+=================================== FAILURES ===================================
+_______ test_diagnosis_handles_real_unknown_arguments_and_parent_counts ________
+
+    def test_diagnosis_handles_real_unknown_arguments_and_parent_counts():
+        from pathlib import Path
+        from scripts.analyze_rwkv_defects import analyze
+        root = Path(__file__).resolve().parents[1]
+        model = '559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65'
+>       zero = analyze(root / 'data/experiments/R38/agent-run/execution', model)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_defect_learning.py:11: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+scripts/analyze_rwkv_defects.py:32: in analyze
+    arguments = executed_arguments(call) if call.name != 'final_answer' else call.arguments
+                ^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/direct_trace_data.py:32: in executed_arguments
+    return dict(ActionHarness().normalize_action(TaskAction(command.name, command.arguments)).arguments)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/harness.py:1046: in normalize_action
+    self.validate_action_contract(normalized)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.harness.ActionHarness object at 0x70cb9bd26fd0>
+action = TaskAction(action_type='read_file', arguments={'max_tokens': 4096, 'max_lines': 1024, 'max_text_chars': 8192, 'path': 'TASK.md', 'start_byte': 0})
+
+    def validate_action_contract(self, action: TaskAction) -> None:
+        """Reject malformed model actions before they reach a side-effecting handler."""
+    
+        definition = self.definition(action.action_type)
+        arguments = action.arguments
+        if not isinstance(arguments, Mapping):
+            raise HarnessError("action arguments must be an object")
+        required = definition.required_arguments
+        missing = [name for name in required if name not in arguments]
+        if missing:
+            raise HarnessError(
+                f"action {definition.name} is missing required arguments: {missing}"
+            )
+        unknown = sorted(set(arguments) - set(definition.argument_schema))
+        if unknown:
+>           raise HarnessError(
+                f"action {definition.name} has unknown arguments: {unknown}"
+            )
+E           rwkv_lh.harness.HarnessError: action read_file has unknown arguments: ['max_lines', 'max_text_chars']
+
+rwkv_lh/harness.py:1011: HarnessError
+=========================== short test summary info ============================
+FAILED tests/test_defect_learning.py::test_diagnosis_handles_real_unknown_arguments_and_parent_counts
+1 failed, 3 passed in 0.97s

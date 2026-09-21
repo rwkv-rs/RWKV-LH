@@ -1,0 +1,18 @@
+{
+  "review": {
+    "accepted": true,
+    "issues": [],
+    "assessment": "The candidate proposes a single replace_text action on timebook.py with a base_sha256 matching the observed file digest (14c86f2ce77892ebd7b49a9baf9155f6b5ed4b75d4207bcdda3f29ca88056dbd). The old string is an exact substring of the observed timebook.py content, and the new string adds explicit validation of the UTC offset hours/minutes before datetime.fromisoformat, which directly targets the reported bug that invalid offsets like +00:60, +00:99, -00:60, +24:00, +99:00 are accepted. The regex ISO_RE already restricts the offset shape to [+-]\\d{2}:\\d{2}, so slicing text[-6:] is safe for matched inputs, and the added check rejects out-of-range hh/mm. This is a grounded, appropriately scoped edit that can advance the goal; it does not modify tests. Uncertainties: whether datetime.fromisoformat would already reject some of these offsets on the running Python version is not verified here, but the explicit guard is harmless and correct; actual test execution is a separate gate.",
+    "claims": [],
+    "input_sha256": "fc091f5d91b523fa05bdb4deb5cd8a8c4b55892437269fd16156843c0ecd8986",
+    "candidate_sha256": "8b9693a9447bea90fdcc378c5161311ccc73d917c792f7e0d8f26d309ff49fcc",
+    "training_admitted": false,
+    "evidence_bindings": [],
+    "validation_scope": "Anchors and consistency only; semantic truth and completeness require review."
+  },
+  "identity": {
+    "request_id": "9c966be1e2c640e3ab04bd19a712653e",
+    "model": "deepseek-flash",
+    "response_sha256": "1dc627d3f12a516d70f163563d2d17618faafd8674c2ae8c5d764f1da61ab5c1"
+  }
+}

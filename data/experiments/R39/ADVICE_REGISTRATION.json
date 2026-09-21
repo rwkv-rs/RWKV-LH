@@ -1,0 +1,49 @@
+{
+  "job": {
+    "task_id": "calendar-r39-advised",
+    "parent_run": "/home/chase/GitHub/RWKV-LH/data/experiments/R38/agent-run/execution",
+    "output_dir": "/home/chase/GitHub/RWKV-LH/data/experiments/R39/advised-run",
+    "mode": "advice",
+    "max_calls": 54,
+    "max_seconds": 1200,
+    "advice_max_tokens": 1200
+  },
+  "source_purpose": "development_evaluation",
+  "audit_directory": "/home/chase/GitHub/RWKV-LH/data/experiments/R39/advice",
+  "api": {
+    "directory": "/home/chase/GitHub/RWKV-LH/data/experiments/R39/provider",
+    "key_file": "/home/chase/.config/rwkv-lh/deepseek_api_key",
+    "model": "deepseek-flash",
+    "budget_usd": 0.1,
+    "input_usd_per_million": 0.3,
+    "output_usd_per_million": 1.2,
+    "max_output_tokens": 1200,
+    "max_requests": 1,
+    "timeout_seconds": 120
+  },
+  "settings": {
+    "base_url": "http://127.0.0.1:18268/v1",
+    "api_key": "",
+    "model": "rwkv-r38-zero-13b",
+    "model_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+    "backend_profile": "vllm-rwkv-native",
+    "max_model_len": 24576,
+    "action_max_output_tokens": 1800,
+    "state_transport": "native_required",
+    "state_profile_id": "zero",
+    "state_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "state_profile_delivery": "request",
+    "tool_disclosure_mode": "full",
+    "default_temperature": 0.1,
+    "default_top_p": 1.0,
+    "default_top_k": 0
+  },
+  "acceptance_command": [
+    "/home/chase/GitHub/RWKV-LH/.venv/bin/python",
+    "/home/chase/GitHub/RWKV-LH/scripts/test_calendar_project.py",
+    "--workspace",
+    "/home/chase/GitHub/RWKV-LH/data/experiments/R39/advised-run/workspace",
+    "--output",
+    "/home/chase/GitHub/RWKV-LH/data/experiments/R39/calendar-acceptance"
+  ]
+}
