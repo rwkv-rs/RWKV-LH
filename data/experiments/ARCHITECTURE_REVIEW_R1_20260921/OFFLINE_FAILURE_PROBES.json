@@ -1,0 +1,67 @@
+[
+  {
+    "probe": "deadline_propagation",
+    "expected": "WallDeadlineExpired propagates",
+    "observed_propagated": false,
+    "status": "completed",
+    "scripted_generation_count": 2,
+    "actions": [
+      {
+        "action_id": "A00001",
+        "sequence": 1,
+        "status": "failed",
+        "action_type": "read_file",
+        "arguments": {
+          "path": "file.txt",
+          "start_byte": 0,
+          "max_tokens": 4096
+        },
+        "wire_arguments": {
+          "path": "file.txt"
+        },
+        "action_fingerprint": "c5ea7aa226da2b4ac89142ee0f7391ccdf0ee48b4a2a72329911c74c1a2eaef9",
+        "idempotency_key": "407adf0ccfecd8812bb18cba9dd1ec2045127aa4399d1790ac3c819b6208b272",
+        "decision_id": "D-e4bf89d8ceeb42ba",
+        "request_id": "MR-0d9c6412e6764321",
+        "started_at": "2026-09-21T06:13:54.510+00:00",
+        "ended_at": "2026-09-21T06:13:54.555+00:00",
+        "result": {
+          "action_type": "read_file",
+          "success": false,
+          "output": "",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {},
+          "error": {
+            "type": "WallDeadlineExpired",
+            "message": "injected deadline"
+          },
+          "outcome_type": "failed"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "1a1999d15672fd866daf5c634ae17c945379d17d92558dea7a5f0aaf9ab00aab",
+        "workspace_digest_after": "1a1999d15672fd866daf5c634ae17c945379d17d92558dea7a5f0aaf9ab00aab",
+        "failure_key": "1f1b1f8fa1c45a5c811596dd310590ae3b4da89f820e9fc68e099e77cb903f5f",
+        "observation_fingerprint": "1f1b1f8fa1c45a5c811596dd310590ae3b4da89f820e9fc68e099e77cb903f5f",
+        "error": {
+          "type": "WallDeadlineExpired",
+          "message": "injected deadline"
+        },
+        "outcome_type": "failed",
+        "atom_execution_contract_digest": ""
+      }
+    ],
+    "finding_reproduced": true,
+    "limit": "Injected exception proves inner Controller catches cancellation; outer job elapsed guard can still classify real wall overrun. Not a timing benchmark."
+  },
+  {
+    "probe": "submission_vs_delivery",
+    "expected_product_requirement": "workspace change needs evidence",
+    "status": "completed",
+    "actions": 0,
+    "files": [],
+    "finding_reproduced": true,
+    "limit": "Existing direct-mode submission semantics; not evidence that a real model made this claim."
+  }
+]

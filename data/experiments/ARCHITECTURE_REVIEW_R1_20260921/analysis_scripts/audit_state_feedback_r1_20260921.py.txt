@@ -1,0 +1,56 @@
+"""Inspect current trace feedback and locally replay real native input tokens."""
+import hashlib
+import json
+import sys
+from collections import Counter
+from pathlib import Path
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+sys.path.insert(0, str(ROOT))
+from rwkv_lh.direct_trace_data import replay_run
+
+OUT = ROOT / 'data/experiments/ARCHITECTURE_REVIEW_R1_20260921'
+roots = json.loads((OUT / 'SOURCE_SCOPE.json').read_text())['trace_roots']
+audits = []
+for rel in roots:
+    root = ROOT / rel
+    state = json.loads((root / 'state_snapshot.json').read_text())
+    trace = [json.loads(x) for x in (root / 'model_trace.jsonl').read_text().splitlines()]
+    cps = state['model_states']
+    record = {'root': rel, 'goal': state['goal']['request'], 'generations': [], 'observations': []}
+    for e in trace:
+        if e['type'] == 'model_session_generation_returned':
+            raw = e['raw_generation']
+            record['generations'].append({
+                'request_id': e['request_id'], 'candidate_checkpoint_id': e['candidate_checkpoint_id'],
+                'raw_keys': list(raw),
+                'raw_excerpt': json.dumps({k: v for k, v in raw.items()
+                    if not isinstance(v, (list, dict))}, ensure_ascii=False)[:2200]})
+    for e in state.get('model_events', {}).values():
+        if e.get('event_type') not in ('action_result', 'protocol_rejection', 'summary_advice'):
+            continue
+        payload = e.get('payload', {})
+        result = payload.get('result', {})
+        record['observations'].append({'event_id': e['event_id'], 'type': e['event_type'],
+            'operation': payload.get('operation'),
+            'instruction': payload.get('instruction'),
+            'result_chars': len(json.dumps(result, ensure_ascii=False)),
+            'excerpt': json.dumps(payload, ensure_ascii=False)[:2000],
+            'projection_metadata': result.get('observation'),
+            'stream_completeness': [v.get('projection_complete') for v in result.get('command_streams', [])]
+                if isinstance(result.get('command_streams'), list) else None})
+    model_sha = next(iter(cps.values()))['native_state_metadata']['model_sha256']
+    try:
+        rows = replay_run(root, model_sha)
+        record['exact_replay'] = {'passed': True, 'generation_count': len(rows),
+            'input_tokens': [len(r['input_token_ids']) for r in rows.values()],
+            'duplicate_user_boundary_occurrences': [r['input_text'].count('\n\nUser:\n\nUser:') for r in rows.values()],
+            'input_sha256': [hashlib.sha256(r['input_text'].encode()).hexdigest() for r in rows.values()],
+            'last_input_suffix': list(rows.values())[-1]['input_text'][-3500:],
+            'first_input_suffix': list(rows.values())[0]['input_text'][-1600:]}
+    except Exception as exc:
+        record['exact_replay'] = {'passed': False, 'error': type(exc).__name__ + ': ' + str(exc)}
+    audits.append(record)
+    print(json.dumps({'root': rel, 'replay': {k: v for k, v in record['exact_replay'].items()
+        if 'suffix' not in k}, 'observation_count': len(record['observations'])}, ensure_ascii=False), flush=True)
+(OUT / 'STATE_FEEDBACK_AUDIT.json').write_text(json.dumps(audits, ensure_ascii=False, indent=2) + '\n')

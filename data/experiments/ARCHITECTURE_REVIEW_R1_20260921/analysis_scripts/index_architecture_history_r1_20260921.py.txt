@@ -1,0 +1,42 @@
+"""Index local Git and live GitHub history without restoring retired files."""
+import hashlib
+import json
+import subprocess
+from pathlib import Path
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+OUT = ROOT / 'data/experiments/ARCHITECTURE_REVIEW_R1_20260921'
+
+def run(*args):
+    return subprocess.check_output(args, cwd=ROOT)
+
+history = [
+    ('683528577', 'docs/HYBRID_SUPERVISOR_V1.zh-CN.md'),
+    ('3ad7933a5', 'data/experiments/G1J_GOAL_LOOP_V2_REAL_CAPABILITY_BASELINE_20260901/TRACE_AUDIT_AND_CAPABILITY_RESULT.md'),
+    ('82319f959', 'data/experiments/ROLE_CHAIN_ROOT_REPAIR_R1_20260910/REPORT.zh-CN.md'),
+    ('a76cd7559', 'data/experiments/ULTRADATA_OFFICIAL_COLLECTION_R5_20260910/REPORT.zh-CN.md'),
+    ('fb3d3b33b', 'data/experiments/RWKV_STRONG_MODEL_ROLE_ALIGNMENT_R1_20260912/ROLE_CONTRACT.zh-CN.md'),
+    ('4a4901daf', 'data/experiments/RWKV_FLIGHT_CAMPAIGN_R1_20260913/goal_restatement/REPORT.zh-CN.md'),
+    ('2b3ccbe6f', 'data/experiments/RWKV_READ_LOOP_LOCALIZATION_R1_20260914/REPORT.zh-CN.md'),
+    ('40d1bb2aa', 'data/experiments/RWKV_REJECTION_RECOVERY_AB_R1_20260914/REPORT.zh-CN.md'),
+    ('11f907c38', 'data/experiments/RWKV_ASSISTED_RECOVERY_R1_20260914/REPORT.zh-CN.md'),
+    ('94ae14a1a', 'data/experiments/RWKV_GOAL_DELIVERY_R1_20260914/REPORT.zh-CN.md'),
+]
+records = []
+for commit, path in history:
+    content = run('git', 'show', f'{commit}:{path}')
+    records.append({'commit': run('git', 'rev-parse', commit).decode().strip(), 'path': path,
+        'sha256': hashlib.sha256(content).hexdigest(), 'bytes': len(content),
+        'source': 'local Git object; inspected in place; no retired file restored'})
+branches = json.loads(run('gh', 'api', 'repos/rwkv-rs/RWKV-LH/branches?per_page=100'))
+selected = next(b for b in branches if b['name'] == 'chase/rwkv-goal-loop-v2-cleanup')
+metadata = {'repository': 'https://github.com/rwkv-rs/RWKV-LH',
+    'github_branch_heads': [{'name': b['name'], 'sha': b['commit']['sha']} for b in branches],
+    'github_selected_branch': selected['name'], 'github_selected_head': selected['commit']['sha'],
+    'local_head': run('git', 'rev-parse', 'HEAD').decode().strip(),
+    'local_commits_after_github_head': int(run('git', 'rev-list', '--count', selected['commit']['sha']+'..HEAD')),
+    'pull_requests': json.loads(run('gh', 'pr', 'list', '--state', 'all', '--limit', '100',
+        '--json', 'number,title,state,headRefName,mergedAt,url')),
+    'historical_documents': records}
+(OUT / 'HISTORY_INDEX.json').write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + '\n')
+print(json.dumps({k: v for k, v in metadata.items() if k not in ('historical_documents', 'github_branch_heads')}, ensure_ascii=False))

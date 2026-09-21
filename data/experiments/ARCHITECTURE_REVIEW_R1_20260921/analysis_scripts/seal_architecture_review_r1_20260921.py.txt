@@ -1,0 +1,59 @@
+"""Seal this analysis round and verify the pre-existing tracked edits were preserved."""
+import hashlib
+import json
+import shutil
+import subprocess
+from pathlib import Path
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+OUT = ROOT / 'data/experiments/ARCHITECTURE_REVIEW_R1_20260921'
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def save(name, value):
+    (OUT / name).write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
+
+before = json.loads((OUT / 'WORKTREE_AT_START.json').read_text())
+preserved = {p: sha(ROOT / p) == value for p, value in before['tracked_dirty_sha256'].items()}
+if not all(preserved.values()):
+    raise RuntimeError('Pre-existing tracked edits changed during this audit: ' + str(preserved))
+log = (OUT / 'FULL_TESTS_RETRY.log').read_text()
+if '1991 passed in 451.21s' not in log or ' skipped' in log:
+    raise RuntimeError('Full regression did not meet recorded result')
+code = {}
+for directory in ('rwkv_lh', 'scripts', 'tests'):
+    for p in sorted((ROOT / directory).rglob('*.py')):
+        if '__pycache__' not in p.parts:
+            code[str(p.relative_to(ROOT))] = sha(p)
+save('CODE_SHA256.json', code)
+scripts = OUT / 'analysis_scripts'
+scripts.mkdir(exist_ok=True)
+for name in ('audit_architecture_history_r1_20260921.py', 'audit_state_feedback_r1_20260921.py',
+             'index_architecture_history_r1_20260921.py', 'reproduce_architecture_gaps_r1_20260921.py',
+             'seal_architecture_review_r1_20260921.py'):
+    shutil.copyfile(ROOT / 'temp' / name, scripts / (name + '.txt'))
+save('VALIDATION.json', {
+    'analysis_only': True, 'environment': 'WSL UbuntuRecovered',
+    'dependency_setup': 'uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev',
+    'browser_setup': '.venv/bin/python -m playwright install chromium',
+    'test_command': 'CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0 .venv/bin/python -m pytest -q tests/ --basetemp=data/test_runs/pytest/architecture_review_r1_20260921',
+    'tests': {'passed': 1991, 'failed': 0, 'skipped': 0, 'seconds': 451.21},
+    'first_attempt': {'passed': 886, 'setup_errors': 1105,
+        'cause': 'Audit-specific basetemp parent absent; created parent and reran; not a product regression'},
+    'known_failure_probes': 'OFFLINE_FAILURE_PROBES.json; failures reproduced, not fixed',
+    'preexisting_tracked_edits_preserved': preserved,
+    'new_agent_generations': 0, 'new_paid_calls': 0, 'new_training_steps': 0,
+    'protected_holdout_contents_read': False, 'production_code_modified_by_this_round': False,
+    'architecture_implemented': False, 'github_push': False,
+    'code_inventory_files': len(code),
+    'docs_sha256': {p: sha(ROOT / p) for p in
+        ('docs/ARCHITECTURE.zh-CN.md', 'docs/ARCHITECTURE_DIAGNOSIS.zh-CN.md')},
+})
+files = {str(p.relative_to(OUT)): sha(p) for p in sorted(OUT.rglob('*'))
+    if p.is_file() and p.name not in ('EVIDENCE_SHA256.json', 'EVIDENCE_SHA256.sha256')}
+save('EVIDENCE_SHA256.json', files)
+(OUT / 'EVIDENCE_SHA256.sha256').write_text(sha(OUT / 'EVIDENCE_SHA256.json') + '  EVIDENCE_SHA256.json\n')
+print(json.dumps({'report_sha256': sha(OUT / 'REPORT.zh-CN.md'),
+    'manifest_sha256': sha(OUT / 'EVIDENCE_SHA256.json'), 'files': len(files),
+    'preexisting_edits_preserved': all(preserved.values())}))

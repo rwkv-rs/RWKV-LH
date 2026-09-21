@@ -1,0 +1,54 @@
+"""Offline deterministic failure probes. No live model, training, or source edits."""
+import json
+import os
+import sys
+from pathlib import Path
+from unittest.mock import patch
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+sys.path[:0] = [str(ROOT), str(ROOT / 'tests')]
+os.environ['RWKV_STATE_TRANSPORT'] = 'prompt_replay'
+os.environ['RWKV_LH_EXECUTOR_STATE_TRANSPORT'] = 'prompt_replay'
+os.environ['RWKV_MODEL'] = 'rwkv-test'
+os.environ['RWKV_LH_EXECUTOR_MODEL'] = 'rwkv-test'
+from test_unified_controller import build, call
+from rwkv_lh.harness import ActionHarness
+from rwkv_lh.job_budget import WallDeadlineExpired
+
+OUT = ROOT / 'data/experiments/ARCHITECTURE_REVIEW_R1_20260921'
+PROBES = OUT / 'offline_probes'
+PROBES.mkdir(exist_ok=True)
+records = []
+
+root = PROBES / 'deadline'
+root.mkdir(exist_ok=False)
+controller, store, workspace, client, model = build(root, [
+    call('read_file', path='file.txt'), call('final_answer', text='Scripted completion after injected cancellation.')])
+(workspace / 'file.txt').write_text('probe\n')
+with patch.object(controller.harness, 'execute', side_effect=WallDeadlineExpired('injected deadline')):
+    propagated = False
+    try:
+        controller.run('RUN')
+    except WallDeadlineExpired:
+        propagated = True
+state = store.load('RUN')
+records.append({'probe': 'deadline_propagation', 'expected': 'WallDeadlineExpired propagates',
+    'observed_propagated': propagated, 'status': state.status.value,
+    'scripted_generation_count': len(client.prompts),
+    'actions': [a.to_dict() for a in state.actions.values()],
+    'finding_reproduced': not propagated,
+    'limit': 'Injected exception proves inner Controller catches cancellation; outer job elapsed guard can still classify real wall overrun. Not a timing benchmark.'})
+
+root = PROBES / 'completion'
+root.mkdir(exist_ok=False)
+controller, store, workspace, client, model = build(root, [call('final_answer', text='The requested workspace change is complete.')])
+controller.run('RUN')
+state = store.load('RUN')
+records.append({'probe': 'submission_vs_delivery', 'expected_product_requirement': 'workspace change needs evidence',
+    'status': state.status.value, 'actions': len(state.actions), 'files': list(workspace.iterdir()),
+    'finding_reproduced': state.status.value == 'completed' and not state.actions,
+    'limit': 'Existing direct-mode submission semantics; not evidence that a real model made this claim.'})
+
+(OUT / 'OFFLINE_FAILURE_PROBES.json').write_text(json.dumps(records, ensure_ascii=False, indent=2, default=str) + '\n')
+for r in records:
+    print(json.dumps({k: v for k, v in r.items() if k != 'actions'}, ensure_ascii=False, default=str))
