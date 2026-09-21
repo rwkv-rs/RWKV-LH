@@ -1,0 +1,187 @@
+{
+  "schema_version": "long-horizon.literal-request.v2",
+  "goal_id": "G1",
+  "request": "修复现有timebook.py的时间戳校验：非法UTC偏移被接受，正常add的持久化与幂等行为应保持。自主检查源码，修改实现，实际运行已有test_timestamp_offset.py并根据真实失败反馈继续修正；保留测试及要求，不修改测试来绕过问题。最后如实说明修改、实际验证和未解决事项。本轮只处理add，不实现import/stats。",
+  "constraints": [],
+  "workspace_root": "/home/chase/GitHub/RWKV-LH-engineering-r34-20260920/collection/runs/timestamp-offset/workspace",
+  "created_at": "2026-09-20T10:54:12.982+00:00",
+  "runtime_policy": {
+    "run_lifecycle": {
+      "budget_boundary": "checkpoint_and_continue",
+      "completion_authority": "rwkv_explicit_final_answer",
+      "mode": "goal",
+      "schema_version": "rwkv-lh.run-lifecycle-policy.v1",
+      "self_termination_only": true
+    }
+  },
+  "digest": "52d131aaab2f66a7bd8345bfd73ca1c95e355f89d3624621b664cc31aa62d80a"
+}
+
+README.md
+# Team timebook
+
+Implement `timebook.py` using only Python's standard library and durable SQLite storage. Commands:
+
+- `python timebook.py add DB --id ID --project PROJECT --start ISO --end ISO`
+- `python timebook.py import DB INPUT_JSON`
+- `python timebook.py stats DB --from YYYY-MM-DD --to YYYY-MM-DD`
+
+An event has exactly `id`, `project`, `start`, `end`, all nonempty strings. Preserve nonempty IDs/project names exactly; reject whitespace-only ones. Timestamps use ISO 8601 with explicit UTC offset or Z, whole-second precision, and end strictly after start. Import is a JSON array of events. No overlap restriction is imposed: recorded durations are summed independently.
+
+Events are identified globally by ID. Normalize timestamps to UTC for duplicate comparisons. Reimporting an identical ID/project/time interval is a no-op; a conflicting ID is an error. An invalid record or conflicting ID rejects the entire import transaction, including earlier valid records from that batch. Empty imports are valid. Add and import print `{"inserted": N, "duplicates": N}`; add follows the same duplicate rules. A new DB is created as needed.
+
+Stats uses UTC calendar dates and a half-open range `[from, to)`, where `to` is the excluded midnight. Reject invalid or reversed/empty date ranges. Split intervals at UTC midnight and clip to the requested range, including leap days and offset conversions. Return `{"days": [{"date": "YYYY-MM-DD", "projects": {"project": integer_seconds}, "total_seconds": integer_seconds}], "total_seconds": integer_seconds}`. Include only days with recorded duration, ordered chronologically; project keys must be emitted in sorted order. Empty results contain an empty days array and total 0. Each CLI invocation is a new process, so persistence and duplicate detection must survive restarts. Errors exit nonzero with diagnostics; successful stdout is one JSON document. Include your own tests and update this README with usage and verification instructions.
+
+test_timestamp_offset.py
+from pathlib import Path
+import json, subprocess, sys, tempfile, unittest
+SCRIPT = Path(__file__).resolve().parent / 'timebook.py'
+class OffsetTests(unittest.TestCase):
+    def test_offset_validation_and_existing_add(self):
+        with tempfile.TemporaryDirectory() as td:
+            db = Path(td) / 'time.sqlite'
+            def invoke(ident, offset):
+                return subprocess.run([sys.executable, str(SCRIPT), 'add', str(db), '--id', ident, '--project', 'team', '--start', '2024-02-29T08:00:00' + offset, '--end', '2024-02-29T09:00:00' + offset], capture_output=True, text=True, timeout=10)
+            for n, offset in enumerate(('Z', '+00:00', '+08:00', '-08:00', '+05:30')):
+                with self.subTest(valid=offset):
+                    first = invoke('valid-' + str(n), offset)
+                    self.assertEqual(first.returncode, 0, first.stderr)
+                    self.assertEqual(json.loads(first.stdout), {'inserted': 1, 'duplicates': 0})
+                    second = invoke('valid-' + str(n), offset)
+                    self.assertEqual(second.returncode, 0, second.stderr)
+                    self.assertEqual(json.loads(second.stdout), {'inserted': 0, 'duplicates': 1})
+            for n, offset in enumerate(('+00:60', '+00:99', '-00:60', '+24:00', '+99:00')):
+                with self.subTest(invalid=offset):
+                    bad = invoke('bad-' + str(n), offset)
+                    self.assertNotEqual(bad.returncode, 0, bad.stdout)
+                    self.assertTrue(bad.stderr.strip())
+if __name__ == '__main__': unittest.main()
+
+timebook.py
+#!/usr/bin/env python3
+"""Team timebook CLI - add subcommand only (this round)."""
+
+import argparse
+import json
+import re
+import sqlite3
+import sys
+from datetime import datetime, timedelta, timezone
+
+ISO_RE = re.compile(
+    r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d+)?(Z|[+-]\d{2}:\d{2})$"
+)
+
+
+def parse_timestamp(value):
+    """Parse ISO 8601 with explicit offset/Z, whole-second precision."""
+    if not isinstance(value, str) or not ISO_RE.match(value):
+        raise ValueError("invalid timestamp: %r" % (value,))
+    if "." in value:
+        frac = value.split(".", 1)[1]
+        digits = ""
+        for ch in frac:
+            if ch.isdigit():
+                digits += ch
+            else:
+                break
+        if digits.strip("0"):
+            raise ValueError("timestamp must be whole-second precision: %r" % (value,))
+    text = value
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    dt = datetime.fromisoformat(text)
+    if dt.microsecond != 0:
+        raise ValueError("timestamp must be whole-second precision: %r" % (value,))
+    if dt.tzinfo is None:
+        raise ValueError("timestamp requires explicit UTC offset: %r" % (value,))
+    return dt.astimezone(timezone.utc)
+
+
+def validate_event(event_id, project, start, end):
+    if not isinstance(event_id, str) or not event_id.strip():
+        raise ValueError("id must be a nonempty, non-whitespace string")
+    if not isinstance(project, str) or not project.strip():
+        raise ValueError("project must be a nonempty, non-whitespace string")
+    start_dt = parse_timestamp(start)
+    end_dt = parse_timestamp(end)
+    if not end_dt > start_dt:
+        raise ValueError("end must be strictly after start")
+    return start_dt, end_dt
+
+
+def normalize_iso(dt):
+    dt = dt.astimezone(timezone.utc)
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def open_db(path):
+    conn = sqlite3.connect(path)
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS events (
+            id TEXT PRIMARY KEY,
+            project TEXT NOT NULL,
+            start_utc TEXT NOT NULL,
+            end_utc TEXT NOT NULL
+        )"""
+    )
+    conn.commit()
+    return conn
+
+
+def add_event(conn, event_id, project, start, end):
+    start_dt, end_dt = validate_event(event_id, project, start, end)
+    start_utc = normalize_iso(start_dt)
+    end_utc = normalize_iso(end_dt)
+    cur = conn.execute("SELECT project, start_utc, end_utc FROM events WHERE id = ?", (event_id,))
+    row = cur.fetchone()
+    if row is not None:
+        if row[0] == project and row[1] == start_utc and row[2] == end_utc:
+            return {"inserted": 0, "duplicates": 1}
+        raise ValueError("conflicting ID: %s" % (event_id,))
+    conn.execute(
+        "INSERT INTO events (id, project, start_utc, end_utc) VALUES (?, ?, ?, ?)",
+        (event_id, project, start_utc, end_utc),
+    )
+    conn.commit()
+    return {"inserted": 1, "duplicates": 0}
+
+
+def cmd_add(args):
+    conn = open_db(args.db)
+    try:
+        result = add_event(conn, args.id, args.project, args.start, args.end)
+    finally:
+        conn.close()
+    return result
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Team timebook")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_add = sub.add_parser("add")
+    p_add.add_argument("db")
+    p_add.add_argument("--id", required=True)
+    p_add.add_argument("--project", required=True)
+    p_add.add_argument("--start", required=True)
+    p_add.add_argument("--end", required=True)
+
+    args = parser.parse_args(argv)
+
+    try:
+        if args.command == "add":
+            result = cmd_add(args)
+        else:
+            raise ValueError("unsupported command")
+    except ValueError as exc:
+        sys.stderr.write("error: %s\n" % (exc,))
+        return 1
+
+    json.dump(result, sys.stdout)
+    sys.stdout.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

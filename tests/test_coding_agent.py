@@ -118,3 +118,16 @@ def test_resume_keeps_goal_parent_state_and_does_not_reuse_old_termination(tmp_p
     assert after['goal']==json.loads(snapshot)['goal']
     events=json.loads((output/'MATERIALS.json').read_text())['items']
     assert events[0]['consumed_by_requests']
+
+
+def test_cli_coding_job_can_record_generation_boundary(tmp_path):
+    source = tmp_path / 'source'; source.mkdir()
+    (source / 'a.py').write_text('value = 1\n')
+    output = tmp_path / 'run'
+    result = run_coding_job(CodingJob('snapshot', 'Inspect', str(source), str(output),
+        record_generation_snapshots=True), settings=settings(),
+        session_factory=factory([call('read_file', path='a.py'), call('final_answer', text='Read source.')]))
+    snapshots = list((output / 'execution/generation_snapshots').glob('*/before/a.py'))
+    assert len(snapshots) == 2
+    assert all(p.read_text() == 'value = 1\n' for p in snapshots)
+    assert result['trace_complete'] is True

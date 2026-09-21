@@ -70,12 +70,14 @@ def test_failed_dependency_blocks_child_without_model_call(tmp_path, monkeypatch
     assert results[1]['generation_started'] == 0
 
 
-def test_dependent_task_reads_actual_parent_artifact(tmp_path, monkeypatch):
+@pytest.mark.parametrize('record_snapshots', [False, True])
+def test_dependent_task_reads_actual_parent_artifact(tmp_path, monkeypatch, record_snapshots):
     import rwkv_lh.agent_batch as batch
     import rwkv_lh.agent_integration as integration
     source = tmp_path / 'source'; source.mkdir(); (source / 'a').write_text('old')
     jobs = [CodingJob('parent', 'Change a', str(source), str(tmp_path / 'parent')),
-            CodingJob('child', 'Read the result', str(source), str(tmp_path / 'child'))]
+            CodingJob('child', 'Read the result', str(source), str(tmp_path / 'child'),
+                      record_generation_snapshots=record_snapshots)]
     original = batch._execute
     def coding(job, **kwargs):
         outputs = ([call('write_file', path='a', content='new'), call('final_answer', text='changed')]
@@ -88,6 +90,8 @@ def test_dependent_task_reads_actual_parent_artifact(tmp_path, monkeypatch):
     assert [r['termination'] for r in results] == ['submitted', 'submitted']
     assert (Path(results[1]['workspace']) / 'a').read_text() == 'new'
     assert results[1]['acceptance'] == 'not_evaluated'
+    snapshots = Path(results[1]['workspace']).parent / 'execution/generation_snapshots'
+    assert snapshots.exists() == record_snapshots
     assert (source / 'a').read_text() == 'old'
 
 

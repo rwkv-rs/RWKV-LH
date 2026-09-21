@@ -22,6 +22,7 @@ def main(argv=None):
     parser.add_argument('--request')
     parser.add_argument('--output-dir')
     parser.add_argument('--task-id', default='coding-task')
+    parser.add_argument('--record-generation-snapshots', action='store_true')
     parser.add_argument('--max-calls', type=int, default=12)
     parser.add_argument('--max-seconds', type=float, default=600)
     parser.add_argument('--concurrency', type=int, default=1)
@@ -37,7 +38,7 @@ def main(argv=None):
             parser.error('single coding task requires --request and --output-dir')
         rows = [dict(task_id=args.task_id, request=args.request, workspace=args.source_workspace,
                      output_dir=args.output_dir, tool_scope='coding', max_calls=args.max_calls,
-                     max_seconds=args.max_seconds)]
+                     max_seconds=args.max_seconds, record_generation_snapshots=args.record_generation_snapshots)]
     else:
         if args.request or args.output_dir:
             parser.error('--request and --output-dir belong to single coding tasks')

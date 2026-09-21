@@ -1,0 +1,19 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______________ test_cli_coding_job_can_record_generation_boundary ______________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_cli_coding_job_can_record0')
+
+    def test_cli_coding_job_can_record_generation_boundary(tmp_path):
+        source = tmp_path / 'source'; source.mkdir()
+        (source / 'a.py').write_text('value = 1\n')
+        output = tmp_path / 'run'
+>       result = run_coding_job(CodingJob('snapshot', 'Inspect', str(source), str(output),
+            record_generation_snapshots=True), settings=settings(),
+            session_factory=factory([call('read_file', path='a.py'), call('final_answer', text='Read source.')]))
+E       TypeError: CodingJob.__init__() got an unexpected keyword argument 'record_generation_snapshots'
+
+tests/test_coding_agent.py:127: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_coding_agent.py::test_cli_coding_job_can_record_generation_boundary
+1 failed, 8 deselected in 0.06s

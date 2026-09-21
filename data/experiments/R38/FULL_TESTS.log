@@ -1,0 +1,89 @@
+.................F...F.................................................. [  3%]
+........................................................................ [  7%]
+........................................................................ [ 11%]
+........................................................................ [ 14%]
+........................................................................ [ 18%]
+........................................................................ [ 22%]
+........................................................................ [ 25%]
+........................................................................ [ 29%]
+........................................................................ [ 33%]
+........................................................................ [ 37%]
+........................................................................ [ 40%]
+........................................................................ [ 44%]
+........................................................................ [ 48%]
+........................................................................ [ 51%]
+........................................................................ [ 55%]
+........................................................................ [ 59%]
+........................................................................ [ 63%]
+........................................................................ [ 66%]
+........................................................................ [ 70%]
+........................................................................ [ 74%]
+........................................................................ [ 77%]
+........................................................................ [ 81%]
+........................................................................ [ 85%]
+........................................................................ [ 89%]
+........................................................................ [ 92%]
+........................................................................ [ 96%]
+.....................................................................    [100%]
+=================================== FAILURES ===================================
+_______________ test_dependent_task_reads_actual_parent_artifact _______________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_dependent_task_reads_actu0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7e88c2143c50>
+
+    def test_dependent_task_reads_actual_parent_artifact(tmp_path, monkeypatch):
+        import rwkv_lh.agent_batch as batch
+        import rwkv_lh.agent_integration as integration
+        source = tmp_path / 'source'; source.mkdir(); (source / 'a').write_text('old')
+        jobs = [CodingJob('parent', 'Change a', str(source), str(tmp_path / 'parent')),
+                CodingJob('child', 'Read the result', str(source), str(tmp_path / 'child'))]
+        original = batch._execute
+        def coding(job, **kwargs):
+            outputs = ([call('write_file', path='a', content='new'), call('final_answer', text='changed')]
+                       if job.task_id == 'parent' else [call('read_file', path='a'), call('final_answer', text='new')])
+            return run_coding_job(job, settings=kwargs['settings'], session_factory=factory(outputs))
+        monkeypatch.setattr(integration, 'run_coding_job', coding)
+        monkeypatch.setattr(batch, '_execute', lambda job, configuration:
+            original(job, configuration) if isinstance(job, integration.DependentJob) else coding(job, settings=configuration))
+        results = integration.run_agent_workflow(jobs, {'child': ['parent']}, settings=settings())
+>       assert [r['termination'] for r in results] == ['submitted', 'submitted']
+E       AssertionError: assert ['submitted', 'blocked'] == ['submitted', 'submitted']
+E         
+E         At index 1 diff: 'blocked' != 'submitted'
+E         Use -v to get more diff
+
+tests/test_agent_integration.py:88: AssertionError
+_______ test_workflow_joins_two_branches_before_running_integration_task _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_workflow_joins_two_branch0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7e88c1f5f770>
+
+    def test_workflow_joins_two_branches_before_running_integration_task(tmp_path, monkeypatch):
+        import rwkv_lh.agent_batch as batch
+        import rwkv_lh.agent_integration as integration
+        source = tmp_path / 'source'; source.mkdir()
+        (source / 'a').write_text('old'); (source / 'b').write_text('old')
+        jobs = [CodingJob(n, 'Apply or verify changes', str(source), str(tmp_path / n)) for n in ('one', 'two', 'verify')]
+        original = batch._execute
+        def coding(job, **kwargs):
+            if job.task_id == 'verify':
+                assert (Path(job.source_workspace) / 'a').read_text() == 'A'
+                assert (Path(job.source_workspace) / 'b').read_text() == 'B'
+                outputs = [call('final_answer', text='raw verification submission')]
+            else:
+                outputs = [call('write_file', path='a' if job.task_id == 'one' else 'b',
+                                content='A' if job.task_id == 'one' else 'B'), call('final_answer', text='raw')]
+            return run_coding_job(job, settings=kwargs['settings'], session_factory=factory(outputs))
+        monkeypatch.setattr(integration, 'run_coding_job', coding)
+        monkeypatch.setattr(batch, '_execute', lambda job, configuration:
+            original(job, configuration) if isinstance(job, integration.DependentJob) else coding(job, settings=configuration))
+        results = integration.run_agent_workflow(jobs, {'verify': ['one', 'two']}, settings=settings())
+>       assert all(r['termination'] == 'submitted' for r in results)
+E       assert False
+E        +  where False = all(<generator object test_workflow_joins_two_branches_before_running_integration_task.<locals>.<genexpr> at 0x7e88c1f8c6c0>)
+
+tests/test_agent_integration.py:147: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_agent_integration.py::test_dependent_task_reads_actual_parent_artifact
+FAILED tests/test_agent_integration.py::test_workflow_joins_two_branches_before_running_integration_task
+2 failed, 1939 passed in 359.54s (0:05:59)

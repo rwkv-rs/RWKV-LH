@@ -1,0 +1,22 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_recorded_evaluation_source_cannot_be_relabelled_as_training _______
+
+prepared = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/R38-provenance-red/test_recorded_evaluation_sourc0/job'), '37681...p-offset', 'family': 'timebook', 'run_root': '/home/chase/GitHub/RWKV-LH/data/pipeline/sources/timestamp-offset', ...})
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/R38-provenance-red/test_recorded_evaluation_sourc0')
+
+    def test_recorded_evaluation_source_cannot_be_relabelled_as_training(prepared, tmp_path):
+        import shutil
+        _, _, plan = prepared
+        root = tmp_path / 'evaluation-trace'
+        shutil.copytree(plan['run_root'], root)
+        (root / 'SOURCE_PURPOSE.json').write_text(json.dumps({'source_purpose':'development_evaluation'}))
+        # A caller changing the plan field must not override recorded source purpose.
+>       with pytest.raises(ValueError, match='source purpose'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_trace_correction_pipeline.py:103: Failed
+=========================== short test summary info ============================
+FAILED tests/test_trace_correction_pipeline.py::test_recorded_evaluation_source_cannot_be_relabelled_as_training
+1 failed, 6 deselected in 1.04s

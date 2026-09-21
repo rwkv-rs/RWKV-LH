@@ -1,6 +1,6 @@
 """Coding tasks in a copied workspace, using the production execution loop."""
 from .job_budget import task_deadline
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import shutil
 
@@ -19,6 +19,7 @@ class CodingJob:
     output_dir: str
     max_calls: int = 12
     max_seconds: float = 600
+    record_generation_snapshots: bool = field(default=False, kw_only=True)
 
 
 def _inventory(root):
@@ -65,6 +66,14 @@ def run_coding_job(job, *, settings, session_factory=create_model_session):
         raise FileExistsError(output)
     workspace = output / 'workspace'
     execution = output / 'execution'
+    if type(job.record_generation_snapshots) is not bool:
+        raise ValueError('record_generation_snapshots must be boolean')
+    if job.record_generation_snapshots:
+        from .correction_snapshots import generation_snapshot_audit
+        original_factory = session_factory
+        def session_factory(*, settings, audit_hook):
+            return original_factory(settings=settings, audit_hook=generation_snapshot_audit(
+                workspace=workspace, output=execution, audit_hook=audit_hook))
     before_tree = copy_verified_workspace(source, workspace, audit_path=output / 'SOURCE_COPY.json')
     before = file_inventory(before_tree)
     _save(output / 'INITIAL_TREE.json', before_tree)

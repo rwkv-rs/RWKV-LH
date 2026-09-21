@@ -91,3 +91,14 @@ def test_generator_change_rejected_before_api(prepared, monkeypatch):
     with pytest.raises(ValueError, match='pipeline code changed'):
         p.run(directory, expected_packet_sha256=sha, teacher=teacher)
     assert teacher.calls == 0
+
+
+def test_recorded_evaluation_source_cannot_be_relabelled_as_training(prepared, tmp_path):
+    import shutil
+    _, _, plan = prepared
+    root = tmp_path / 'evaluation-trace'
+    shutil.copytree(plan['run_root'], root)
+    (root / 'SOURCE_PURPOSE.json').write_text(json.dumps({'source_purpose':'development_evaluation'}))
+    # A caller changing the plan field must not override recorded source purpose.
+    with pytest.raises(ValueError, match='source purpose'):
+        p.prepare(dict(plan, run_root=str(root)), tmp_path / 'mislabelled-job')

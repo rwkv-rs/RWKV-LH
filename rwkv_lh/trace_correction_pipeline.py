@@ -45,6 +45,15 @@ def pipeline_identity():
 
 def sealed_files(root, inventory):
     root = Path(root).resolve(strict=True)
+    purpose_path = root / 'SOURCE_PURPOSE.json'
+    if purpose_path.is_symlink():
+        raise ValueError('source purpose cannot be a symlink')
+    if purpose_path.exists():
+        purpose = json.loads(purpose_path.read_text())
+        if purpose.get('source_purpose') != 'production_training_source':
+            raise ValueError('recorded source purpose excludes training')
+        if inventory.get('SOURCE_PURPOSE.json') != file_sha(purpose_path):
+            raise ValueError('source purpose must be sealed with the trace')
     required = {'RESULT.json', 'model_trace.jsonl', 'state_snapshot.json'}
     if not required <= inventory.keys():
         raise ValueError('source lacks required trace artifacts')

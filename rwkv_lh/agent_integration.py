@@ -171,7 +171,8 @@ def run_dependent_job(job, *, settings):
             'error': {'type': type(exc).__name__, 'message': str(exc)}}
     _save(root / 'INTEGRATION.json', integration)
     child = CodingJob(job.task_id, job.request, str(source), str(root / 'execution'),
-                      job.max_calls, job.max_seconds)
+                      job.max_calls, job.max_seconds,
+                      record_generation_snapshots=job.record_generation_snapshots)
     result = run_coding_job(child, settings=settings)
     initial = root / 'execution/INITIAL_FILES.json'
     if initial.exists():
@@ -222,7 +223,8 @@ def run_agent_workflow(jobs, dependencies, *, settings, concurrency=1):
                 _save_failure(job, results[key])
             elif parents:
                 wave.append(DependentJob(job.task_id, job.request, job.source_workspace, job.output_dir,
-                    job.max_calls, job.max_seconds, tuple(by_id[p].output_dir for p in sorted(parents))))
+                    job.max_calls, job.max_seconds, tuple(by_id[p].output_dir for p in sorted(parents)),
+                    record_generation_snapshots=job.record_generation_snapshots))
             else:
                 wave.append(job)
         if wave:

@@ -15,6 +15,7 @@ def main():
     parser.add_argument('--output-dir', required=True)
     parser.add_argument('--request', required=True)
     parser.add_argument('--task-id', default='coding-task')
+    parser.add_argument('--record-generation-snapshots', action='store_true')
     parser.add_argument('--max-calls', type=int, default=12)
     parser.add_argument('--max-seconds', type=float, default=600)
     parser.add_argument('--base-url')
