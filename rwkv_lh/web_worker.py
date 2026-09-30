@@ -11,7 +11,9 @@ from typing import Any, Mapping
 
 from rwkv_lh.model_session import create_model_session
 from rwkv_lh.read_only_agent import ReadOnlyJob, run_read_only_job
-from rwkv_lh.coding_agent import CodingJob, run_coding_job
+from rwkv_lh.coding_agent import CodingJob
+from rwkv_lh.project_agent import run_project_job as run_coding_job, resume_project
+from rwkv_lh.project_runtime import ARCHITECTURE
 from rwkv_lh.web_ui import atomic_write_json, read_json, update_metadata, utc_now
 
 
@@ -54,12 +56,14 @@ def direct_settings():
 
 
 def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
-    if resume:
-        raise ValueError("direct frontend resume is not yet supported; preserve this run and create a new task")
     request = read_json(run_root / "request.json")
-    if not isinstance(request, dict) or request.get("runtime") != "direct_rwkv":
-        raise ValueError("historical runtime is read-only; create a new direct RWKV task")
+    if not isinstance(request, dict) or request.get("runtime") not in ("direct_rwkv", ARCHITECTURE):
+        raise ValueError("historical runtime is read-only; create a new task")
     scope = request["tool_scope"]
+    if scope == 'coding' and request['runtime'] != ARCHITECTURE:
+        raise ValueError('historical coding runtime is read-only; create a new project')
+    if resume and scope != 'coding':
+        raise ValueError('read-only utility resume is not supported')
     goal = request["request"]
     if request.get("constraints"):
         goal += "\n\n用户补充要求：\n" + "\n".join(request["constraints"])
@@ -73,7 +77,7 @@ def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
         if key not in {"api_key", "cf_access_client_id", "cf_access_client_secret", "proxy_url"}
     })
     if scope == "coding":
-        result = run_coding_job(CodingJob(
+        result = resume_project(run_root / 'delivery', settings=settings) if resume else run_coding_job(CodingJob(
             request["run_id"], goal, str(run_root / "workspace"), str(run_root / "delivery"),
             max_transitions, request["max_seconds"]), settings=settings, session_factory=create_model_session)
     else:
@@ -86,7 +90,7 @@ def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
     execution = run_root / ("delivery/execution" if scope == "coding" else "execution")
     update_metadata(run_root, active=False, phase="finished" if submitted else "blocked",
                     pid=None, status="submitted" if submitted else "interrupted",
-                    state_created=(execution / "state_snapshot.json").exists(),
+                    state_created=(execution / "state_snapshot.json").exists() or (execution / 'project.sqlite3').exists(),
                     termination_reason=result["termination_reason"],
                     worker_finished_at=utc_now(), result_path="result.json", error="")
     return 0 if submitted else 1

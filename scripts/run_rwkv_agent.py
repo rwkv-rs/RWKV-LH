@@ -1,4 +1,4 @@
-"""Run independent direct RWKV tasks; raw submissions are not acceptance."""
+"""Run coding projects with RWKV-directed planning or explicit read-only utilities."""
 import argparse
 import json
 from pathlib import Path
@@ -19,10 +19,15 @@ def main(argv=None):
     source.add_argument('--jobs', type=Path,
                         help='JSON array: task_id, request, workspace, output_dir, tool_scope, budgets')
     source.add_argument('--source-workspace')
+    source.add_argument('--resume', type=Path, help='Resume a project output directory with its original budgets')
     parser.add_argument('--request')
     parser.add_argument('--output-dir')
     parser.add_argument('--task-id', default='coding-task')
     parser.add_argument('--record-generation-snapshots', action='store_true')
+    parser.add_argument('--require-initial-plan', action='store_true',
+                        help='Explicitly require strong planning before the first RWKV decision')
+    parser.add_argument('--protected-paths', action='append', default=[],
+                        help="Read-only coding workspace path, '.' or './path'; repeat as needed")
     parser.add_argument('--max-calls', type=int, default=12)
     parser.add_argument('--max-seconds', type=float, default=600)
     parser.add_argument('--concurrency', type=int, default=1)
@@ -31,6 +36,15 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.concurrency < 1:
         parser.error('concurrency must be positive')
+    if args.resume:
+        if args.request or args.output_dir or args.protected_paths or args.require_initial_plan:
+            parser.error('--resume uses the recorded request and workspace')
+        from rwkv_lh.project_agent import resume_project
+        load_local_env(Path(__file__).resolve().parents[1] / '.env.local')
+        overrides = {name: getattr(args, name) for name in ('base_url', 'model', 'model_sha256') if getattr(args, name) is not None}
+        result = resume_project(args.resume, settings=RuntimeSettings.from_env(overrides=overrides))
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0 if result['termination'] == 'submitted' else 1
     jobs = []
     dependencies = {}
     if args.source_workspace:
@@ -38,9 +52,10 @@ def main(argv=None):
             parser.error('single coding task requires --request and --output-dir')
         rows = [dict(task_id=args.task_id, request=args.request, workspace=args.source_workspace,
                      output_dir=args.output_dir, tool_scope='coding', max_calls=args.max_calls,
-                     max_seconds=args.max_seconds, record_generation_snapshots=args.record_generation_snapshots)]
+                     max_seconds=args.max_seconds, record_generation_snapshots=args.record_generation_snapshots,
+                     protected_paths=args.protected_paths, require_initial_plan=args.require_initial_plan)]
     else:
-        if args.request or args.output_dir:
+        if args.request or args.output_dir or args.protected_paths or args.require_initial_plan:
             parser.error('--request and --output-dir belong to single coding tasks')
         rows = json.loads(args.jobs.read_text())
     if not isinstance(rows, list) or not rows or not all(isinstance(row, dict) for row in rows):
@@ -51,18 +66,16 @@ def main(argv=None):
         if not isinstance(parents, list):
             parser.error('depends_on must be an array of task IDs')
         if parents:
-            dependencies[row['task_id']] = parents
+            parser.error('project dependencies belong in the project plan; depends_on is retired from this entry')
         if 'assistance' in row:
-            row['mode'] = row.pop('assistance')
-            jobs.append(AssistedJob(**row))
-            continue
+            parser.error('project assistance is requested by the decision role; legacy assistance jobs are retired')
         scope = row.pop('tool_scope', 'files')
         recovery = row.pop('on_stall', None)
-        if recovery is not None and (recovery != 'takeover' or scope != 'coding'):
-            parser.error('on_stall supports takeover for coding tasks only')
+        if recovery is not None:
+            parser.error('on_stall is retired; project decisions request help or replanning explicitly')
         if scope == 'coding':
             row['source_workspace'] = row.pop('workspace')
-            jobs.append(GoalJob(**row) if recovery else CodingJob(**row))
+            jobs.append(CodingJob(**row))
         elif scope in ('files', 'inspect'):
             jobs.append(ReadOnlyJob(**row, tool_scope=scope))
         else:

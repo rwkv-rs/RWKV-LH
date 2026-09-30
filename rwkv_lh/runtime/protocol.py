@@ -67,7 +67,7 @@ class TokenUsage:
 
 @dataclass(frozen=True)
 class TextCompletionRequest:
-    prompt: str
+    prompt: str | list[int]
     max_tokens: int = 768
     temperature: float = 0.1
     top_p: float = 1.0
@@ -251,6 +251,8 @@ class RuntimeCapabilities:
     recurrent_state_chunked_prefill: bool = False
     recurrent_state_request_recovery: bool = False
     recurrent_state_request_recovery_protocol: str = ""
+    structured_output_protocol: str = ""
+    structured_output_backend: str = ""
     error: str = ""
 
     @property
@@ -280,6 +282,8 @@ class RuntimeCapabilities:
         raw_state = state if isinstance(state, Mapping) else {}
         tools = value.get("tools")
         raw_tools = tools if isinstance(tools, Mapping) else {}
+        decoder = value.get('structured_output')
+        raw_decoder = decoder if isinstance(decoder, Mapping) else {}
         return cls(
             source=source,
             prompt_replay=bool(value.get("prompt_replay", True)),
@@ -295,6 +299,8 @@ class RuntimeCapabilities:
             recurrent_state_request_recovery=raw_state.get("request_recovery") is True,
             recurrent_state_chunked_prefill=raw_state.get("chunked_prefill") is True,
             recurrent_state_request_recovery_protocol=str(raw_state.get("request_recovery_protocol") or ""),
+            structured_output_protocol=str(raw_decoder.get('protocol') or ''),
+            structured_output_backend=str(raw_decoder.get('backend') or ''),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -317,6 +323,9 @@ class RuntimeCapabilities:
                 "durable": self.durable_recurrent_state,
             },
             "error": self.error,
+            **({'structured_output': {'protocol': self.structured_output_protocol,
+                                      'backend': self.structured_output_backend}}
+               if self.structured_output_protocol else {}),
         }
 
 

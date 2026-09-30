@@ -12,6 +12,7 @@ from rwkv_lh.runtime.protocol import RuntimeCapabilities
 
 NATIVE_STATE_PROTOCOL_VERSION = "rwkv-lh.native-state.v1"
 NATIVE_STATE_LIFECYCLE_VERSION = "rwkv-lh.native-state-lifecycle.v1"
+EXACT_TOKEN_INPUT_PROTOCOL = 'rwkv-lh.native-exact-token-input.v1'
 
 
 def _canonical_digest(value: Mapping[str, Any]) -> str:
@@ -227,6 +228,7 @@ class NativeRWKVStateClient(Protocol):
         stop: Sequence[str],
         sampling: Mapping[str, Any],
         parent_cache_binding_digest: str,
+        decoder: Mapping[str, Any] | None = None,
     ) -> NativeStateCandidate: ...
 
     def state_commit(

@@ -1,54 +1,52 @@
-# Local secrets and overrides
+# Public repository: architecture, maintained project sources and build metadata.
+# Tests, benchmarks, experiments and generated files remain local.
+/*
+!/.env.example
+!/.gitattributes
+!/.github/
+!/.gitignore
+!/AGENTS.md
+!/LICENSE
+!/MANIFEST.in
+!/README.md
+!/docs/
+!/pyproject.toml
+!/rwkv_lh/
+!/scripts/
+!/uv.lock
+
+# Local evaluation entrypoints; retained for the private regression environment.
+/scripts/freeze_project_benchmark.py
+/scripts/generate_agent_capability_ladder_v1.py
+/scripts/generate_agent_v1_project_suite.py
+/scripts/prepare_project_natural_dev.py
+/scripts/run_calendar_project_trial.py
+/scripts/run_rwkv_e2e_benchmark.py
+/scripts/test_calendar_project.py
+/scripts/test_project_basics.py
+/scripts/test_project_expense_tracker.py
+
+# Secrets, caches and build outputs are never project source.
 .env
 .env.*
 !.env.example
-
-# Python / uv
-.venv/
 __pycache__/
 *.py[cod]
 *.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 build/
 dist/
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Runtime state and generated reports
-data/runs/
-data/manual_runs/
-data/manual_ui_validation/
-data/cache/
-data/goal_ui_preview/
-data/models/
-data/runtime/
-data/test_runs/*
-!data/test_runs/.gitkeep
-outputs/
+*.log
 *.db
 *.db-shm
 *.db-wal
 *.sqlite
 *.sqlite3
-
-# Editor and assistant metadata
-.agents/
-.claude/
-.cursor/
-.idea/
-.vscode/
-
-# OS and temporary files
-temp/
-data/experiments/**/.production_action_validation_workspaces/
-# Per-case E2E traces and workspaces are local append-only audit evidence.
-# Round-level protocols, manifests, results and causal reviews remain tracked.
-data/experiments/**/cases/
-data/experiments/**/*_workspace/
-data/experiments/**/workspaces/
-data/experiments/**/replay_workspaces/
-data/experiments/**/workspace_root/
+*.pt
+*.pth
+*.safetensors
+*.tmp
 .DS_Store
 Thumbs.db
-*.tmp
-*.log

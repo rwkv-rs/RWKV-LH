@@ -356,7 +356,7 @@ def parse_ranked_tool_choice(
         raise ModelIOError("ranked tool candidates must be non-empty and unique")
     text, _transformations = _extract_json(raw_output)
     try:
-        value = json.loads(text)
+        value = load_model_json(text)
     except json.JSONDecodeError as exc:
         raise ModelIOError(f"model output is not one JSON object: {exc}") from exc
     if not isinstance(value, Mapping):
@@ -398,7 +398,7 @@ def parse_ranked_tool_choice(
     return choice
 
 
-def _close_unused_generation_anchor(previous_transcript: str) -> str:
+def _close_generation_anchor(previous_transcript: str, *, completed: bool = False) -> str:
     """End a runtime-owned, empty JSON opener before appending another turn.
 
     Rollback restores the input checkpoint, including its generation opener.
@@ -406,7 +406,7 @@ def _close_unused_generation_anchor(previous_transcript: str) -> str:
     A committed response never ends with an unused canonical opener.
     """
     anchors = (ASSISTANT_JSON_CONTINUATION_ANCHOR, TOOL_CALL_JSON_CONTINUATION_ANCHOR)
-    return "\n```\n" if previous_transcript.endswith(anchors) else ""
+    return "\n```\n" if previous_transcript and (completed or previous_transcript.endswith(anchors)) else ""
 
 
 def render_event_append(
@@ -416,6 +416,7 @@ def render_event_append(
     progressive_tool_disclosure: bool = False,
     include_generation_anchor: bool = True,
     previous_transcript: str = "",
+    close_generation_anchor: bool = False,
 ) -> str:
     # Requested diagnostic advice is a control-plane review request, not a
     # workspace/tool instruction. Keep the original advisory payload intact.
@@ -441,7 +442,7 @@ def render_event_append(
             for item in visible_definitions
         ]
         return (
-            _close_unused_generation_anchor(previous_transcript)
+            _close_generation_anchor(previous_transcript, completed=close_generation_anchor)
             + event_prefix
             + canonical_json(event.to_model_dict())
             + "\n\nUser: Available operation menu (names and brief purposes only): "
@@ -459,7 +460,7 @@ def render_event_append(
             + "\nChoose exactly one displayed tool and return one JSON function call."
         )
     rendered = (
-        _close_unused_generation_anchor(previous_transcript)
+        _close_generation_anchor(previous_transcript, completed=close_generation_anchor)
         + scope
         + event_prefix
         + canonical_json(event.to_model_dict())
@@ -484,7 +485,7 @@ def render_rollover_event_summary(
     if len(set(event_ids)) != len(event_ids):
         raise ModelIOError("rollover event summary contains duplicate event ids")
     rendered = (
-        _close_unused_generation_anchor(previous_transcript)
+        _close_generation_anchor(previous_transcript)
         + "\n\nUser: Deterministic recent controller event summary: "
         + canonical_json([event.to_model_dict() for event in selected])
         + "\nThese controller-produced event bodies remain visible after context "
@@ -607,6 +608,18 @@ def _repair_structural_escaped_quotes(text: str) -> str | None:
     return repaired if repaired != text else None
 
 
+def load_model_json(source: str):
+    """Reject ambiguous objects, including nested/string-encoded arguments."""
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ModelIOError(f'duplicate JSON key: {key!r}')
+            result[key] = value
+        return result
+    return json.loads(source, object_pairs_hook=unique_object)
+
+
 def parse_model_command_with_trace(
     raw_output: str,
 ) -> tuple[ModelCommand, ModelCommandNormalization]:
@@ -614,7 +627,7 @@ def parse_model_command_with_trace(
 
     text, transformations = _extract_json(raw_output)
     try:
-        value = json.loads(text)
+        value = load_model_json(text)
     except json.JSONDecodeError as original_exc:
         repaired = _repair_structural_escaped_quotes(text)
         if repaired is None:
@@ -622,7 +635,7 @@ def parse_model_command_with_trace(
                 f"model output is not one JSON object: {original_exc}"
             ) from original_exc
         try:
-            value = json.loads(repaired)
+            value = load_model_json(repaired)
         except json.JSONDecodeError:
             raise ModelIOError(
                 f"model output is not one JSON object: {original_exc}"
@@ -642,7 +655,7 @@ def parse_model_command_with_trace(
         arguments = call["arguments"]
         if isinstance(arguments, str):
             try:
-                arguments = json.loads(arguments)
+                arguments = load_model_json(arguments)
             except json.JSONDecodeError as exc:
                 raise ModelIOError(
                     f"function_call arguments are not one JSON object: {exc}"
@@ -699,7 +712,7 @@ def parse_model_command_with_trace(
                 arguments, str
             ):
                 try:
-                    arguments = json.loads(arguments)
+                    arguments = load_model_json(arguments)
                 except json.JSONDecodeError as exc:
                     raise ModelIOError(
                         f"{argument_keys[0]} are not one JSON object: {exc}"

@@ -475,6 +475,7 @@ class RWKV7ModelState(ModelState):
 
     def _initialize_native_source_identity(self) -> None:
         self._native_source_identity: dict[str, Any] = {}
+        self._native_weight_identity: dict[str, Any] = {}
         if self.native_state_cache is not None:
             import vllm
             from rwkv_lh.inference.native_source_identity import (
@@ -483,6 +484,8 @@ class RWKV7ModelState(ModelState):
             self._native_source_identity = verify_native_source_identity(
                 engine_file=getattr(vllm, "__file__", None), project_file=__file__,
             )
+            from rwkv_lh.inference.native_weight_identity import fingerprint_model
+            self._native_weight_identity = fingerprint_model(self.model)
 
     def _reset_mappings(self) -> None:
         self.req_slot_owners = [None] * self.max_num_reqs
@@ -592,6 +595,10 @@ class RWKV7ModelState(ModelState):
 
     def native_state_capabilities(self) -> dict[str, Any]:
         cache = self._require_native_cache()
+        from rwkv_lh.inference.native_weight_identity import fingerprint_model
+        actual_weights = fingerprint_model(self.model)
+        if actual_weights != self._native_weight_identity:
+            raise RuntimeError('Native resident weights changed; existing State identity is invalid')
         return {
             "state_format_version": RWKV7_NATIVE_STATE_FORMAT,
             "cache_capacity": cache.capacity,
@@ -600,6 +607,7 @@ class RWKV7ModelState(ModelState):
             "state_lifecycle_protocol": NATIVE_STATE_LIFECYCLE_VERSION,
             "model_identity": dict(self._prefix_identity_fields),
             "source_identity": dict(self._native_source_identity),
+            "loaded_weight_identity": actual_weights,
             "authoritative": False,
         }
 
@@ -794,6 +802,8 @@ class RWKV7ModelState(ModelState):
         worker_rank: int,
     ) -> dict[str, Any]:
         entry = self._require_native_cache().get(state_ref)
+        # A durable receipt must never make a poisoned live State resumable.
+        self._validate_native_snapshot(entry.snapshot)
         path = self._native_store_path(store_key, worker_rank)
         payload = {
             "schema_version": RWKV7_NATIVE_STATE_FORMAT,
@@ -834,6 +844,7 @@ class RWKV7ModelState(ModelState):
             "wkv_state_dtype": str(self.wkv_state.dtype),
             "allow_fp16_accumulation": self.model.allow_fp16_accumulation,
             "source_identity": dict(self._native_source_identity),
+            "loaded_weight_identity": dict(self._native_weight_identity),
         }
 
     def delete_native_state_export(self, *, store_key: str, worker_rank: int) -> dict[str, Any]:
@@ -925,6 +936,9 @@ class RWKV7ModelState(ModelState):
             or snapshot.elapsed < 0
         ):
             raise ValueError("RWKV7 native state snapshot is incompatible")
+        if (not bool(torch.isfinite(snapshot.shift_state).all())
+                or not bool(torch.isfinite(snapshot.wkv_state).all())):
+            raise ValueError("RWKV7 native state snapshot contains nonfinite tensors")
 
     @staticmethod
     def _trim_native_store(rank_dir: Path) -> None:

@@ -1,7 +1,7 @@
 # RWKV-LH 项目工作规范
 
-本文件对所有在本仓库工作的人和自动代理生效。执行细节（唯一协议、数据生成、验收门槛、分析方法）见
-`docs/G1J_UNIFIED_PROTOCOL_ITERATION_PLAN.zh-CN.md`；当前状态见 `docs/HANDOFF.zh-CN.md`。
+本文件对所有在本仓库工作的人和自动代理生效。当前编码产品的角色协议、数据入口与执行边界见
+`docs/ARCHITECTURE.zh-CN.md` 和 `docs/PROJECT_ROLE_DATA_PIPELINE.zh-CN.md`；当前状态仅以 `docs/HANDOFF.zh-CN.md` 为入口。历史只查 Git，经验见 `docs/LESSONS.zh-CN.md`。
 
 ## 1. 执行环境
 
@@ -27,7 +27,7 @@
 - 未经 owner 书面确认，不得启动训练、不得新建 `data/datasets/` 版本目录；已有授权按其角色、目标与预算连续执行，不重复索取授权。
 - owner 已于 2026-09-07 授权 `data/datasets/rwkv_lh_real_project_dev_v1/` 的 12 题开发评测：CLI、数据、HTTP API、维护、Web、全栈各 2 题，运行器标识 `realprojectdevv1`。来源是按需求编写的开发基准，不是采集的真实用户 trace；此授权不新增角色训练额度，也不允许把参考实现直接当作 StateTune 角色数据。私有黑盒验收和作者 reference/mutant 不进入 Agent workspace；Web/全栈须实际运行 Playwright，验证器在隔离环境中读取只读 workspace snapshot。
 - owner 于 2026-09-09 明确取消固定三轮训练上限，改按预注册指标、预算和实际训练记录管理。每次训练登记 run、角色、模型/数据/训练器 SHA、初始化与输出 State、实际 optimizer steps、资源消耗和验收结果；失败、中止和历史次数不明如实记录，换版本或 replacement 不抹去历史。旧“已用完/剩余轮次”和历史次数对账不再构成额度门。
-- StateTune 按 Selector → Executor → Step Auditor → Finalizer → Final Auditor 逐角色采集、训练和验证。前序角色的合格 State 固定后采集下一角色，目标角色与后序角色从 zero 开始。只要求当前角色的预注册数据覆盖和证据质量，不要求后序角色先出现；Agent 低分和未完成是训练改进对象，不作为首轮训练禁令。正式保留组合仍须通过 Agent 验收。
+- 当前 Project 编码产品分别采集、训练和验证 Decision、Executor 的真实生产边界；强 Planner 负责规划与审查，不把旧五角色或 direct_actor 数据改标签复用。前序已合格 State 可固定，目标角色从 zero 开始；只要求本角色预注册的来源覆盖和证据质量，Agent 低分和未完成不自动构成禁训理由。正式保留组合仍须通过 Agent 验收。旧五角色链只作为仍被独立只读任务或必要回归引用的底层研究依赖，不是第二条 Project 产品架构。
 - 旧角色数据、生成/评测链与旧实验从工作树直接删除，不保留 retired/archive 副本；历史只从 Git / GitHub 记录查询。未跟踪文件不会自动进入远端历史。本轮清理仅保留路径、SHA 和验证记录。
 
 ## 4. 对比实验纪律
@@ -48,6 +48,8 @@
 
 ## 6. 提交与汇报
 
+- owner 于 2026-09-27 明确要求 GitHub 只保留架构文档、维护中的项目源码及必要构建配置。`tests/`、`acceptance_tests/`、`benchmarks/`、根目录 `data/`、`temp/`、输出产物和专项评测脚本只保留本地；不得用 `git add -f` 绕过。具体边界见 `docs/SOURCE_DISTRIBUTION.zh-CN.md`。
+- 本地回归、逐轮登记及 SHA 记录仍必须完整执行和保留，但不提交这些材料。公开 CI 只做源码边界、构建及入口检查，不能将其通过表述为完整回归通过。接手方须由 owner 单独交接本地测试和必要非 Holdout 材料；不得通过公开仓库分发。
 - 每完成一轮立即本地 `git commit`，一轮一提交，提交信息含轮次 id；owner 负责 push。
 - 汇报固定顺序：先 Agent 级（Strict / completed / mutation 数 / 终止原因），后角色级数字。角色级 100% 不得单独作为进展汇报。
 - 分析、整改和验证过程在 `data/experiments/` 中有完整记录，结论附文件路径与 SHA-256。

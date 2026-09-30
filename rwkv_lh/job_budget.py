@@ -70,7 +70,8 @@ def task_deadline(function):
         elapsed = time.monotonic() - started
         result = {**result, 'end_to_end_seconds': elapsed, 'wall_allowance_exceeded': elapsed > allowance}
         if elapsed > allowance:
-            result.update(final=None, termination='budget', termination_reason='wall_budget_exhausted')
+            result.update(final=None, status='interrupted', termination='budget',
+                          termination_reason='wall_budget_exhausted', acceptance='unreviewable')
         output.mkdir(parents=True, exist_ok=True)
         (output / 'DELIVERY.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
         return result

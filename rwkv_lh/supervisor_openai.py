@@ -923,6 +923,7 @@ def _decode_chat_completion_stream(
     model = ""
     finish_reason: str | None = None
     usage: dict[str, Any] = {}
+    tool_calls: dict[int, dict[str, Any]] = {}
     for raw_line in response.iter_lines():
         if on_line is not None:
             on_line(raw_line if isinstance(raw_line, bytes) else raw_line.encode("utf-8"))
@@ -943,9 +944,14 @@ def _decode_chat_completion_stream(
         if event == "[DONE]":
             if finish_reason is None:
                 raise SupervisorProtocolError("supervisor stream ended without finish_reason")
+            message = {"role": "assistant", "content": "".join(content)}
+            if tool_calls:
+                if sorted(tool_calls) != list(range(len(tool_calls))):
+                    raise SupervisorProtocolError("supervisor stream has noncontiguous tool indexes")
+                message["tool_calls"] = [tool_calls[i] for i in sorted(tool_calls)]
             return {
                 "model": model,
-                "choices": [{"message": {"role": "assistant", "content": "".join(content)},
+                "choices": [{"message": message,
                              "finish_reason": finish_reason}],
                 "usage": usage,
             }
@@ -973,8 +979,8 @@ def _decode_chat_completion_stream(
         if not isinstance(choice, Mapping) or choice.get("index") != 0:
             raise SupervisorProtocolError("supervisor stream requires choice index 0")
         delta = choice.get("delta")
-        if not isinstance(delta, Mapping) or delta.get("tool_calls") or delta.get("refusal"):
-            raise SupervisorProtocolError("supervisor stream requires an assistant text delta")
+        if not isinstance(delta, Mapping) or delta.get("refusal"):
+            raise SupervisorProtocolError("supervisor stream requires an assistant delta")
         text = delta.get("content")
         if text is not None and not isinstance(text, str):
             raise SupervisorProtocolError("supervisor stream content delta must be text")
@@ -987,11 +993,34 @@ def _decode_chat_completion_stream(
             # after the finish corrupts the assembled completion.
             if text:
                 raise SupervisorProtocolError("supervisor stream contains text after its finish")
+            if delta.get('tool_calls'):
+                raise SupervisorProtocolError("supervisor stream contains tool output after its finish")
             if reason is not None and reason != finish_reason:
                 raise SupervisorProtocolError("supervisor stream changed finish_reason after its finish")
             continue
         if text:
             content.append(text)
+        if delta.get('tool_calls') is not None:
+            updates = delta['tool_calls']
+            if not isinstance(updates, list):
+                raise SupervisorProtocolError('supervisor stream tool delta must be an array')
+            for update in updates:
+                if (not isinstance(update, Mapping) or type(update.get('index')) is not int
+                        or update['index'] < 0 or set(update) - {'index', 'id', 'type', 'function'}):
+                    raise SupervisorProtocolError('supervisor stream has invalid tool delta')
+                target = tool_calls.setdefault(update['index'], {'function': {}})
+                for key in ('id', 'type'):
+                    if key in update:
+                        if not isinstance(update[key], str) or (key in target and target[key] != update[key]):
+                            raise SupervisorProtocolError('supervisor stream changed tool identity')
+                        target[key] = update[key]
+                function = update.get('function', {})
+                if not isinstance(function, Mapping) or set(function) - {'name', 'arguments'}:
+                    raise SupervisorProtocolError('supervisor stream has invalid function delta')
+                for key, value in function.items():
+                    if not isinstance(value, str):
+                        raise SupervisorProtocolError('supervisor stream function delta must be text')
+                    target['function'][key] = target['function'].get(key, '') + value
         if reason is not None:
             finish_reason = reason
     raise SupervisorProtocolError("supervisor stream ended before [DONE]")
@@ -1273,6 +1302,7 @@ class OpenAICompatibleSupervisorClient:
         max_tokens: int,
         schema_revision: str,
         schema: Mapping[str, Any],
+        tool_contract: Mapping[str, Any] | None = None,
     ) -> tuple[str, dict[str, Any], str]:
         transport = self._transport_for_phase(phase)
         options = self._request_options_for_phase(phase)
@@ -1281,6 +1311,24 @@ class OpenAICompatibleSupervisorClient:
             if options.keys() & body.keys():
                 raise ValueError("supervisor request options cannot override transport contract fields")
             return {**body, **deepcopy(options)}
+
+        if tool_contract is not None:
+            from .strong_structured_output import strict_endpoint, build_tool_contract, PROTOCOL
+            if tool_contract.get('protocol') != PROTOCOL or transport != 'chat_completions':
+                raise ValueError('current strict chat tool contract required')
+            if build_tool_contract(tool_contract['original_definitions']) != tool_contract:
+                raise ValueError('strict tool contract differs from original role definitions')
+            options = dict(options)
+            options.setdefault('thinking', {'type': 'disabled'})
+            if options['thinking'] != {'type': 'disabled'}:
+                raise ValueError('DeepSeek required strict calls require thinking disabled')
+            return (strict_endpoint(self.settings.base_url), with_options({
+                'model': selected_model, 'messages': [
+                    {'role': 'system', 'content': system_prompt}, {'role': 'user', 'content': payload_text}],
+                'max_tokens': int(max_tokens), 'tools': deepcopy(tool_contract['tools']),
+                'tool_choice': tool_contract['tool_choice'],
+                **({'stream': True} if self.settings.stream_responses else {}),
+            }), transport)
 
         if transport == supervisor_vllm_rwkv.TRANSPORT:
             return (
@@ -1390,7 +1438,9 @@ class OpenAICompatibleSupervisorClient:
         request_payload: Mapping[str, Any],
         schema: Mapping[str, Any],
         max_tokens: int,
-    ) -> dict[str, Any]:
+        return_raw_content: bool = False,
+        tool_contract: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any] | str:
         primary_model = (
             self.stage_checker_model_name
             if phase in _STAGE_CHECKER_PHASES
@@ -1453,12 +1503,29 @@ class OpenAICompatibleSupervisorClient:
                     schema=schema,
                     max_tokens=max_tokens,
                     selected_model=selected_model,
+                    return_raw_content=return_raw_content,
+                    **({'tool_contract': tool_contract} if tool_contract is not None else {}),
                 )
             except SupervisorTransportError as exc:
                 # Another model route cannot repair a bad credential,
                 # endpoint, or request. Do not multiply non-retryable failures
                 # across fallback models or open their circuits.
                 if not exc.retryable:
+                    raise
+                last_error = exc
+                with self._route_lock:
+                    self._model_failures[selected_model] = failures + 1
+                    if failures + 1 >= self.settings.circuit_breaker_failures:
+                        self._model_opened_at[selected_model] = time.monotonic()
+                continue
+            except SupervisorGenerationInterrupted as exc:
+                if return_raw_content:
+                    # Output length is a known model budget result. The raw
+                    # envelope reaches the Project role without poisoning the
+                    # provider route for its next request.
+                    with self._route_lock:
+                        self._model_failures[selected_model] = 0
+                        self._model_opened_at.pop(selected_model, None)
                     raise
                 last_error = exc
                 with self._route_lock:
@@ -1494,7 +1561,9 @@ class OpenAICompatibleSupervisorClient:
         schema: Mapping[str, Any],
         max_tokens: int,
         selected_model: str,
-    ) -> dict[str, Any]:
+        return_raw_content: bool = False,
+        tool_contract: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any] | str:
         call_id = f"SUP-{uuid.uuid4().hex[:20]}"
         schema_revision = (
             "v4"
@@ -1514,6 +1583,7 @@ class OpenAICompatibleSupervisorClient:
             max_tokens=max_tokens,
             schema_revision=schema_revision,
             schema=schema,
+            **({'tool_contract': tool_contract} if tool_contract is not None else {}),
         )
         payload_bytes = payload_text.encode("utf-8")
         native_envelope = (
@@ -1547,8 +1617,10 @@ class OpenAICompatibleSupervisorClient:
                 ).encode("utf-8")).hexdigest(),
                 "stream": body.get("stream") is True,
                 "response_format": (
+                    'strict_tools' if tool_contract is not None else
                     None if transport == supervisor_vllm_rwkv.TRANSPORT else "json_object"
                 ),
+                **({'tool_contract_sha256': tool_contract['contract_sha256']} if tool_contract is not None else {}),
                 **(
                     {
                         "prompt_sha256": hashlib.sha256(body["prompt"].encode("utf-8")).hexdigest(),
@@ -1694,8 +1766,19 @@ class OpenAICompatibleSupervisorClient:
                             f"supervisor {phase} requires finish_reason='stop'; "
                             f"received {finish_reason!r}"
                         )
-                    content = message.get("content")
-                    if not isinstance(content, str) or not content.strip():
+                    if tool_contract is not None:
+                        from .strong_structured_output import tool_response_content
+                        content = tool_response_content(message)
+                        self._emit({'type': 'strong_tool_transport_normalized', 'call_id': call_id,
+                            'contract_sha256': tool_contract['contract_sha256'],
+                            'original_message': deepcopy(dict(message)), 'role_content': content,
+                            'argument_envelope_removed': None, 'semantic_fields_generated': False})
+                    else:
+                        content = message.get("content")
+                    # Project roles receive the exact completed response, even
+                    # whitespace: their parser records a known protocol rejection.
+                    # Other supervisor phases still require nonempty JSON here.
+                    if not isinstance(content, str) or (not content.strip() and not return_raw_content):
                         raise SupervisorProtocolError(
                             "supervisor response has empty JSON content"
                         )
@@ -1706,7 +1789,13 @@ class OpenAICompatibleSupervisorClient:
                     native_envelope.generation_prefill + content
                     if native_envelope is not None else content
                 )
-                value, content_normalization = _decode_supervisor_json_content(decoder_content)
+                # Strong Project roles validate their own command protocol. A
+                # malformed command is a role rejection, not a provider outage;
+                # return its exact text without opening the transport circuit.
+                if return_raw_content:
+                    value, content_normalization = content, None
+                else:
+                    value, content_normalization = _decode_supervisor_json_content(decoder_content)
                 if content_normalization is not None:
                     self._emit(
                         {

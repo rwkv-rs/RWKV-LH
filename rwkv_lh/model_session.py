@@ -43,6 +43,7 @@ from rwkv_lh.schema import (
     ModelLaneKind,
 )
 from rwkv_lh.token_budget import get_token_count, tokenizer
+from rwkv_lh.runtime.structured_output import decoder_receipt, validate_decoder_contract, state_output_token_ids
 
 
 class CompletionClient(Protocol):
@@ -89,6 +90,11 @@ class SessionSampling:
     presence_penalty: float = 0.0
     frequency_penalty: float = 0.0
     penalty_decay: float = 0.996
+    seed: int | None = None
+
+    def __post_init__(self):
+        if self.seed is not None and (type(self.seed) is not int or not 0 <= self.seed < 2**63):
+            raise ValueError('sampling seed must be a nonnegative 63-bit integer')
 
     @classmethod
     def from_settings(cls, settings: RuntimeSettings) -> SessionSampling:
@@ -100,6 +106,7 @@ class SessionSampling:
             presence_penalty=settings.default_presence_penalty,
             frequency_penalty=settings.default_frequency_penalty,
             penalty_decay=settings.default_penalty_decay,
+            seed=settings.sampling_seed,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -110,6 +117,7 @@ class SessionSampling:
             "presence_penalty": self.presence_penalty,
             "frequency_penalty": self.frequency_penalty,
             "penalty_decay": self.penalty_decay,
+            **({'seed': self.seed} if self.seed is not None else {}),
         }
 
 
@@ -131,6 +139,8 @@ class CandidateGeneration:
     prompt_token_ids: tuple[int, ...] | None = None
     prompt_token_ids_scope: str = "unspecified"
     input_bos_token_count: int | None = None
+    decoder: Mapping[str, Any] | None = None
+    state_token_ids: tuple[int, ...] | None = None
 
     @property
     def raw_output_sha256(self) -> str:
@@ -156,6 +166,8 @@ class CandidateGeneration:
             "state_profile_id": self.state_profile_id,
             "state_profile_sha256": self.state_profile_sha256,
             "postprocessed": False,
+            **({'decoder': dict(self.decoder)} if self.decoder is not None else {}),
+            **({'state_token_ids': list(self.state_token_ids)} if self.state_token_ids is not None else {}),
         }
 
 
@@ -223,6 +235,9 @@ class ModelSession:
         self.settings = settings or get_runtime_settings()
         self.client = client or OpenAICompatibleRWKVClient(self.settings)
         self.audit_hook = audit_hook
+        self.event_renderer = render_event_append
+        self.command_parser = parse_model_command
+        self.command_parser_with_trace = parse_model_command_with_trace
         # Duck-typed so a wrapping/proxy client that forwards audit
         # subscription is wired too instead of silently losing events.
         subscribe = getattr(self.client, "add_audit_hook", None)
@@ -419,7 +434,7 @@ class ModelSession:
         include_generation_anchor: bool = True,
     ) -> ModelCheckpoint:
         self._require_committed(checkpoint)
-        transcript = checkpoint.transcript + render_event_append(
+        transcript = checkpoint.transcript + self.event_renderer(
             event,
             visible_definitions,
             previous_transcript=checkpoint.transcript,
@@ -588,7 +603,7 @@ class ModelSession:
     ) -> ModelCheckpoint:
         self._require_committed(checkpoint)
         identifier = lane_id or f"L-{lane_kind.value.upper()}-{uuid4().hex[:12]}"
-        transcript = checkpoint.transcript + render_event_append(
+        transcript = checkpoint.transcript + self.event_renderer(
             assignment,
             visible_definitions,
             previous_transcript=checkpoint.transcript,
@@ -626,11 +641,16 @@ class ModelSession:
         sampling: SessionSampling | None = None,
         max_output_tokens: int = 900,
         json_output: bool = True,
+        decoder: Mapping[str, Any] | None = None,
     ) -> CandidateGeneration:
+        if decoder is not None:
+            raise ModelSessionError('constrained decoding requires the Native transport')
         self._require_committed(checkpoint)
         if (checkpoint.native_state_metadata or {}).get("executor_protocol_required"):
             validate_independent_executor_generation_input(checkpoint.transcript)
         selected = sampling if sampling is not None else SessionSampling.from_settings(self.settings)
+        if selected.seed is not None:
+            raise ModelSessionError('seeded generation requires the Native transport')
         output_limit = max(1, int(max_output_tokens))
         input_limit = self.settings.max_prompt_tokens(output_limit)
         if checkpoint.token_count > input_limit:
@@ -733,7 +753,7 @@ class ModelSession:
 
     def parse(self, candidate: CandidateGeneration) -> ModelCommand:
         parse_source, _ = _restore_attested_stop_suffix(candidate)
-        return parse_model_command(parse_source)
+        return self.command_parser(parse_source)
 
     def parse_with_trace(
         self,
@@ -742,7 +762,7 @@ class ModelSession:
         parse_source, transport_transformations = _restore_attested_stop_suffix(
             candidate
         )
-        command, normalization = parse_model_command_with_trace(parse_source)
+        command, normalization = self.command_parser_with_trace(parse_source)
         if transport_transformations:
             normalization = replace(
                 normalization,
@@ -1219,7 +1239,7 @@ class NativeRWKVModelSession(ModelSession):
         progressive_tool_disclosure: bool = False,
         include_generation_anchor: bool = True,
     ) -> ModelCheckpoint:
-        suffix = render_event_append(
+        suffix = self.event_renderer(
             event,
             visible_definitions,
             previous_transcript=checkpoint.transcript,
@@ -1368,7 +1388,7 @@ class NativeRWKVModelSession(ModelSession):
     ) -> ModelCheckpoint:
         self._require_committed(checkpoint)
         identifier = lane_id or f"L-{lane_kind.value.upper()}-{uuid4().hex[:12]}"
-        suffix = render_event_append(
+        suffix = self.event_renderer(
             assignment,
             visible_definitions,
             previous_transcript=checkpoint.transcript,
@@ -1424,7 +1444,13 @@ class NativeRWKVModelSession(ModelSession):
         sampling: SessionSampling | None = None,
         max_output_tokens: int = 900,
         json_output: bool = True,
+        decoder: Mapping[str, Any] | None = None,
     ) -> CandidateGeneration:
+        if decoder is not None:
+            validate_decoder_contract(decoder)
+            if (self.capabilities.structured_output_protocol != decoder['protocol']
+                    or self.capabilities.structured_output_backend != decoder['backend']):
+                raise ModelSessionError('native service did not attest the requested decoder protocol/backend')
         self._require_committed(checkpoint)
         if (checkpoint.native_state_metadata or {}).get("executor_protocol_required"):
             validate_independent_executor_generation_input(checkpoint.transcript)
@@ -1438,6 +1464,7 @@ class NativeRWKVModelSession(ModelSession):
                 "lane_id": checkpoint.lane_id,
                 "input_checkpoint_id": checkpoint.checkpoint_id,
                 "input_digest": checkpoint.native_state_digest,
+                **({'decoder': decoder_receipt(decoder)} if decoder is not None else {}),
                 "prompt_tokens_local": 0,
                 "static_replay_tokens": 0,
                 "max_tokens": output_limit,
@@ -1453,9 +1480,10 @@ class NativeRWKVModelSession(ModelSession):
                 parent_state_ref=self._state_ref(checkpoint),
                 request_id=request_id,
                 max_tokens=output_limit,
-                stop=JSON_CALL_STOP_SUFFIXES if json_output else (),
+                stop=JSON_CALL_STOP_SUFFIXES if json_output and decoder is None else (),
                 sampling=selected.to_dict(),
                 parent_cache_binding_digest=parent_binding.digest,
+                **({'decoder': dict(decoder)} if decoder is not None else {}),
             )
         finally:
             current_model_lane.reset(lane_token)
@@ -1466,6 +1494,15 @@ class NativeRWKVModelSession(ModelSession):
             raise ModelSessionError("native candidate parent state digest mismatch")
         if returned.parent_cache_binding_digest != parent_binding.digest:
             raise ModelSessionError("native candidate parent cache binding mismatch")
+        if decoder is not None and returned.metadata.get('decoder') != decoder_receipt(decoder):
+            raise ModelSessionError('native candidate decoder attestation mismatch')
+        state_tokens = None
+        if decoder is not None:
+            state_tokens = state_output_token_ids(returned.metadata.get('token_ids'), returned.finish_reason, decoder)
+            if returned.metadata.get('state_token_ids') != state_tokens:
+                raise ModelSessionError('native candidate decoder State token attestation mismatch')
+        elif returned.metadata.get('decoder') is not None or returned.metadata.get('state_token_ids') is not None:
+            raise ModelSessionError('native candidate has an unsolicited decoder State attestation')
         candidate_checkpoint = self._checkpoint(
             lane_id=checkpoint.lane_id,
             lane_kind=checkpoint.lane_kind,
@@ -1512,6 +1549,8 @@ class NativeRWKVModelSession(ModelSession):
             prompt_token_ids=_prompt_token_ids(returned.metadata),
             prompt_token_ids_scope=str(returned.metadata.get("prompt_token_ids_scope") or "unspecified"),
             input_bos_token_count=returned.metadata.get("input_bos_token_count"),
+            decoder=decoder_receipt(decoder) if decoder is not None else None,
+            state_token_ids=tuple(state_tokens) if state_tokens is not None else None,
         )
         self._emit(
             {

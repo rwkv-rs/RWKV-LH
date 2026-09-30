@@ -1,1 +1,0 @@
-Only minimal inputs for current regression tests. Not training data, not an active benchmark, not evidence of current Agent performance. Historical identities inside fixtures are intentionally unchanged.

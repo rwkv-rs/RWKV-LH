@@ -19,8 +19,14 @@ from rwkv_lh.runtime.role_config import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ENV_FILE = PROJECT_ROOT / ".env.local"
+PROJECT_EXECUTOR_DEFAULT_OUTPUT_TOKENS = 4096
 _STATE_PROFILE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _sampling_seed(role, default=None):
+    value = role_env(role, 'sampling_seed', default='' if default is None else str(default))
+    return int(value) if value else None
 
 
 def load_local_env(
@@ -79,6 +85,7 @@ class RuntimeSettings:
     default_presence_penalty: float = 0.0
     default_frequency_penalty: float = 0.0
     default_penalty_decay: float = 0.996
+    sampling_seed: int | None = None
     max_model_len: int = 16384
     action_max_output_tokens: int = 1800
     context_safety_margin: int = 32
@@ -150,6 +157,7 @@ class RuntimeSettings:
                 legacy="RWKV_DEFAULT_TEMPERATURE",
                 default=0.1,
             ),
+            sampling_seed=_sampling_seed('executor'),
             default_top_p=role_float(
                 "executor", "default_top_p", legacy="RWKV_DEFAULT_TOP_P", default=1.0
             ),
@@ -301,6 +309,7 @@ class RuntimeSettings:
                 "default_temperature",
                 default=fallback.default_temperature,
             ),
+            sampling_seed=_sampling_seed(normalized, fallback.sampling_seed),
             default_top_p=role_float(
                 normalized,
                 "default_top_p",
@@ -332,7 +341,9 @@ class RuntimeSettings:
                 default=fallback.max_model_len,
             ),
             action_max_output_tokens=role_int(
-                normalized, "action_max_output_tokens", default=fallback.action_max_output_tokens
+                normalized, "action_max_output_tokens",
+                default=(PROJECT_EXECUTOR_DEFAULT_OUTPUT_TOKENS if normalized == "project_executor"
+                         else fallback.action_max_output_tokens),
             ),
             context_safety_margin=role_int(
                 normalized,
@@ -443,6 +454,8 @@ class RuntimeSettings:
         minimum_temperature = (
             0.0 if self.backend_profile == "vllm-rwkv-native" else 1e-5
         )
+        if self.sampling_seed is not None and (type(self.sampling_seed) is not int or not 0 <= self.sampling_seed < 2**63):
+            raise ValueError('sampling seed must be a nonnegative 63-bit integer')
         if not minimum_temperature <= self.default_temperature <= 2:
             raise ValueError(
                 "RWKV_DEFAULT_TEMPERATURE must be between "

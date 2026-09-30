@@ -2,7 +2,15 @@
 import hashlib
 import json
 from types import SimpleNamespace
-from .supervisor_openai import OpenAICompatibleSupervisorClient, SupervisorProtocolError
+from .supervisor_openai import OpenAICompatibleSupervisorClient, SupervisorGenerationInterrupted
+from .read_only_agent import ReadOnlyBudgetExpired
+
+
+class KnownStrongOutputBudgetExpired(ReadOnlyBudgetExpired):
+    """A complete provider envelope proves truncation, not an unknown request."""
+    def __init__(self, response):
+        super().__init__('teacher output budget exhausted before action content', 'output_budget_exhausted')
+        self.provider_response = response
 
 
 class AuditedStrongClient(OpenAICompatibleSupervisorClient):
@@ -13,11 +21,13 @@ class AuditedStrongClient(OpenAICompatibleSupervisorClient):
 
 
 class StrongCompletion:
-    def __init__(self, settings, output, max_calls, *, input_builder=None):
+    def __init__(self, settings, output, max_calls, *, input_builder=None, phase='explicit_takeover'):
         self.model_name = settings.model
         self.events, self.output, self.calls, self.max_calls = [], output, 0, max_calls
         self.client = AuditedStrongClient(settings, audit_hook=self.audit)
         self.input_builder = input_builder
+        self.tools_builder = None
+        self.phase = phase
 
     def audit(self, event):
         self.events.append(dict(event))
@@ -32,13 +42,22 @@ class StrongCompletion:
         system_prompt, request_payload = (
             self.input_builder() if self.input_builder is not None else (prompt, {})
         )
+        contract = None
+        if self.tools_builder is not None:
+            from .strong_structured_output import build_tool_contract
+            contract = build_tool_contract(self.tools_builder())
+            self.audit({'type': 'strong_decoder_contract', 'contract': contract})
         try:
-            self.client._request_json(phase='explicit_takeover', run_id=self.output.parent.name,
+            content = self.client._request_json(phase=self.phase, run_id=self.output.parent.name,
                 request_digest=hashlib.sha256(prompt.encode()).hexdigest(), system_prompt=system_prompt,
-                request_payload=request_payload, schema={'type': 'object'}, max_tokens=max_tokens)
-        except SupervisorProtocolError:
-            if not any(e['type'] == 'supervisor_response_envelope_received' for e in self.events[start:]):
+                request_payload=request_payload, schema={'type': 'object'}, max_tokens=max_tokens,
+                return_raw_content=True, **({'tool_contract': contract} if contract is not None else {}))
+        except SupervisorGenerationInterrupted:
+            interrupted = [e for e in self.events[start:]
+                if e['type'] == 'supervisor_response_envelope_received']
+            if len(interrupted) != 1:
                 raise
+            raise KnownStrongOutputBudgetExpired(interrupted[0]['raw_response']) from None
         envelopes = [e for e in self.events[start:] if e['type'] == 'supervisor_response_envelope_received']
         if len(envelopes) != 1:
             raise ValueError('one original strong response required')
@@ -46,12 +65,12 @@ class StrongCompletion:
         if len(raw['choices']) != 1:
             raise ValueError('one original strong choice required')
         choice = raw['choices'][0]
-        content = choice['message']['content']
+        if contract is None:
+            content = choice['message']['content']
         if not content and choice.get('finish_reason') == 'length':
-            from .read_only_agent import ReadOnlyBudgetExpired
-            raise ReadOnlyBudgetExpired('teacher output budget exhausted before action content',
-                                        'output_budget_exhausted')
+            raise KnownStrongOutputBudgetExpired(raw)
         if not isinstance(content, str):
             raise ValueError('strong content must be text')
         return SimpleNamespace(content=content, finish_reason=choice['finish_reason'],
-            model=raw.get('model', self.model_name), response_id=raw.get('id', ''), metadata={})
+            model=raw.get('model', self.model_name), response_id=raw.get('id', ''),
+            metadata={'strong_decoder_contract_sha256': contract['contract_sha256']} if contract is not None else {})

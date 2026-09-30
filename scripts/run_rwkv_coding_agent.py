@@ -5,7 +5,8 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from rwkv_lh.coding_agent import CodingJob, run_coding_job
+from rwkv_lh.coding_agent import CodingJob
+from rwkv_lh.project_agent import run_project_job as run_coding_job
 from rwkv_lh.runtime.settings import direct_agent_settings, RuntimeSettings, load_local_env
 
 
@@ -16,8 +17,16 @@ def main():
     parser.add_argument('--request', required=True)
     parser.add_argument('--task-id', default='coding-task')
     parser.add_argument('--record-generation-snapshots', action='store_true')
+    parser.add_argument('--require-initial-plan', action='store_true',
+                        help='Explicitly require strong planning before the first RWKV decision')
+    parser.add_argument('--protected-paths', action='append', default=[],
+                        help="Read-only workspace path, '.' or './path'; repeat for multiple paths")
     parser.add_argument('--max-calls', type=int, default=12)
     parser.add_argument('--max-seconds', type=float, default=600)
+    parser.add_argument('--unit-calls', type=int, default=None,
+                        help='Optional execution work-unit call budget; default shares the total budget')
+    parser.add_argument('--unit-seconds', type=float, default=None,
+                        help='Optional execution work-unit time budget; observed after confirmed operations')
     parser.add_argument('--base-url')
     parser.add_argument('--model')
     parser.add_argument('--model-sha256')

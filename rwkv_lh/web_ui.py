@@ -30,6 +30,9 @@ from rwkv_lh.retrieval import RetrievalRuntimeConfig
 from rwkv_lh.runtime.settings import PROJECT_ROOT, get_runtime_settings
 from rwkv_lh.store import LongHorizonStore, StateRecoveryError
 from rwkv_lh.trace_projection import project_run_activity
+from rwkv_lh.project_runtime import ARCHITECTURE
+from rwkv_lh.project_ledger import ProjectLedger
+from rwkv_lh.project_contracts import work_items
 
 
 SCHEMA_VERSION = "rwkv-lh.manual-web-run.v1"
@@ -198,8 +201,8 @@ class ManualRunRepository:
             "request": request,
             "constraints": constraints,
             "retrieval_policy": retrieval.to_dict(),
-            "runtime": "direct_rwkv",
-            "supervisor_mode": "direct_rwkv",
+            "runtime": ARCHITECTURE if scope == 'coding' else 'direct_rwkv',
+            "supervisor_mode": "strong_planned" if scope == 'coding' else 'direct_rwkv',
             "tool_scope": scope,
             "max_seconds": max_seconds,
             "execution_mode": "goal",
@@ -263,7 +266,7 @@ class ManualRunRepository:
     def execution_root(self, run_id: str) -> Path:
         root = self.run_root(run_id)
         request = self.request_document(run_id)
-        if request.get("runtime") == "direct_rwkv":
+        if request.get("runtime") in ("direct_rwkv", ARCHITECTURE):
             return root / ("delivery/execution" if request.get("tool_scope") == "coding" else "execution")
         return root
 
@@ -285,6 +288,18 @@ class ManualRunRepository:
     def summary(self, run_id: str) -> dict[str, Any]:
         metadata = self.metadata(run_id)
         output: dict[str, Any] = {"metadata": metadata, "request": self.request_document(run_id)}
+        project = self.execution_root(run_id) / 'project.sqlite3'
+        if project.is_file():
+            state = ProjectLedger(project.parent).state()
+            output['project'] = {key: state[key] for key in ('goal', 'goal_checks', 'pending_checks',
+                'planner_request', 'pending_plan', 'plan', 'plan_version', 'task_status',
+                'reports', 'verification', 'acceptance', 'control', 'work_unit', 'check_revisions',
+                'active', 'pending', 'feedback', 'status', 'calls', 'elapsed')}
+            output['project']['work_items'] = work_items(state)
+            output['project']['actions'] = [{'action_id': key, 'operation': value['intent']['name'],
+                'arguments': value['intent']['arguments'], 'result': value['result'],
+                'status': 'succeeded' if value['result'].get('success') else 'failed'}
+                for key, value in state['evidence'].items() if value['kind'] == 'tool']
         if self.state_available(run_id):
             try:
                 state = self.store(run_id).load(run_id)
@@ -318,12 +333,22 @@ class ManualRunRepository:
 
     def full_state(self, run_id: str) -> dict[str, Any]:
         metadata = self.metadata(run_id)
+        project = self.execution_root(run_id) / 'project.sqlite3'
+        if project.is_file():
+            return {'run_id': run_id, 'state': ProjectLedger(project.parent).state()}
         if not self.state_available(run_id):
             return {"run_id": run_id, "state": None}
         return {"run_id": run_id, "state": self.store(run_id).load(run_id).to_dict()}
 
     def events(self, run_id: str, *, after: int = 0, limit: int = 500) -> dict[str, Any]:
         metadata = self.metadata(run_id)
+        project = self.execution_root(run_id) / 'project.sqlite3'
+        if project.is_file():
+            with sqlite3.connect(f'file:{project}?mode=ro', uri=True) as connection:
+                rows = connection.execute('SELECT seq,kind,digest FROM events WHERE seq>? ORDER BY seq LIMIT ?',
+                    (after, max(1, min(limit, 2000)))).fetchall()
+            return {'events': [{'event_id': row[0], 'kind': row[1], 'digest': row[2]} for row in rows],
+                    'last_event_id': rows[-1][0] if rows else after}
         if not self.state_available(run_id):
             return {"events": [], "last_event_id": after}
         records = [
@@ -387,11 +412,18 @@ class ManualRunRepository:
                 if (
                     not path.is_file()
                     or path.is_symlink()
-                    or path.name == "long_horizon.db"
+                    or path.name in ("long_horizon.db", 'project.sqlite3')
                     or path.name.endswith(("-wal", "-shm"))
                 ):
                     continue
                 archive.write(path, arcname=f"{run_id}/{path.relative_to(run_root).as_posix()}")
+            project = self.execution_root(run_id) / 'project.sqlite3'
+            if project.is_file():
+                with sqlite3.connect(f'file:{project}?mode=ro', uri=True) as source, sqlite3.connect(':memory:') as snapshot:
+                    source.backup(snapshot)
+                    archive.writestr(f'{run_id}/{project.relative_to(run_root).as_posix()}', snapshot.serialize())
+                    body = snapshot.execute('SELECT body FROM current WHERE id=1').fetchone()[0]
+                    archive.writestr(f'{run_id}/state-export.json', body + '\n')
             database = self.state_root(run_id) / "long_horizon.db"
             if database.is_file():
                 source = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
@@ -441,9 +473,9 @@ class ManualRunManager:
             if ((process is not None and process.poll() is None)
                     or self._managed_pid_alive(run_id, metadata.get("pid"))):
                 raise RuntimeError("run is already active")
-            if resume:
-                raise ValueError("direct frontend resume is not yet supported")
             request = self.repository.request_document(run_id)
+            if resume and request.get('runtime') != ARCHITECTURE:
+                raise ValueError('historical/read-only runtime resume is not supported')
             update_metadata(
                 run_root,
                 active=True,
@@ -618,7 +650,7 @@ class WebHandler(BaseHTTPRequestHandler):
                             "max_model_len": settings.max_model_len,
                         },
                         "can": ["读取指定文件回答问题", "只读搜索与指定测试", "隔离副本中的代码修改（实验性）", "下载真实输入输出、工具结果与 State 审计包"],
-                        "cannot": ["提交回答不代表外部验收通过", "通用 bug 诊断与多文件交付仍不稳定", "当前前端未启用强模型协助或续跑"],
+                        "cannot": ["计划内检查通过不代表外部验收通过", "新架构尚未完成真实模型能力验收", "结果不确定的操作不能自动重放"],
                         "latest_formal": None,
                         "latest_diagnostic": None,
                     }
@@ -639,9 +671,9 @@ class WebHandler(BaseHTTPRequestHandler):
                     executor = client.health().to_dict()
                 finally:
                     client.close()
-                self.send_json({"runtime": "direct_rwkv", "executor": executor,
+                self.send_json({"runtime": ARCHITECTURE, "executor": executor,
                                 "harness": {"available": True, "scope": "isolated workspace"},
-                                "strong_assistance": "not enabled in frontend"})
+                                "strong_assistance": "initial planning, replanning and requested diagnosis; connectivity not probed"})
                 return
             if path == "/api/runs":
                 rows = []

@@ -1,1 +1,0 @@
-Three genuine source traces retained for pipeline development. Not admitted training data. Candidate-State traces require their actual registered profile and may be diagnostic only; do not relabel as zero. Snapshot completeness must be checked before generation.

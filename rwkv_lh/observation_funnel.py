@@ -54,6 +54,8 @@ REGISTERED_OPERATIONS = frozenset(
 )
 
 _METADATA_KEYS = (
+    "workspace_committed",
+    "changed_paths",
     "complete",
     "truncated",
     "eof",
@@ -1098,6 +1100,7 @@ def _project_external_evidence(
         and all(bool(record["projection_complete"]) for record in records)
     )
     projected["metadata"] = {
+        **projected.get("metadata", {}),
         "network_policy": bounded_model_value(source_metadata.get("network_policy") or {}),
         "provider": str(source_metadata.get("provider") or ""),
         "external_evidence": external_identity,
@@ -1537,6 +1540,7 @@ def compact_action_result_projection(
     metadata = dict(raw_metadata) if isinstance(raw_metadata, Mapping) else {}
     compact_metadata: dict[str, Any] = {}
     metadata_priority = (
+        "workspace_committed",
         "valid_json",
         "parse_outcome_complete",
         "parse_error",
@@ -1554,6 +1558,7 @@ def compact_action_result_projection(
         "canonical_size_bytes",
         "request_binding_valid",
         "snapshot_transition_verified",
+        "changed_paths",
     )
     for key in metadata_priority:
         if key not in metadata:

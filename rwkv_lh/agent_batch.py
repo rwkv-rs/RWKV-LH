@@ -12,14 +12,15 @@ def _execute(job, settings):
         return run_dependent_job(job, settings=settings)
     from .goal_delivery import GoalJob, run_goal_job
     from .assisted_agent import AssistedJob, run_assisted_job
-    from .coding_agent import CodingJob, run_coding_job
+    from .coding_agent import CodingJob
+    from .project_agent import run_project_job
     from .read_only_agent import run_read_only_job
     if isinstance(job, GoalJob):
         return run_goal_job(job, settings=settings)
     if isinstance(job, AssistedJob):
         return run_assisted_job(job, settings=settings)
     if isinstance(job, CodingJob):
-        return run_coding_job(job, settings=settings)
+        return run_project_job(job, settings=settings)
     return run_read_only_job(job, settings=settings)
 
 

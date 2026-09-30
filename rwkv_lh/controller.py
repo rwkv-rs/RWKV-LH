@@ -4970,7 +4970,7 @@ class LongHorizonController:
 
         try:
             result = self.harness.execute(action, state.goal)
-        except BaseException as exc:
+        except Exception as exc:
             if getattr(exc, "rwkv_lh_process_loss", False):
                 raise
             result = ActionResult(

@@ -2756,21 +2756,23 @@ class ActionHarness:
                 else:
                     resolved_argv = [str(entrypoint), *resolved_argv[1:]]
                     executable_resolution = "project_runtime_executable"
-        project_runtime_requested = executable_resolution in {
-            "python_alias_to_project_runtime",
-            "project_runtime_console_script",
-            "project_runtime_executable",
-        }
-        if project_runtime_requested:
-            site_packages = (
-                Path(sys.prefix)
-                / "lib"
-                / f"python{sys.version_info.major}.{sys.version_info.minor}"
-                / "site-packages"
-            )
-            environment["PYTHONPATH"] = str(site_packages)
-            runtime_bin = Path(sys.executable).resolve(strict=True).parent
-            environment["PATH"] = os.pathsep.join([str(runtime_bin), environment.get("PATH", os.defpath)])
+        # The advertised Python toolchain also applies to nested processes,
+        # including shell commands and workspace scripts. Do not infer its
+        # availability solely from the top-level executable.
+        site_packages = (
+            Path(sys.prefix)
+            / "lib"
+            / f"python{sys.version_info.major}.{sys.version_info.minor}"
+            / "site-packages"
+        )
+        environment["PYTHONPATH"] = (
+            str(explicit_environment["PYTHONPATH"]) + os.pathsep + str(site_packages)
+            if "PYTHONPATH" in explicit_environment else str(site_packages)
+        )
+        runtime_bin = Path(sys.executable).resolve(strict=True).parent
+        environment["PATH"] = os.pathsep.join(
+            [str(runtime_bin), str(Path(sys.prefix) / "bin"), environment.get("PATH", os.defpath)]
+        )
         workspace_root = Path(goal.workspace_root)
         expected_exit_code = int(arguments.get("expected_exit_code", 0))
         ephemeral_copy: tempfile.TemporaryDirectory | None = None
@@ -2792,6 +2794,11 @@ class ActionHarness:
                 ]
                 cwd = copy_root / cwd.relative_to(workspace_root)
                 workspace_root = copy_root
+                if "PYTHONPATH" in explicit_environment:
+                    environment["PYTHONPATH"] = os.pathsep.join(
+                        self._rebase_workspace_path(entry, Path(goal.workspace_root), copy_root)
+                        for entry in environment["PYTHONPATH"].split(os.pathsep)
+                    )
             command = list(resolved_argv)
             sandboxed = bool(self._bubblewrap)
             if self._bubblewrap:
@@ -2799,16 +2806,28 @@ class ActionHarness:
                     goal,
                     cwd,
                     resolved_argv,
-                    include_project_venv=project_runtime_requested,
+                    include_project_venv=True,
                     workspace=workspace_root,
                     ephemeral_overlay=ephemeral_workspace and ephemeral_copy is None,
                 )
                 environment["PATH"] = sandbox_path
-                if project_runtime_requested:
-                    environment["PYTHONPATH"] = (
-                        "/opt/rwkv-lh-venv/lib/"
-                        f"python{sys.version_info.major}.{sys.version_info.minor}/site-packages"
+                # Explicit project import paths must survive runtime mounting.
+                # Rebase host workspace paths, but preserve relative entries
+                # (which are relative to the selected command cwd) and empty
+                # PYTHONPATH entries (Python's current-directory semantics).
+                if "PYTHONPATH" in explicit_environment:
+                    environment["PYTHONPATH"] = os.pathsep.join(
+                        self._rebase_workspace_path(entry, Path(goal.workspace_root), Path("/workspace"))
+                        for entry in str(explicit_environment["PYTHONPATH"]).split(os.pathsep)
                     )
+                runtime_pythonpath = (
+                    "/opt/rwkv-lh-venv/lib/"
+                    f"python{sys.version_info.major}.{sys.version_info.minor}/site-packages"
+                )
+                environment["PYTHONPATH"] = (
+                    environment["PYTHONPATH"] + os.pathsep + runtime_pythonpath
+                    if "PYTHONPATH" in explicit_environment else runtime_pythonpath
+                )
 
             def command_result(
                 stdout: str,
@@ -3094,6 +3113,8 @@ class ActionHarness:
             "--dir",
             "/opt/rwkv-lh-venv",
             "--dir",
+            "/opt/rwkv-lh-browsers",
+            "--dir",
             "/workspace",
             "--dir",
             "/proc",
@@ -3119,6 +3140,9 @@ class ActionHarness:
         else:
             command.extend(["--bind", str(workspace), "/workspace"])
         sandbox_path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        if include_project_venv:
+            # System-Python venvs provide the unversioned python alias here.
+            sandbox_path = f"{sandbox_venv / 'bin'}:{sandbox_path}"
         if runtime_root is not None:
             command.extend(
                 [
@@ -3142,6 +3166,12 @@ class ActionHarness:
                     str(sandbox_venv),
                 ]
             )
+        if include_project_venv:
+            from .browser_runtime import installed_browser_root, SANDBOX_BROWSER_ROOT
+            browser_root = installed_browser_root()
+            if browser_root is not None:
+                command.extend(['--ro-bind', str(browser_root), SANDBOX_BROWSER_ROOT,
+                                '--setenv', 'PLAYWRIGHT_BROWSERS_PATH', SANDBOX_BROWSER_ROOT])
         command.extend(["--chdir", str(sandbox_cwd), *child_argv])
         return command, sandbox_path
 

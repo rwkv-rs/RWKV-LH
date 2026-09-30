@@ -332,13 +332,20 @@ class OpenAICompatibleRWKVClient:
             raise RWKVProtocolError("response content must be a string")
         usage = TokenUsage.from_mapping(data.get("usage") if isinstance(data.get("usage"), Mapping) else {})
         metadata: dict[str, Any] = {"http_attempts": attempts}
-        if data.get("prompt_token_ids") is not None:
-            if not isinstance(data["prompt_token_ids"], list) or any(
-                not isinstance(item, int) or isinstance(item, bool) or item < 0
-                for item in data["prompt_token_ids"]
+        # vLLM completion responses carry the echo on the selected choice;
+        # some compatible servers expose it at response level instead.
+        for source in (data, choice):
+            prompt_ids = source.get("prompt_token_ids")
+            if prompt_ids is None:
+                continue
+            if not isinstance(prompt_ids, list) or any(
+                type(item) is not int or item < 0 for item in prompt_ids
             ):
                 raise RWKVProtocolError("prompt_token_ids must be non-negative integers")
-            metadata["prompt_token_ids"] = list(data["prompt_token_ids"])
+            if ("prompt_token_ids" in metadata
+                    and metadata["prompt_token_ids"] != prompt_ids):
+                raise RWKVProtocolError("conflicting prompt_token_ids echoes")
+            metadata["prompt_token_ids"] = list(prompt_ids)
         if isinstance(choice.get("token_ids"), list):
             if any(
                 not isinstance(item, int) or isinstance(item, bool) or item < 0
@@ -356,6 +363,56 @@ class OpenAICompatibleRWKVClient:
             latency_ms=latency_ms,
             metadata=metadata,
         )
+
+    def token_completion(self, request: TextCompletionRequest, *, record: AuditHook | None = None,
+                         decoder: Mapping[str, Any] | None = None) -> CompletionResponse:
+        """Generate from an exact recorded prefix, including its existing BOS.
+
+        Native append boundaries can tokenize differently from the concatenated
+        text. Offline State comparisons must preserve those original token IDs.
+        An unknown generation is retained and never resent by this entry point.
+        """
+        if (not isinstance(request.prompt, list) or not request.prompt
+                or any(type(token) is not int or token < 0 for token in request.prompt)
+                or type(request.max_tokens) is not int or request.max_tokens < 1
+                or len(request.prompt) + request.max_tokens > self.settings.max_model_len
+                or request.add_special_tokens is not False or request.return_token_ids is not True
+                or not isinstance(request.request_id, str) or not request.request_id.strip()):
+            raise ValueError("exact token completion requires an unmodified bounded prefix and request identity")
+        if (self.settings.backend_profile != "vllm-rwkv-native"
+                or self.settings.retry_attempts != 1
+                or self.settings.state_profile_delivery != "request"
+                or not self.settings.state_profile_id or not self.settings.state_profile_sha256):
+            raise ValueError("exact token completion requires explicit native State and one HTTP attempt")
+        def audit(event):
+            # A durable evaluation journal is a prerequisite, unlike observers.
+            if record is not None:
+                record(event)
+            self._emit(event)
+
+        if decoder is not None:
+            from .exact_token_completion import constrained_token_completion
+            return constrained_token_completion(self, request, decoder, record=audit)
+        payload = self._text_payload(request)
+        audit({"type": "runtime_token_request_started", "request_id": request.request_id,
+                    "endpoint": "/completions", "payload": payload})
+        try:
+            data, latency, attempts = self._request_json("POST", "/completions", payload=payload, generation=True)
+            audit({"type": "runtime_token_response", "request_id": request.request_id,
+                        "raw_response": data, "latency_ms": latency, "http_attempts": attempts})
+            if (data.get("model") != self.model_name or not isinstance(data.get("choices"), list)
+                    or len(data["choices"]) != 1 or attempts != 1):
+                raise RWKVProtocolError("exact token response model, choices or attempt count differs")
+            response = self._completion_response(data, latency, attempts)
+            if (response.metadata.get("prompt_token_ids") != request.prompt
+                    or "token_ids" not in response.metadata):
+                raise RWKVProtocolError("exact token response lacks matching input and generated token IDs")
+            if len(response.metadata["token_ids"]) > request.max_tokens:
+                raise RWKVProtocolError("exact token response exceeded the registered output budget")
+            return response
+        except RWKVOutcomeUnknownError:
+            audit({"type": "runtime_token_request_unknown", "request_id": request.request_id})
+            raise
 
     def text_completion(
         self,
@@ -819,7 +876,11 @@ class OpenAICompatibleRWKVClient:
         stop: Sequence[str],
         sampling: Mapping[str, Any],
         parent_cache_binding_digest: str,
+        decoder: Mapping[str, Any] | None = None,
     ) -> NativeStateCandidate:
+        if decoder is not None:
+            from .structured_output import validate_decoder_contract
+            validate_decoder_contract(decoder)
         data = self._native_request(
             "generate", self._attach_state_profile(
                 {
@@ -834,6 +895,7 @@ class OpenAICompatibleRWKVClient:
                     "stop": [str(item) for item in stop],
                     "sampling": dict(sampling),
                     "return_token_ids": self.settings.return_token_ids,
+                    **({'decoder': dict(decoder)} if decoder is not None else {}),
                 }
             ),
         )

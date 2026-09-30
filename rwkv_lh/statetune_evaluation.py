@@ -248,6 +248,9 @@ def compare_arms(arms: Mapping, plan: Mapping) -> dict:
 def run_evaluation(reference: Mapping, output: Path, *, source_root: Path) -> dict:
     from rwkv_lh.statetune_training import _atomic_json
     registration = sealed(reference)
+    from rwkv_lh import project_role_evaluation as project
+    if registration.get("schema_version") == project.RUN_SCHEMA:
+        return project.run_evaluation(reference, output, source_root=source_root)
     core.require(registration.get("schema_version") == RUN_SCHEMA, "unknown evaluation run registration")
     plan = sealed(registration["evaluation_registration"])
     validate_plan(plan)

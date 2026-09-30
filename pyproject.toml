@@ -30,13 +30,12 @@ dev = ["pytest>=9,<10"]
 rwkv-lh = "scripts.run_rwkv_agent:main"
 rwkv-lh-coding = "scripts.run_rwkv_coding_agent:main"
 rwkv-lh-data = "scripts.run_trace_correction_pipeline:main"
-rwkv-lh-e2e = "scripts.run_rwkv_e2e_benchmark:main"
 rwkv-lh-runtime-smoke = "scripts.runtime_smoke:main"
 rwkv-lh-stack = "scripts.manage_runtime_stack:main"
 rwkv-lh-web = "scripts.run_web_ui:main"
 
 [tool.setuptools.packages.find]
-include = ["rwkv_lh*", "scripts*", "benchmarks*"]
+include = ["rwkv_lh*", "scripts*"]
 
 [tool.setuptools.package-data]
 rwkv_lh = [
@@ -46,14 +45,16 @@ rwkv_lh = [
   "goal_web_assets/*.css",
   "goal_web_assets/*.js",
   "goal_web_assets/*.json",
+  "statetune_native_csrc/LICENSE",
+  "statetune_native_csrc/ORIGIN.json",
+  "statetune_native_csrc/*.cpp",
+  "statetune_native_csrc/*.h",
+  "statetune_native_csrc/common/wkv7/*.cpp",
+  "statetune_native_csrc/common/wkv7/*.h",
+  "statetune_native_csrc/common/wkv7/*.cu",
+  "statetune_native_csrc/common/wkv7/*.cuh",
+  "statetune_native_csrc/validation/*.cu",
 ]
-"benchmarks.rwkv_e2e.rwkv_e2e_30" = ["tasks.json", "acceptance.json"]
-"benchmarks.rwkv_e2e.rwkv_e2e_lh12" = ["tasks.json", "acceptance.json"]
-"benchmarks.rwkv_e2e.rwkv_e2e_extension48" = ["tasks.json", "acceptance.json"]
-"benchmarks.rwkv_e2e.rwkv_real_project_dev_v1" = ["tasks.json", "acceptance.json"]
-"benchmarks.rwkv_e2e.rwkv_diag_fix_v1" = ["tasks.json", "acceptance.json"]
-"benchmarks.rwkv_e2e.rwkv_agent_v1" = ["tasks.json", "acceptance.json"]
-"benchmarks.rwkv_e2e.rwkv_agent_capability_ladder_v1" = ["tasks.json", "acceptance.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

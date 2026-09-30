@@ -23,11 +23,18 @@ def production_model_identity(role: str, manifest: Mapping) -> str:
     Both hashes remain independently verified; legacy role services explicitly
     identify their serialized weights. This does not permit unbound aliases.
     """
-    return manifest["source"]["sha256"] if role == "direct_actor" else manifest["output"]["weights_sha256"]
+    return manifest["source"]["sha256"] if role in ("direct_actor", "project_decision", "project_executor") else manifest["output"]["weights_sha256"]
 
 
 def validate_compatibility(registration: Mapping, compatibility: Mapping, result: Mapping, *, registration_sha256: str) -> None:
+    elapsed, limit = result.get("elapsed_seconds"), compatibility.get("max_seconds")
+    stages = result.get("stages")
     core.require(result.get("passed") is True and result.get("optimizer_steps") == 0
+                 and "error" not in result
+                 and type(elapsed) in (int, float) and math.isfinite(elapsed) and elapsed >= 0
+                 and type(limit) in (int, float) and math.isfinite(limit) and 0 < limit and elapsed <= limit
+                 and isinstance(stages, list) and bool(stages) and isinstance(stages[-1], Mapping)
+                 and stages[-1].get("stage") == "complete"
                  and result.get("runtime_sha256") == registration["runtime"]["sha256"]
                  and result.get("registration_sha256") == registration_sha256
                  and compatibility.get("purpose") == "numerical_mechanism_only"
@@ -35,6 +42,10 @@ def validate_compatibility(registration: Mapping, compatibility: Mapping, result
                  and all(compatibility.get(key) == registration[key]
                          for key in ("base_sha256", "context_tokens", "source_manifest_sha256")),
                  "Native compatibility evidence does not match this runtime/model/context")
+    from .statetune_native_validation import validate_result
+    validate_result(compatibility, result)
+    from .inference.native_weight_identity import identity_from_validation
+    identity_from_validation(result)
 
 
 def validate_optimizer(config: Mapping) -> None:
@@ -265,6 +276,11 @@ def run_training(registration_reference: Mapping, output: Path, *, source_root: 
     if role == "selector_intent":
         from rwkv_lh.statetune_evaluation import validate_plan
         validate_plan(evaluation)
+    elif role in ("project_decision", "project_executor"):
+        from rwkv_lh.project_role_evaluation import validate_plan
+        validate_plan(evaluation)
+        core.require(evaluation['context_tokens'] == registration['context_tokens'],
+                     'Project training and evaluation context must match')
     core.require(evaluation.get("role") == role and evaluation.get("regression_fingerprint") == registration["regression_fingerprint"]
                  and bool(evaluation.get("metrics")) and bool(evaluation.get("thresholds"))
                  and bool(evaluation.get("agent_metrics")) and bool(evaluation.get("retention_rule")),
@@ -304,8 +320,11 @@ def run_training(registration_reference: Mapping, output: Path, *, source_root: 
         runtime = verify_native_runtime(runtime_ref["path"], runtime_ref["sha256"], source_root=source_root,
                                         source_manifest_sha256=registration["source_manifest_sha256"])
         compatibility_ref = registration["compatibility_registration"]
-        validate_compatibility(registration, sealed(compatibility_ref), sealed(registration["compatibility_result"]),
+        compatibility_result = sealed(registration["compatibility_result"])
+        validate_compatibility(registration, sealed(compatibility_ref), compatibility_result,
                                registration_sha256=compatibility_ref["sha256"])
+        from .inference.native_weight_identity import identity_from_validation
+        report['serving_weight_identity'] = identity_from_validation(compatibility_result)
         load_native_runtime(runtime)
         import torch
         from rwkv_lh.statetune_native_model import build

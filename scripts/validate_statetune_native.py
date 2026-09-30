@@ -8,6 +8,7 @@ from pathlib import Path
 import time
 
 from rwkv_lh import statetune_core as core
+from rwkv_lh.statetune_native_validation import validate_plan, validate_result
 from rwkv_lh.statetune_native_runtime import (
     verify_native_runtime, load_native_runtime, verify_loaded_libraries,
 )
@@ -32,11 +33,15 @@ def main() -> int:
     def record(stage, **values):
         report['stages'].append({'stage': stage, **values})
         report['elapsed_seconds'] = time.monotonic() - started
+        core.require(report['elapsed_seconds'] <= registration['max_seconds'], 'numerical validation budget exhausted')
+        if stage == 'complete':
+            report['passed'] = True
+            validate_result(registration, report)
         (args.output / 'RESULT.json').write_text(json.dumps(report, indent=2) + '\n')
         print(json.dumps(report['stages'][-1]), flush=True)
-        core.require(report['elapsed_seconds'] <= registration['max_seconds'], 'numerical validation budget exhausted')
 
     try:
+        validate_plan(registration)
         root = Path(__file__).resolve().parents[1]
         runtime = verify_native_runtime(args.runtime, args.runtime_sha256, source_root=root,
             source_manifest_sha256=registration['source_manifest_sha256'])
@@ -63,12 +68,17 @@ def main() -> int:
         serving = PersistentVLLMRWKVExtractor._load_direct_model(artifact)
         core.require(str(serving.wkv_state_dtype) == 'torch.float32', 'serving State arithmetic differs')
         from vllm.tokenizers.rwkv import RWKVTokenizer
+        from rwkv_lh.inference.native_weight_identity import combine_workers, fingerprint_model
         tokenizer = RWKVTokenizer.from_pretrained(artifact)
         record('models_loaded', layout=vars(model.layout), state_shape=list(model.layout.portable_state_shape),
-               tokenizer_vocab_size=int(tokenizer.vocab_size), bos_token_id=int(tokenizer.bos_token_id))
+               tokenizer_vocab_size=int(tokenizer.vocab_size), bos_token_id=int(tokenizer.bos_token_id),
+               serving_weight_identity=combine_workers([fingerprint_model(serving)]))
         generator = torch.Generator(device='cpu').manual_seed(registration['state_seed'])
         portable = {name: (torch.randn(value.shape, generator=generator) * registration['state_scale']).bfloat16()
                     for name, value in params.items()}
+        core.require(all(bool(torch.isfinite(value).all()) and bool(torch.count_nonzero(value))
+                         for value in portable.values()),
+                     'registered nonzero State must remain finite and nonzero in every layer after conversion')
         state_path = args.output / 'mechanism_state.pth'
         torch.save(portable, state_path)
         profile_path = args.output / 'STATE_PROFILES.json'
@@ -119,18 +129,31 @@ def main() -> int:
             model.zero_grad(set_to_none=True)
             tokens = tokens_for(length)
             logits = model(tokens)
-            logits.retain_grad()
             labels = torch.full_like(tokens, -100)
             target_start = length - min(4, length)
             labels[:, target_start:] = (tokens[:, target_start:] + 1) % model.layout.vocab
             loss = core.target_cross_entropy(logits, labels)
             core.require(bool(torch.isfinite(loss)), 'target CE is nonfinite')
-            loss.backward()
+            prompt_gradient_counts = []
+            def audit_prompt_gradient(gradient):
+                # Retaining all logits.grad adds 6 GiB at T=24576, V=65536.
+                # Bound reduction temporaries too, while inspecting every
+                # prompt token and vocabulary entry without changing gradients.
+                count = 0
+                for start in range(0, target_start, 64):
+                    stop = min(start + 64, target_start)
+                    count += torch.count_nonzero(gradient[:, start:stop]).item()
+                prompt_gradient_counts.append(count)
+            gradient_audit = logits.register_hook(audit_prompt_gradient)
+            try:
+                loss.backward()
+            finally:
+                gradient_audit.remove()
             gradients = {name: {'finite': p.grad is not None and bool(torch.isfinite(p.grad).all()),
                                'nonzero': p.grad is not None and bool(torch.count_nonzero(p.grad))}
                          for name, p in params.items()}
             core.require(all(row['finite'] and row['nonzero'] for row in gradients.values()), 'State gradient is absent or invalid')
-            core.require(torch.count_nonzero(logits.grad[:, :target_start]).item() == 0, 'prompt logits received direct loss gradient')
+            core.require(prompt_gradient_counts == [0], 'prompt logits received direct loss gradient')
             core.require(all(not p.requires_grad and p.grad is None and p._version == frozen[name]
                              for name, p in model.named_parameters() if name in frozen), 'frozen base was trained or mutated')
             core.require(all(torch.equal(p.detach(), initial[name]) for name, p in params.items()), 'forward/backward mutated initial State')
@@ -146,9 +169,9 @@ def main() -> int:
             second = model(tokens)
             core.require(torch.equal(first, second), 'independent samples leak recurrent State')
         verify_loaded_libraries(runtime)
-        report['passed'] = True
         record('complete', independent_samples_equal=True, binary_inventory_verified=True)
     except Exception as exc:
+        report['passed'] = False
         report['error'] = {'type': type(exc).__name__, 'message': str(exc)}
         report['elapsed_seconds'] = time.monotonic() - started
         (args.output / 'RESULT.json').write_text(json.dumps(report, indent=2) + '\n')

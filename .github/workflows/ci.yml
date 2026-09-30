@@ -1,4 +1,4 @@
-name: rwkv-lh-validation
+name: rwkv-lh-source-build
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  runtime-regression:
+  source-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,38 +14,29 @@ jobs:
         with:
           enable-cache: true
       - run: uv python install 3.13
-      - name: Install verifier sandbox
-        run: sudo apt-get update && sudo apt-get install -y bubblewrap
-      - run: uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev
-      - name: Install browser and system dependencies
-        run: .venv/bin/python -m playwright install --with-deps chromium
-      - run: .venv/bin/python -m pytest -q tests/
-      - run: .venv/bin/rwkv-lh-e2e --suite all --validate-only
-      - run: .venv/bin/rwkv-lh-e2e --suite realprojectdevv1 --validate-only
+      - name: Check public source boundary
+        run: |
+          python - <<'PY'
+          import subprocess
+          paths = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
+          private = ('data/', 'tests/', 'benchmarks/', 'acceptance_tests/', 'temp/', 'outputs/')
+          forbidden = [path for path in paths if path.startswith(private)]
+          if forbidden:
+              raise SystemExit('Local-only files were committed: ' + ', '.join(forbidden))
+          PY
+      - run: uv sync --frozen --no-dev
+      - name: Compile project sources
+        run: .venv/bin/python -m compileall -q rwkv_lh scripts
+      - name: Check installed command entrypoints without model requests
+        run: |
+          .venv/bin/python - <<'PY'
+          import subprocess
+          import sys
+          import tomllib
+          from pathlib import Path
+          entries = tomllib.loads(Path('pyproject.toml').read_text())['project']['scripts']
+          for command in entries:
+              subprocess.run([str(Path(sys.executable).parent / command), '--help'],
+                             check=True, timeout=30)
+          PY
       - run: uv build
-
-  real-rwkv-e2e:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: [self-hosted, linux, x64, rwkv]
-    timeout-minutes: 1440
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-      - run: uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev
-      - name: Install browser runtime
-        run: .venv/bin/python -m playwright install chromium
-      - name: Fail closed unless bubblewrap is present
-        run: command -v bwrap
-      - name: Exercise isolated verifier before model spend
-        run: .venv/bin/python -m pytest tests/test_rwkv_e2e_suite.py -q
-      - name: Check RWKV endpoint
-        run: .venv/bin/rwkv-lh-runtime-smoke
-      - name: Run long-horizon suite
-        run: .venv/bin/rwkv-lh-e2e --suite lh12 --output outputs/ci-lh12
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: rwkv-e2e-lh12-${{ github.run_id }}
-          path: outputs/ci-lh12

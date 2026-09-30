@@ -87,7 +87,7 @@ async function loadTopology() {
       && app.topology.harness?.available
     );
     dot.className = `live-dot ${healthy ? "" : "offline"}`;
-    $("systemLabel").textContent = healthy ? "RWKV 直接执行已就绪" : "部分运行服务不可用";
+    $("systemLabel").textContent = healthy ? "RWKV 服务可用" : "部分运行服务不可用";
     renderTopology();
   } catch (error) {
     dot.className = "live-dot offline";
@@ -274,12 +274,16 @@ function renderRun() {
   const summary = app.summary || {};
   const metadata = summary.metadata || {};
   const state = summary.state || {};
+  const project = summary.project;
   const direct = summary.request?.runtime === "direct_rwkv";
   const status = statusClass(direct ? (metadata.status || metadata.phase) : (state.status || metadata.status || metadata.phase));
   const contract = contractData();
   const satisfied = Object.values(contract.verdicts).filter((item) => item.status === "satisfied").length;
-  const current = currentPhase(contract, status);
-  const actions = summary.result?.actions || state.actions || [];
+  const current = project ? (project.status === 'completed' ? 'complete' :
+    project.pending?.kind === 'verification' || project.pending_checks || project.planner_request === 'checks' ? 'verify' :
+    project.active && project.control === 'executor' ? 'build' :
+    project.pending_plan || project.planner_request === 'plan' ? 'plan' : 'understand') : currentPhase(contract, status);
+  const actions = project?.actions || summary.result?.actions || state.actions || [];
   const evidenceEvents = app.events.filter(isEvidenceEvent);
 
   $("runId").textContent = metadata.run_id || app.selectedRun;
@@ -291,14 +295,14 @@ function renderRun() {
   const resumable = !direct && !metadata.active && metadata.state_created && ["interrupted", "stopped", "failed", "blocked"].includes(status);
   $("resumeButton").classList.toggle("hidden", !resumable);
 
-  $("obligationMetric").textContent = direct ? "未评审" : `${satisfied} / ${contract.obligations.length}`;
+  $("obligationMetric").textContent = project ? `${Object.values(project.task_status).filter(s => s === 'verified').length} / ${project.work_items.length}` : direct ? "未评审" : `${satisfied} / ${contract.obligations.length}`;
   $("actionMetric").textContent = actions.length;
-  $("evidenceMetric").textContent = evidenceEvents.length;
+  $("evidenceMetric").textContent = project ? Object.keys(project.verification).length : evidenceEvents.length;
   $("fileMetric").textContent = app.files.length;
-  $("requestMetric").textContent = summary.result?.generation_started ?? state.model_request_count ?? app.traces.filter((item) => item.type === "model_request_started").length;
-  $("contractCount").textContent = contract.obligations.length;
+  $("requestMetric").textContent = project?.calls ?? summary.result?.generation_started ?? state.model_request_count ?? app.traces.filter((item) => item.type === "model_request_started").length;
+  $("contractCount").textContent = project?.work_items.length ?? contract.obligations.length;
   $("executionCount").textContent = actions.length;
-  $("evidenceCount").textContent = evidenceEvents.length;
+  $("evidenceCount").textContent = project ? Object.keys(project.verification).length : evidenceEvents.length;
   $("artifactCount").textContent = app.files.length;
   $("rawCount").textContent = app.traces.length + app.events.length;
   $("currentPhaseLabel").textContent = direct ? (summary.result?.termination_reason || "RWKV 执行中") : phaseLabel(current);
@@ -328,7 +332,7 @@ function renderPhases(current, status) {
 
 function eventHeadline(item) {
   const data = item.data || {};
-  return data.operation || data.atom_id || data.stage_id || data.patch_id || data.review_id || data.reason || item.type;
+  return data.operation || data.atom_id || data.stage_id || data.patch_id || data.review_id || data.reason || item.kind || item.type;
 }
 
 function renderOverview(summary, contract) {
@@ -340,7 +344,7 @@ function renderOverview(summary, contract) {
   const verdicts = Object.values(contract.verdicts);
   const allPassed = Boolean(contract.obligations.length) && verdicts.length >= contract.obligations.length && verdicts.every((item) => item.status === "satisfied");
   const contradicted = verdicts.some((item) => item.status === "contradicted");
-  $("acceptanceBadge").textContent = summary.request?.runtime === "direct_rwkv" ? "未进行外部验收" : allPassed ? "证据验收通过" : contradicted ? "发现矛盾" : "等待验收";
+  $("acceptanceBadge").textContent = summary.project ? (summary.project.status === 'completed' ? '目标检查通过；未做外部验收' : '目标检查未全部通过') : summary.request?.runtime === "direct_rwkv" ? "未进行外部验收" : allPassed ? "证据验收通过" : contradicted ? "发现矛盾" : "等待验收";
   $("acceptanceBadge").className = `review-badge ${allPassed ? "pass" : contradicted ? "fail" : "pending"}`;
   const errors = [summary.metadata?.error, ...(summary.state?.errors || []).map(pretty)].filter(Boolean);
   $("errorPanel").classList.toggle("hidden", !errors.length);
@@ -348,6 +352,18 @@ function renderOverview(summary, contract) {
 }
 
 function renderContract(summary, contract) {
+  if (summary.project) {
+    const project = summary.project;
+    $("goalDigest").textContent = project.plan ? `计划版本 ${project.plan_version}` : '直接执行原始目标';
+    $("goalRequest").textContent = summary.request?.request || '—';
+    $("obligationBoard").innerHTML = (project.plan?.requirements || [{id: project.goal.id, text: project.goal.request}]).map(item =>
+      `<article class="obligation"><header><code>${escapeHtml(item.id)}</code></header><p>${escapeHtml(item.text)}</p></article>`).join('');
+    const tasks = project.work_items;
+    $("nodeCount").textContent = `${tasks.length} tasks`;
+    $("graphNodes").innerHTML = tasks.map(task =>
+      `<article class="graph-node"><header><code>${escapeHtml(task.id)}</code><span>${escapeHtml(project.task_status[task.id])}</span></header><strong>${escapeHtml(task.objective)}</strong><p>阶段：${escapeHtml(task.stage)} · 依赖：${escapeHtml(task.dependencies.join(', ') || '无')}</p></article>`).join('');
+    return;
+  }
   $("goalDigest").textContent = summary.state?.goal_digest || "尚未创建";
   $("goalRequest").textContent = summary.state?.request || summary.request?.request || "—";
   $("obligationBoard").innerHTML = contract.obligations.length ? contract.obligations.map((item) => {
@@ -379,6 +395,14 @@ function isEvidenceEvent(item) {
 }
 
 function renderEvidence(contract, events) {
+  if (app.summary?.project) {
+    const checks = Object.entries(app.summary.project.verification);
+    const acceptance = app.summary.project.acceptance || {};
+    $("reviewSummary").textContent = `计划内验证记录 ${checks.length} 条，目标满足判断 ${Object.keys(acceptance).length} 条；外部验收另行运行。`;
+    $("evidenceTimeline").innerHTML = checks.map(([task, receipt]) =>
+      `<article class="evidence-card"><strong>${escapeHtml(task)} · 检查 ${escapeHtml(receipt.status)} · ${acceptance[task] ? '已判断目标满足' : '尚未判断目标满足'}</strong><pre>${escapeHtml(pretty({verification: receipt, goal_acceptance: acceptance[task] || null}))}</pre></article>`).join('');
+    return;
+  }
   const verdicts = Object.values(contract.verdicts);
   const satisfied = verdicts.filter((item) => item.status === "satisfied").length;
   const contradicted = verdicts.filter((item) => item.status === "contradicted").length;

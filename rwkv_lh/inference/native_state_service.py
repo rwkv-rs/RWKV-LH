@@ -35,7 +35,11 @@ from rwkv_lh.runtime.native_request_recovery import (
     NativeStateRetired,
     prepare_native_request,
 )
-from rwkv_lh.runtime.native_state import NATIVE_STATE_LIFECYCLE_VERSION, NATIVE_STATE_PROTOCOL_VERSION
+from rwkv_lh.runtime.native_state import NATIVE_STATE_LIFECYCLE_VERSION, NATIVE_STATE_PROTOCOL_VERSION, EXACT_TOKEN_INPUT_PROTOCOL
+from rwkv_lh.runtime.structured_output import (
+    DECODER_BACKEND, DECODER_PROTOCOL, decoder_receipt, validate_decoder_contract,
+    state_output_token_ids,
+)
 
 PROTOCOL_VERSION = NATIVE_STATE_PROTOCOL_VERSION
 EXPORT_VERSION = "rwkv-lh.native-state-export.v1"
@@ -106,8 +110,7 @@ class RWKVNativeStateService:
                     "vocab_size": int(getattr(tokenizer, "vocab_size", 0)),
                 }
             )
-            results = await self._collective("capabilities")
-            capabilities = self._consensus(results)
+            capabilities = await self._current_worker_capabilities()
             if capabilities.get("source_identity") != self.source_identity:
                 raise RuntimeError("worker Native source identity differs from the verified API source identity")
             if capabilities.get("state_format_version") != STATE_FORMAT_VERSION:
@@ -157,15 +160,24 @@ class RWKVNativeStateService:
 
     def capabilities(self) -> dict[str, Any]:
         enabled = self.ready
+        config = getattr(getattr(self.engine_client, 'vllm_config', None), 'structured_outputs_config', None)
+        decoder = {}
+        if enabled and getattr(config, 'backend', None) == DECODER_BACKEND:
+            from importlib.metadata import version
+            decoder = {'protocol': DECODER_PROTOCOL, 'backend': DECODER_BACKEND,
+                       'llguidance_version': version('llguidance'),
+                       'source_identity': self.source_identity}
         return {
             "schema_version": PROTOCOL_VERSION,
             "model": self.model_name,
             "state_storage": self.storage_status(),
             "prompt_replay": False,
             "tools": {"native_tool_calls": False},
+            **({'structured_output': decoder} if decoder else {}),
             "recurrent_state": {
                 "protocol": PROTOCOL_VERSION if enabled else "",
                 "create": enabled,
+                "exact_token_input_protocol": EXACT_TOKEN_INPUT_PROTOCOL if enabled else '',
                 "resume": enabled,
                 "fork": enabled,
                 "commit": enabled,
@@ -199,8 +211,30 @@ class RWKVNativeStateService:
             ),
             "server_build": self.server_build,
             "tokenizer_build": self.tokenizer_build,
+            "loaded_weight_identity": self.worker_capabilities.get("loaded_weight_identity") if enabled else None,
             "error": self.error,
         }
+
+    async def _current_worker_capabilities(self) -> dict[str, Any]:
+        from rwkv_lh.inference.native_weight_identity import combine_workers
+        results = await self._collective("capabilities")
+        identities = [row.get("loaded_weight_identity") for row in results]
+        if any(not isinstance(row, dict) for row in identities):
+            raise RuntimeError("Native worker loaded weight identity is missing")
+        shared = self._consensus([{k: v for k, v in row.items() if k != "loaded_weight_identity"}
+                                  for row in results])
+        return {**shared, "loaded_weight_identity": combine_workers(identities)}
+
+    async def refreshed_capabilities(self) -> dict[str, Any]:
+        """Do not serve a startup-only weight claim after resident tensors change."""
+        if self.ready:
+            async with self.lock:
+                current = await self._current_worker_capabilities()
+                if (current.get("source_identity") != self.source_identity
+                        or current["loaded_weight_identity"] != self.worker_capabilities["loaded_weight_identity"]):
+                    raise RuntimeError("Native serving source or loaded weights changed")
+                self.worker_capabilities = current
+        return self.capabilities()
 
     def _require_ready(self) -> None:
         if not self.ready:
@@ -509,8 +543,20 @@ class RWKVNativeStateService:
         stop: list[str],
         sampling: dict[str, Any],
         pending_token_id: int | None,
+        decoder: dict[str, Any] | None = None,
     ) -> tuple[str, list[int], str]:
         assert self.engine_client is not None
+        seed = sampling.get('seed')
+        if seed is not None and (type(seed) is not int or not 0 <= seed < 2**63):
+            raise ValueError('sampling seed must be a nonnegative 63-bit integer')
+        structured = None
+        if decoder is not None:
+            validate_decoder_contract(decoder)
+            if pending_token_id is not None or stop:
+                raise ValueError('decoder requires generation with grammar-controlled termination')
+            from vllm.sampling_params import StructuredOutputsParams
+            structured = StructuredOutputsParams(json=decoder['generation_schema'])
+            structured._backend = DECODER_BACKEND
         await self._ensure_loaded(source)
         params = SamplingParams(
             max_tokens=max_tokens,
@@ -520,9 +566,11 @@ class RWKVNativeStateService:
             presence_penalty=float(sampling.get("presence_penalty", 0.0)),
             frequency_penalty=float(sampling.get("frequency_penalty", 0.0)),
             penalty_decay=float(sampling.get("penalty_decay", 0.996)),
+            seed=seed,
             stop=stop or None,
             output_kind=RequestOutputKind.FINAL_ONLY,
             extra_args=self._xargs(source, target, pending_token_id),
+            **({'structured_outputs': structured} if structured is not None else {}),
         )
         final = None
         captured = None
@@ -723,6 +771,23 @@ class RWKVNativeStateService:
         return {"prompt_token_ids": list(ids), "prompt_token_ids_scope": "full_context",
                 "input_bos_token_count": record.input_bos_token_count}
 
+    def _initial_input(self, payload):
+        exact_fields = {'input_token_protocol', 'input_token_ids', 'input_bos_token_count'}
+        if exact_fields & payload.keys():
+            ids = payload.get('input_token_ids')
+            if (payload.get('input_token_protocol') != EXACT_TOKEN_INPUT_PROTOCOL or 'delta' in payload
+                    or not isinstance(ids, list) or not ids or ids[0] != 0
+                    or any(type(token) is not int or token < 0 for token in ids)
+                    or type(payload.get('input_bos_token_count')) is not int or payload['input_bos_token_count'] != 1):
+                raise HTTPException(status_code=400, detail='exact token input requires its current protocol and original BOS')
+            return list(ids), 1
+        token_ids = self._tokens(str(payload.get('delta') or ''), initial=True)
+        plain_ids = self._tokens(str(payload.get('delta') or ''), initial=False)
+        bos_count = len(token_ids) - len(plain_ids)
+        if bos_count < 0 or token_ids[bos_count:] != plain_ids:
+            raise HTTPException(status_code=409, detail='initial token encoding has an unsupported special-token layout')
+        return token_ids, bos_count
+
     async def create(self, payload: dict[str, Any]) -> dict[str, Any]:
         self._require_ready()
         self._validate_model(payload)
@@ -730,11 +795,7 @@ class RWKVNativeStateService:
         if binding.get("model") != self.model_name:
             raise HTTPException(status_code=409, detail="cache binding model mismatch")
         profile_id, profile_sha256 = self._profile(payload, binding)
-        token_ids = self._tokens(str(payload.get("delta") or ""), initial=True)
-        plain_ids = self._tokens(str(payload.get("delta") or ""), initial=False)
-        bos_count = len(token_ids) - len(plain_ids)
-        if bos_count < 0 or token_ids[bos_count:] != plain_ids:
-            raise HTTPException(status_code=409, detail="initial token encoding has an unsupported special-token layout")
+        token_ids, bos_count = self._initial_input(payload)
         if not token_ids:
             raise HTTPException(status_code=400, detail="initial state delta is empty")
         state_ref = self._new_ref()
@@ -779,7 +840,10 @@ class RWKVNativeStateService:
                     await self._collective("drop", {"state_ref": temporary.state_ref})
             target = await self._export(target)
             self._remember(target)
-            return self._snapshot(target)
+            snapshot = self._snapshot(target)
+            if payload.get('input_token_protocol') == EXACT_TOKEN_INPUT_PROTOCOL:
+                snapshot['metadata'] = self._input_evidence(target)
+            return snapshot
 
     async def append(
         self, payload: dict[str, Any], *, fork: bool = False
@@ -830,6 +894,14 @@ class RWKVNativeStateService:
     async def generate(self, payload: dict[str, Any]) -> dict[str, Any]:
         self._require_ready()
         self._validate_model(payload)
+        decoder = payload.get('decoder')
+        if 'decoder' in payload:
+            try:
+                validate_decoder_contract(decoder)
+                if payload.get('stop'):
+                    raise ValueError('decoder requires grammar-controlled termination without text stops')
+            except (ValueError, TypeError, KeyError) as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
         parent = self._record(str(payload.get("parent_state_ref") or ""))
         parent_binding = str(payload.get("parent_cache_binding_digest") or "")
         if parent_binding != parent.cache_binding_digest:
@@ -842,6 +914,7 @@ class RWKVNativeStateService:
                     "protocol": PROTOCOL_VERSION,
                     "parent_state_digest": parent.state_digest,
                     "request_id": request_id,
+                    **({'decoder': decoder_receipt(decoder)} if decoder is not None else {}),
                 }
             ),
             cache_binding_digest=parent.cache_binding_digest,
@@ -877,23 +950,26 @@ class RWKVNativeStateService:
                     stop=[str(item) for item in stop] if isinstance(stop, list) else [],
                     sampling=dict(sampling) if isinstance(sampling, dict) else {},
                     pending_token_id=None,
+                    **({'decoder': decoder} if decoder is not None else {}),
                 )
                 if not token_ids or any(type(token) is not int or token < 0 for token in token_ids):
                     raise RuntimeError("Native generation returned invalid token IDs")
+                state_tokens = (state_output_token_ids(token_ids, finish_reason, decoder)
+                                if decoder is not None else list(token_ids))
                 captured = self._consensus(await self._collective("get", {"state_ref": scratch.state_ref}))
                 target = replace(
                     target,
-                    input_token_ids=([*parent.input_token_ids, *token_ids]
+                    input_token_ids=([*parent.input_token_ids, *state_tokens]
                                      if parent.input_token_ids is not None else None),
                     input_bos_token_count=parent.input_bos_token_count,
                 )
                 started = time.monotonic()
-                target = await self._materialize_delta(parent, target, token_ids)
+                target = await self._materialize_delta(parent, target, state_tokens)
                 materialization = {
                     "method": "verified_parent_and_returned_token_ids",
                     "semantic_samples": 1,
-                    "consumed_delta_tokens": len(token_ids),
-                    "prefill_requests": (len(token_ids) - 1) // min(4096, int(self.engine_client.model_config.max_model_len) - 1) + 1,
+                    "consumed_delta_tokens": len(state_tokens),
+                    "prefill_requests": (len(state_tokens) - 1) // min(4096, int(self.engine_client.model_config.max_model_len) - 1) + 1,
                     "wall_seconds": time.monotonic() - started,
                     "sampler_processed_token_count": int(captured["processed_token_count"]),
                     "published_processed_token_count": target.processed_token_count,
@@ -901,6 +977,12 @@ class RWKVNativeStateService:
                 target = await self._export(target)
                 self._remember(target)
                 published = True
+            except Exception as exc:
+                # Only known request-validation errors are safe to return as 4xx.
+                from vllm.exceptions import VLLMValidationError
+                if isinstance(exc, VLLMValidationError):
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
+                raise
             finally:
                 await self._collective("drop", {"state_ref": scratch.state_ref})
                 if not published:
@@ -913,8 +995,10 @@ class RWKVNativeStateService:
                 "finish_reason": finish_reason,
                 "metadata": {
                     "token_ids": token_ids,
+                    **({'state_token_ids': state_tokens} if decoder is not None else {}),
                     "response_id": request_id,
                     "state_materialization": materialization,
+                    **({'decoder': decoder_receipt(decoder)} if decoder is not None else {}),
                     **input_evidence,
                 },
                 "parent_state_digest": parent.state_digest,
@@ -1081,8 +1165,11 @@ class RWKVNativeStateEndpointPlugin:
 
     def attach_router(self, app: FastAPI) -> None:
         @app.get("/v1/capabilities")
-        async def capabilities(raw_request: Request):
-            return raw_request.app.state.rwkv_native_state.capabilities()
+        async def capabilities(raw_request: Request, verify_loaded_weights: bool = False):
+            service = raw_request.app.state.rwkv_native_state
+            if verify_loaded_weights:
+                return await service.refreshed_capabilities()
+            return service.capabilities()
 
         @app.post("/v1/state/create")
         async def create(payload: dict[str, Any], raw_request: Request):

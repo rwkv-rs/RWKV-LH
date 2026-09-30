@@ -225,11 +225,15 @@ class Head(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, *grads):
-
+        if grads[0] is None:
+            return (None, None, None, None)
+        # The frozen linear projection needs only dlogits @ weight. Rebuilding
+        # its forward activation costs another full [B,T,vocab] FP32 tensor
+        # (6 GiB at T=24576), although it contributes nothing to this derivative.
+        hidden_grad = grads[0].float() @ ctx.model.head.weight.float()
         def equation(x, ffn):
-            hidden = norm_float((x.float() + ffn.float()).half(), ctx.model.ln_out).half()
-            return F.linear(hidden.float(), ctx.model.head.weight.float())
-        return (*differentiate(ctx, equation, grads), None, None)
+            return norm_float((x.float() + ffn.float()).half(), ctx.model.ln_out).half()
+        return (*differentiate(ctx, equation, (hidden_grad,)), None, None)
 
 class NativeGradientModel(NativeStateModel):
 
