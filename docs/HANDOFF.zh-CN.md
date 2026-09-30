@@ -1,6 +1,6 @@
-# 当前交接：前端扩展已结束，完整项目交付尚未通过
+# 第一轮：当前状态与下一步
 
-维护文档只保留当前实现、有效验证、未解决问题和下一步；历史文档查Git，原始实验和失败证据保留本地。
+当前以最近六次前端运行作为第一轮基线，不沿用此前累计轮次或汇总旧批次成绩。只保留当前实现、有效验证、缺陷和下一步；原始运行身份不改写，编号整理不代表重新运行。
 
 ## 当前验证结果
 
@@ -10,9 +10,11 @@
 
 88次预留、开始和返回一致：Decision46/Executor10/Planner32。56次Native全部约束开启，23,248个原token独立Guidance审计通过；52次完整参数合法、4次截断未测量、测得缺必填0。32次官方DeepSeek beta strict请求，39个原工具参数合法。没有缺失客户端返回或未匹配服务生成。格式合法不等于检查安装、动作方向或交付正确，语义守卫拒绝另行统计。
 
-新完整本地回归**2910通过、0跳过、729.14秒**；Torch/State/必需Chromium未绕过，完整源码与测试SHA前后一致。测试对象含既存owner未提交源码，与公开纯提交源码分开；公开源码另通过干净安装/编译、六命令help及sdist/wheel检查，公开CI不替代完整回归。
+清理后完整本地回归**2910通过、0跳过、722.10秒**；Torch/State/必需Chromium未绕过，完整生产源码、通用脚本与测试SHA前后一致。测试对象含既存owner未提交源码，与公开纯提交源码分开；公开源码另通过干净安装/编译、六命令help及sdist/wheel检查，公开CI不替代完整回归。
 
-当前报告：`data/experiments/PROJECT_FRONTEND_EXPANSION_R162/REPORT.zh-CN.md`，SHA-256 `4f6381b042af3002fcb0b0fc1f7921b56ae3fb4ec023bd8cb68365b18d23e5aa`。同目录CALL_INDEX索引全部88次原文，RUN_DIAGNOSES记录最早故障，SEMANTIC_GUARD_AUDIT保留安装/权限拒绝。`DELIVERY/index.html`及`rwkv-g1j-frontend-r162.zip`保留六次原始工作区，文件SHA与独立验收一致；补充目录页不属于RWKV交付。
+当前报告：`data/experiments/ROUND_01/REPORT.zh-CN.md`，SHA-256 `6927c18c0bc91c0b36223937d0498eaca343d0a36ffe400c15389c6685936a6c`。同目录 `CALL_INDEX.zh-CN.md` 索引全部 88 次原文，`RUN_DIAGNOSES.json` 记录最早故障，`SEMANTIC_GUARD_AUDIT.json` 保留安装与权限拒绝。`DELIVERY/index.html` 和 `frontend-round-01.zip` 提供六次原始工作区，文件 SHA 与原独立验收一致。
+
+旧实验和临时脚本已按用户要求清理，当前第一轮的原始登记、调用、失败、产物和 SHA 保留；删除清单见 `CLEANUP_RESULT.json` 与 `CLEANUP_FILES.jsonl`。原始证据中的旧路径按 `BASELINE.json` 映射解释。
 
 ## 当前架构
 
@@ -32,6 +34,6 @@
 
 ## 发布与资源
 
-已按用户要求先完成当前文档和GitHub源码更新，再恢复原测试队列，无重发。公开分支：`chase/g1j-agent-improvement-public`；它以已发布远端提交为父，仅发布当前允许源码树，不上传含实验材料的本地未发布祖先，不改main。源码发布边界见[发布规范](SOURCE_DISTRIBUTION.zh-CN.md)。
+公开分支：`chase/g1j-agent-improvement-public`；只发布允许的当前源码和文档，不带本地实验材料或未发布研发祖先，不改 main。源码发布边界见[发布规范](SOURCE_DISTRIBUTION.zh-CN.md)。
 
-测试、数据、页面产物和owner既存未提交工作留本地；原工作SHA未变。两个专用Native服务和隧道已停止，journal备份SHA一致，当前没有待核实UNKNOWN。最新本地/公开提交与远端核验见当前实验目录`PUBLICATION_COMPLETED.json`；提交身份与运行时冻结身份分别记录。
+第一轮产物和验证证据保留本地。两个专用 Native 服务和隧道已停止，当前没有待核实 UNKNOWN。清理及发布核验见第一轮目录；源码提交身份与运行时冻结身份分别记录。

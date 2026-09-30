@@ -51,12 +51,12 @@ cd /home/chase/GitHub/RWKV-LH
 
 - [项目工作规范](AGENTS.md)
 - [当前架构与唯一角色输入](docs/ARCHITECTURE.zh-CN.md)
-- [当前交接及未解决问题](docs/HANDOFF.zh-CN.md)
+- [第一轮当前状态及未解决问题](docs/HANDOFF.zh-CN.md)
 - [Project 数据入口与训练准入](docs/PROJECT_ROLE_DATA_PIPELINE.zh-CN.md)
 - [可复用的经验](docs/LESSONS.zh-CN.md)
 - [源码发布范围与本地验证](docs/SOURCE_DISTRIBUTION.zh-CN.md)
 
-维护文档只保留当前状态，历史说明从 Git 查询。GitHub 只发布架构文档、项目源码和必要构建配置。测试、基准、实验、训练数据、State、日志和生成产物保留本地；新 clone 不包含这些材料。本地完整回归需要 owner 单独交接测试与必要夹具，冻结 Holdout 仍只供最终一次验收。历史提交未改写。
+当前从第一轮建立基线，只报告当前任务、产物、缺陷与下一步，不延续此前的累计轮次编号。维护文档只保留当前状态，历史说明从 Git 查询。GitHub 只发布架构文档、项目源码和必要构建配置。当前测试、基准、实验、训练数据、State、日志和生成产物保留本地；新 clone 不包含这些材料。本地完整回归需要 owner 单独交接测试与必要夹具，冻结 Holdout 仍只供最终一次验收。历史提交未改写。
 
 ## 运行与回归
 
