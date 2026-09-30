@@ -3,6 +3,8 @@
 本文件对所有在本仓库工作的人和自动代理生效。当前编码产品的角色协议、数据入口与执行边界见
 `docs/ARCHITECTURE.zh-CN.md` 和 `docs/PROJECT_ROLE_DATA_PIPELINE.zh-CN.md`；当前状态仅以 `docs/HANDOFF.zh-CN.md` 为入口。历史只查 Git，经验见 `docs/LESSONS.zh-CN.md`。
 
+维护文档只保留当前有效的架构、规则、状态和下一步，不追加历史轮次日志。更新结果时替换当前状态；原始实验、失败及 SHA 继续按本地数据规则保留，不因文档整理而删除或改写。
+
 ## 1. 执行环境
 
 - 项目命令、测试、分析与验证只在 WSL `UbuntuRecovered` 中执行，不在 Windows 端执行项目逻辑。
