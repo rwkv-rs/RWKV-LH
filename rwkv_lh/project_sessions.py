@@ -82,12 +82,30 @@ class ProjectSessions:
         return session
 
     def preflight(self, role, lane, payload, definitions, checkpoint):
-        """Check the exact Native delta before reserving a model operation."""
+        """Check input capacity and read-only setup before reserving model work."""
         module = {'planner': planner, 'decision': decision, 'executor': executor}[role]
         module.validate_input(payload)
         if role == 'planner':
             from .strong_structured_output import build_tool_contract
-            build_tool_contract(planner.available_definitions(payload, definitions))
+            contract = build_tool_contract(planner.available_definitions(payload, definitions))
+            session = self._session(role, lane)
+            limit = session.settings.max_prompt_tokens(session.settings.action_max_output_tokens)
+            replay_count = get_token_count(render_bootstrap(definitions, canonical_json(payload)))
+            if replay_count > limit:
+                raise InputBudgetError(f'planner local session input requires {replay_count} tokens; limit is {limit}')
+            if isinstance(session.client, StrongCompletion):
+                from .supervisor_openai import _render_user_payload
+                system, request_payload = planner.chat_input(payload, definitions)
+                _, body, _ = session.client.client._wire_request(
+                    phase=session.client.phase, selected_model=session.client.model_name,
+                    system_prompt=system, payload_text=_render_user_payload(request_payload),
+                    max_tokens=session.settings.action_max_output_tokens, schema_revision='v1',
+                    schema={'type': 'object'}, tool_contract=contract)
+                # Conservative local estimate of the exact serialized request;
+                # it is not the provider's tokenizer or hidden chat template.
+                wire_count = get_token_count(canonical_json(body))
+                if wire_count > limit:
+                    raise InputBudgetError(f'planner visible wire input estimate requires {wire_count} tokens; limit is {limit}')
             return
         selected = self.decision_settings if role == 'decision' else self.settings
         if checkpoint:
@@ -100,6 +118,7 @@ class ProjectSessions:
         limit = selected.max_prompt_tokens(1)
         if count > limit:
             raise InputBudgetError(f'{role} Native input delta requires {count} tokens; limit is {limit}')
+        self._session(role, lane)
 
     def request(self, role, lane, payload, definitions, checkpoint):
         self.preflight(role, lane, payload, definitions, checkpoint)

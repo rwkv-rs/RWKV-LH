@@ -57,6 +57,7 @@ class ActionDefinition:
     cache_policy: str = "default"
     recovery_policy: str = ""
     evidence_output: bool = False
+    workspace_path_arguments: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         if not self.name.strip() or not self.description.strip():
@@ -75,6 +76,24 @@ class ActionDefinition:
             raise ValueError(
                 f"action {self.name} arguments must use explicit JSON Schema: {non_schema}"
             )
+        if self.workspace_path_arguments is None:
+            object.__setattr__(self, "workspace_path_arguments", tuple(
+                name for name in ("path", "source", "destination", "cwd")
+                if name in self.argument_schema
+            ))
+        if (not isinstance(self.workspace_path_arguments, tuple)
+                or any(not isinstance(name, str) for name in self.workspace_path_arguments)
+                or len(set(self.workspace_path_arguments)) != len(self.workspace_path_arguments)
+                or set(self.workspace_path_arguments) - self.argument_schema.keys()):
+            raise ValueError(f"action {self.name} requires declared workspace path arguments")
+        schemas = {name: dict(schema) for name, schema in self.argument_schema.items()}
+        for name in self.workspace_path_arguments:
+            schema = schemas[name]
+            if schema.setdefault("type", "string") != "string":
+                raise ValueError(f"action {self.name} workspace path {name} must be a string")
+            schema["minLength"] = max(1, schema.get("minLength", 0))
+            schema.setdefault("pattern", r"^(?:[^\s/]|\s+\S)")
+        object.__setattr__(self, "argument_schema", schemas)
         if self.network_access not in {"none", "public_web", "structured_source"}:
             raise ValueError(
                 f"action {self.name} has unsupported network_access: "
@@ -335,9 +354,8 @@ class ActionHarness:
         ),
         "write_json": ActionDefinition(
             "write_json", (
-                "Create or replace a complete JSON value atomically from values already "
-                "visible in the Task or dependency observations; omitted existing fields "
-                "are deleted. RWKV must supply the entire value."
+                'Atomically replace the complete JSON value supplied by the model; omitted existing '
+                'fields are deleted.'
             ), False, True, True, 30.0,
             {
                 "path": {"type": "string", "description": "path relative to the workspace root"},
@@ -372,6 +390,8 @@ class ActionHarness:
                 "base_sha256": {
                     "type": "string",
                     "minLength": 64,
+                    "maxLength": 64,
+                    "pattern": "^[0-9a-f]{64}$",
                     "description": (
                         "exact SHA-256 of the UTF-8 file snapshot from which this "
                         "patch was derived"
@@ -391,6 +411,8 @@ class ActionHarness:
                 "base_sha256": {
                     "type": "string",
                     "minLength": 64,
+                    "maxLength": 64,
+                    "pattern": "^[0-9a-f]{64}$",
                     "description": (
                         "exact SHA-256 of the UTF-8 file snapshot containing old"
                     ),
@@ -418,6 +440,8 @@ class ActionHarness:
                 "base_sha256": {
                     "type": "string",
                     "minLength": 64,
+                    "maxLength": 64,
+                    "pattern": "^[0-9a-f]{64}$",
                     "description": (
                         "exact SHA-256 of the UTF-8 file snapshot containing the line"
                     ),
@@ -456,7 +480,9 @@ class ActionHarness:
             required_arguments=("path",),
         ),
         "copy_file": ActionDefinition(
-            "copy_file", "Duplicate one existing scoped file's exact bytes to a destination; this is the file-copy action.", False, True, True, 30.0,
+            "copy_file", (
+                'Copy the exact bytes of one scoped file to the destination.'
+            ), False, True, True, 30.0,
             {
                 "source": {"type": "string", "description": "relative source path"},
                 "destination": {"type": "string", "description": "relative destination path"},
@@ -466,9 +492,7 @@ class ActionHarness:
         ),
         "move_file": ActionDefinition(
             "move_file", (
-                "Move (rename) one existing scoped file to a destination path; after "
-                "success the destination has the exact source bytes and the source no "
-                "longer exists. This action is non-idempotent."
+                'Move one scoped file to the destination, removing the source; non-idempotent.'
             ), False, True, False, 30.0,
             {
                 "source": {"type": "string", "description": "relative source path"},
@@ -478,8 +502,7 @@ class ActionHarness:
         ),
         "file_digest": ActionDefinition(
             "file_digest", (
-                "Observe the SHA256 hex digest and byte size of one existing scoped "
-                "file; read-only and never modifies anything."
+                'Read the SHA-256 and byte size of one scoped file.'
             ), True, False, True, 30.0,
             {
                 "path": {"type": "string", "description": "path relative to the workspace root"},
@@ -488,9 +511,9 @@ class ActionHarness:
             required_arguments=("path",),
         ),
         "list_directory": ActionDefinition(
-            "list_directory",
-            "List bounded path/type/size metadata only; never reads file contents and never creates or copies files.",
-            True,
+            "list_directory", (
+                'List paginated path, type and size metadata; does not read file contents.'
+            ), True,
             False,
             True,
             30.0,
@@ -504,13 +527,10 @@ class ActionHarness:
             failure_observation_cacheable=True,
         ),
         "search_text": ActionDefinition(
-            "search_text",
-            (
-                "Search workspace UTF-8 lines. mode=regex (default) supports TODO|FIXME; "
-                "mode=literal is exact. Returns bounded ordered locators/cursor and never "
-                "ranks urgency."
-            ),
-            True,
+            "search_text", (
+                'Search UTF-8 lines with a literal string or Python regex; returns ordered locators '
+                'and a continuation cursor.'
+            ), True,
             False,
             True,
             30.0,
@@ -574,28 +594,22 @@ class ActionHarness:
         ),
         "read_file": ActionDefinition(
             "read_file", (
-                "Read one UTF-8 text chunk using only path, start_byte and max_tokens as input "
-                "fields. Only path is required; both other fields may be omitted. "
-                "The range includes the starting byte and excludes the stopping byte computed "
-                "by the tool; the caller supplies no ending position. Read to EOF when the "
-                "remaining text fits the token budget. Otherwise the result supplies a "
-                "continuation cursor. An EOF cursor returns empty text; a missing file fails."
+                'Read a UTF-8 chunk; the caller supplies no ending position. Continue from '
+                'next_start_byte until complete; EOF returns empty '
+                'text and a missing file fails.'
             ), True, False, True, 30.0,
             {
-                "path": {"type": "string", "description": "Required string: file path relative to the workspace root."},
+                "path": {"type": "string", "description": 'File path relative to the workspace root.'},
                 "start_byte": {
                     "type": "integer", "minimum": 0, "default": 0,
                     "description": (
-                        "Optional; omitted means 0. Integer inclusive UTF-8 byte offset, "
-                        "into decoded text, from 0 through its UTF-8 byte length, including EOF. "
-                        "Must be on a UTF-8 character boundary."
+                        'Inclusive UTF-8 byte offset on a character boundary; EOF is permitted.'
                     ),
                 },
                 "max_tokens": {
                     "type": "integer", "minimum": 256, "maximum": 8192, "default": 4096,
                     "description": (
-                        "Optional; omitted means 4096. Integer returned-text token budget "
-                        "from 256 through 8192 inclusive, not a byte or line limit."
+                        'Returned-text token budget, not bytes or lines.'
                     ),
                 },
             },
@@ -604,14 +618,9 @@ class ActionHarness:
         ),
         "read_json": ActionDefinition(
             "read_json", (
-                "Parse an existing JSON file and observe one exact tokenizer-bounded byte "
-                "range of its canonical compact representation. It is not applicable to "
-                "plain text or key=value content already observed by read_file. If an "
-                "explicit .json candidate is syntactically invalid, return a successful "
-                "parse diagnostic bound to the exact source artifact instead of treating "
-                "the observation itself as a failed action."
-            ),
-            True, False, True, 30.0,
+                'Read a token-bounded chunk of canonical compact JSON. An invalid .json file returns '
+                'a source-bound parse diagnostic; plain text is unsupported.'
+            ), True, False, True, 30.0,
             {
                 "path": {"type": "string", "description": "path relative to the workspace root"},
                 "start_byte": {
@@ -631,27 +640,26 @@ class ActionHarness:
             required_arguments=("path",),
         ),
         "bind_evidence": ActionDefinition(
-            "bind_evidence", "Read an exact line span and retain its source locator and quote.", True, False, True, 30.0,
+            "bind_evidence", (
+                'Read an exact line span and retain its source locator and quote.'
+            ), True, False, True, 30.0,
             {
                 "path": {"type": "string", "description": "path relative to the workspace root"},
                 "start_line": {"type": "integer", "minimum": 1},
                 "end_line": {"type": "integer", "minimum": 1},
-                "source": {"type": "string", "default": "", "description": "source label or URL"},
+                "source": {"type": "string", "default": "", "description": 'Display label or URL; empty uses the source path.'},
                 "max_tokens": {"type": "integer", "minimum": 128, "maximum": 4096, "default": 2048},
             },
             ("evidence_bound",),
             failure_observation_cacheable=True,
             required_arguments=("path", "start_line", "end_line"),
+            workspace_path_arguments=("path",),
         ),
         "check_command": ActionDefinition(
             "check_command", (
-                "Run a test, linter, or inspection command with argv and shell disabled "
-                "against a discardable workspace view: the command may write caches or "
-                "temporary files, but nothing it writes is retained in the workspace. "
-                "Set expected_exit_code explicitly when the intended observable result "
-                "is nonzero, for example grep returning 1 when no match remains."
-            ),
-            True, False, True, 120.0,
+                'Run argv with shell disabled in a disposable workspace; all writes are discarded. '
+                'Use env for environment variables; argv does not expand variables or redirect stdin.'
+            ), True, False, True, 120.0,
             {
                 "argv": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
                 "cwd": {"type": "string", "default": ".", "description": "directory relative to the workspace root"},
@@ -662,7 +670,7 @@ class ActionHarness:
                     "minimum": 0,
                     "maximum": 255,
                     "default": 0,
-                    "description": "RWKV-declared expected process exit code.",
+                    "description": 'Expected process exit code; set explicitly when nonzero is intended.',
                 },
             },
             ("command_exit_code",),
@@ -673,8 +681,8 @@ class ActionHarness:
         ),
         "run_command": ActionDefinition(
             "run_command", (
-                "Run a potentially mutating command with argv and shell disabled. Set "
-                "expected_exit_code explicitly when the intended result is nonzero."
+                'Run argv with shell disabled and retain permitted workspace changes. Use env for '
+                'environment variables; argv does not expand variables or redirect stdin.'
             ), False, True, False, 120.0,
             {
                 "argv": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
@@ -686,7 +694,7 @@ class ActionHarness:
                     "minimum": 0,
                     "maximum": 255,
                     "default": 0,
-                    "description": "RWKV-declared expected process exit code.",
+                    "description": 'Expected process exit code; set explicitly when nonzero is intended.',
                 },
             },
             ("command_exit_code",),
@@ -1019,7 +1027,7 @@ class ActionHarness:
                 argument_value,
                 schema,
             )
-        for name in ("path", "source", "destination", "cwd"):
+        for name in definition.workspace_path_arguments:
             if name in arguments and (
                 not isinstance(arguments[name], str) or not arguments[name].strip()
             ):
@@ -1241,13 +1249,12 @@ class ActionHarness:
             raise HarnessError(
                 f"action {action_name} argument {argument_name} is shorter than minLength"
             )
-        if argument_name == "base_sha256" and (
-            not isinstance(value, str)
-            or re.fullmatch(r"[0-9a-f]{64}", value) is None
-        ):
+        if isinstance(value, str) and "maxLength" in schema and len(value) > int(schema["maxLength"]):
             raise HarnessError(
-                f"action {action_name} argument base_sha256 must be 64 lowercase hex characters"
+                f"action {action_name} argument {argument_name} is longer than maxLength"
             )
+        if isinstance(value, str) and "pattern" in schema and re.search(schema["pattern"], value) is None:
+            raise HarnessError(f"action {action_name} argument {argument_name} does not match pattern")
         if isinstance(value, list):
             if "minItems" in schema and len(value) < int(schema["minItems"]):
                 raise HarnessError(

@@ -9,7 +9,7 @@ import time
 from .project_contracts import digest, fields, text, strings, work_map, protected_paths, goal_check_context
 from .project_ledger import ProjectLedger, UncertainOperation
 from .project_protocols import planner, decision, executor
-from .harness import ActionHarness, ActionResult
+from .harness import ActionHarness, ActionResult, HarnessError
 from .project_workspace import explicit_write_targets, violations as write_violations, publish_workspace
 from .schema import GoalState, TaskAction
 from .workspace_snapshot import tree_identity, copy_verified_workspace
@@ -68,7 +68,7 @@ def _role_definitions(role, harness):
                            description='Return diagnostic advice, never an execution fact.')]
     if role == 'executor':
         return [*harness.g1i_tool_definitions(), definition('request_info', {'evidence_id': STRING},
-                    description='Retrieve the original recorded receipt for this assignment or its declared dependencies.'),
+                    description='Retrieve an existing receipt using an authorized references.request_info.evidence_id; goal IDs and file paths are not receipt IDs.'),
             definition('report_work', {
             'status': {'type': 'string', 'enum': ['submitted', 'blocked']}, 'summary': STRING,
             'evidence_ids': {'type': 'array', 'items': STRING}}, description='Report local work or a gap, not global completion.'),
@@ -81,7 +81,7 @@ def _role_definitions(role, harness):
         ('verify', {'task_id': STRING}, 'Run the declared checks on a copy of the current workspace.'),
         ('bind_checks', {'task_id': STRING}, 'Request independent goal-check construction and review after submitted direct work; no project plan required.'),
         ('accept_task', {'task_id': STRING, 'verification_id': STRING}, 'Judge that current evidence satisfies the original task objective.'),
-        ('request_info', {'evidence_id': STRING}, 'Expand recorded evidence; delegate or continue work for new investigations.'),
+        ('request_info', {'evidence_id': STRING}, 'Retrieve an existing receipt by evidence_id; delegate or continue work for new observations.'),
         ('replan', {'subject_id': {'enum': ['project']}}, 'Request strong planning or an evidenced revision; reason describes the gap.'),
         ('help', {'subject_id': STRING}, 'Request strong-model diagnosis for an existing task or project; reason describes the uncertainty.'),
         ('finish', {'task_id': STRING}, 'Select a worker report verbatim for delivery after current goal acceptance.'),
@@ -568,7 +568,9 @@ class ProjectRuntime:
                             if rejection and rejection['rejected_operation_id'] != consumed['operation_id']:
                                 self.db.update('role_recovered', lambda state:
                                     state['role_rejections'].pop(consumed['lane'], None))
-                        except (ValueError, KeyError, TypeError) as exc:
+                        except (ValueError, KeyError, TypeError, HarnessError) as exc:
+                            # Executable operations reserve before side effects.
+                            # Never turn a reserved unknown outcome into a retry.
                             if self.db.state()['pending']:
                                 raise
                             role = (self.db.state().get('inbox') or {}).get('role', 'decision')

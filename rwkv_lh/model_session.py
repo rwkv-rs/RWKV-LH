@@ -23,6 +23,7 @@ from rwkv_lh.model_io import (
     validate_independent_executor_generation_input,
 )
 from rwkv_lh.runtime.openai_compat import OpenAICompatibleRWKVClient
+from rwkv_lh.runtime.protocol import RuntimeCapabilities
 from rwkv_lh.runtime.native_state import (
     NATIVE_STATE_PROTOCOL_VERSION,
     NativeRWKVStateClient,
@@ -907,12 +908,15 @@ class NativeRWKVModelSession(ModelSession):
         *,
         settings: RuntimeSettings | None = None,
         audit_hook: SessionAuditHook | None = None,
+        capabilities: RuntimeCapabilities | None = None,
     ) -> None:
-        capabilities = client.capabilities()
+        if capabilities is None:
+            capabilities = client.capabilities()
         if not capabilities.durable_recurrent_state:
             raise NativeStateUnavailableError(
                 "native state requires declared create/resume/fork/commit/rollback/export/import "
                 "and the current request recovery protocol"
+                + (f"; {capabilities.error}" if capabilities.error else "")
             )
         if capabilities.recurrent_state_protocol != NATIVE_STATE_PROTOCOL_VERSION:
             raise NativeStateUnavailableError(
@@ -1714,6 +1718,7 @@ def create_model_session(
             selected_client,  # type: ignore[arg-type]
             settings=selected_settings,
             audit_hook=audit_hook,
+            capabilities=capabilities,
         )
     reason = (
         f"native state client methods unavailable: {', '.join(missing)}"
@@ -1725,6 +1730,8 @@ def create_model_session(
         else "runtime did not declare the complete durable recurrent-state capability"
     )
     if mode == "native_required":
+        if capabilities is not None and capabilities.error:
+            reason += f"; {capabilities.error}"
         raise NativeStateUnavailableError(reason)
     if audit_hook is not None:
         try:

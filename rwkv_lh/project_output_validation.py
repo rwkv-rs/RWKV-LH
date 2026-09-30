@@ -1,4 +1,5 @@
 """Discard surplus identity echoes and validate the selected role operation."""
+import re
 from .project_contracts import digest, validate_plan, validate_check
 from .model_io import ModelCommand
 from .project_protocols import decision, planner, executor
@@ -69,6 +70,10 @@ def validate_schema(value, schema, path='params'):
                 validate_schema(item, schema['items'], f'{path}[{index}]')
     if isinstance(value, str) and len(value) < schema.get('minLength', 0):
         raise ValueError(f'{path}: too short')
+    if isinstance(value, str) and 'maxLength' in schema and len(value) > schema['maxLength']:
+        raise ValueError(f'{path}: too long')
+    if isinstance(value, str) and 'pattern' in schema and re.search(schema['pattern'], value) is None:
+        raise ValueError(f'{path}: does not match pattern')
     if type(value) in (int, float):
         for bound, op in [('minimum', lambda a, b: a < b), ('maximum', lambda a, b: a > b),
                           ('exclusiveMinimum', lambda a, b: a <= b)]:
