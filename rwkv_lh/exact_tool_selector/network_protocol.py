@@ -9,12 +9,12 @@ from typing import Any
 from rwkv_lh.goal_state_protocols import selector_intent_v7
 from rwkv_lh.model_io import canonical_digest, canonical_json
 
-NETWORK_SELECTOR_INPUT_SCHEMA_VERSION = "rwkv-lh.exact-tool-selector-input.v5"
-NETWORK_SELECTOR_MENU_SCHEMA_VERSION = "rwkv-lh.exact-tool-menu.v3"
+NETWORK_SELECTOR_INPUT_SCHEMA_VERSION = "rwkv-lh.exact-tool-selector-input.v6"
+NETWORK_SELECTOR_MENU_SCHEMA_VERSION = "rwkv-lh.exact-tool-menu.v4"
 
 NETWORK_EXACT_TOOL_LABELS = (
     "list_directory",
-    "search_text",
+    "search_files",
     "read_file",
     "read_json",
     "file_digest",
@@ -30,7 +30,7 @@ NETWORK_EXACT_TOOL_LABELS = (
     "delete_file",
     "bind_evidence",
     "check_command",
-    "run_command",
+    "run_shell",
     "web_search",
     "connector_lookup",
     "calculator",
@@ -48,7 +48,7 @@ _NETWORK_SELECTOR_MENU_ROTATIONS = {
 # menu. They identify operation semantics without exposing parameter schemas.
 _NETWORK_TOOL_DESCRIPTIONS = {
     "list_directory": "Local metadata only: list bounded paths, types, and sizes; never file contents.",
-    "search_text": "Local text only: find regex or literal lines; never search the public web.",
+    "search_files": "Local text only: find regex or literal lines; never search the public web.",
     "read_file": "Read a bounded byte range from one local non-JSON UTF-8 file.",
     "read_json": "Parse one local JSON file and read bounded canonical JSON.",
     "file_digest": "Observe one local file's SHA-256 and byte size without reading or changing it.",
@@ -64,7 +64,7 @@ _NETWORK_TOOL_DESCRIPTIONS = {
     "delete_file": "Delete one explicitly scoped local workspace path.",
     "bind_evidence": "Bind an already observed local line span with its locator and exact quote.",
     "check_command": "Run a read-only local test, linter, status, or inspection argv.",
-    "run_command": "Run a local argv that may intentionally modify workspace contents.",
+    "run_shell": "Run a local Bash command script that may intentionally modify workspace contents.",
     "web_search": "Search or fetch the public web; never search local workspace files.",
     "connector_lookup": "Query a structured public repository, package, paper, weather, or alert record.",
     "calculator": "Evaluate arithmetic using operands that are already known.",

@@ -58,8 +58,13 @@ def _source(root, collection_reference, source_reference):
 
 def _read_locked_source(ledger, before, collection, registered):
     root = ledger.root
-    events = ledger.verified_events()
-    state = events[-1]['state']
+    event_root = None
+    def first_event(event):
+        nonlocal event_root
+        if event_root is None:
+            event_root = event['digest']
+    tip = ledger.scan_verified_events(first_event)
+    state = tip['state']
     core.require(state['pending'] is None, 'Project source has an unknown pending operation')
     result = json.loads((root / 'RESULT.json').read_text())
     core.require(result.get('status') in ('completed', 'blocked', 'interrupted')
@@ -80,10 +85,10 @@ def _read_locked_source(ledger, before, collection, registered):
                      == (identity['model_sha256'], identity['state_profile_id'], identity['state_profile_sha256']),
                      'Project source model/State differs from registered collection')
     core.require(before == tree_identity(root, exclude_git=False)
-                 and events[-1]['digest'] == ledger.verified_events()[-1]['digest'],
+                 and tip['digest'] == ledger.scan_verified_events()['digest'],
                  'Project production source changed during re-extraction')
     return {'ledger': ledger, 'rows': rows, 'replayed': replayed, 'snapshots': snapshots,
-            'tree': before, 'event_root': events[0]['digest'], 'event_tip': events[-1]['digest'], 'registered': registered,
+            'tree': before, 'event_root': event_root, 'event_tip': tip['digest'], 'registered': registered,
             'collection': collection, 'ledger_sha256': core.sha256_file(ledger.path)}
 
 

@@ -13,7 +13,7 @@ from .project_model_io import (render_project_event_append, parse_project_model_
 from .schema import ModelLaneKind, ModelEvent
 from .runtime.settings import RuntimeSettings, direct_agent_settings
 from .runtime.role_config import role_int
-from .strong_session import StrongCompletion, KnownStrongOutputBudgetExpired
+from .strong_session import StrongCompletion, StrongModelSession, KnownStrongOutputBudgetExpired
 from .supervisor_openai import SupervisorAPISettings
 from .project_runtime import RoleReply
 from .project_contracts import digest
@@ -22,7 +22,7 @@ from .project_output_validation import normalize_role_output, validate_role_outp
 from .project_format_adapter import FORMAT_ADAPTER_VERSION, parse_role_call, rejected_call_definition
 from .token_budget import get_token_count
 from .project_input_delta import INPUT_HANDOFF_VERSION, input_update, seal_input_state
-from .project_decoder import build_role_decoder, INPUT_FRAMING
+from .project_decoder import build_role_decoder, INPUT_FRAMING, BOUNDARY_POLICY
 
 
 class ProjectSessions:
@@ -62,7 +62,7 @@ class ProjectSessions:
         if role == 'planner':
             strong = self.strong_settings or SupervisorAPISettings.from_env()
             strong = replace(strong, retry_attempts=1, semantic_repair_attempts=0,
-                             fallback_models=(), plan_cache_enabled=False)
+                             plan_cache_enabled=False)
             phase = 'project_plan_review' if lane.startswith(('plan-review-', 'check-review-')) else 'project_planning'
             output_tokens = strong.max_review_tokens if phase == 'project_plan_review' else strong.max_plan_tokens
             if self.planner_context_tokens <= output_tokens + 33:
@@ -70,7 +70,7 @@ class ProjectSessions:
             local = RuntimeSettings(base_url='http://unused.invalid', api_key='', model=strong.model,
                 state_transport='prompt_replay', tool_disclosure_mode='full', max_model_len=self.planner_context_tokens,
                 state_profile_id='', state_profile_sha256='', action_max_output_tokens=output_tokens)
-            session = ModelSession(StrongCompletion(strong, self.directory, self.max_calls, phase=phase),
+            session = StrongModelSession(StrongCompletion(strong, self.directory, self.max_calls, phase=phase),
                                    settings=local, audit_hook=self._audit(role, lane))
         else:
             selected = self.decision_settings if role == 'decision' else self.settings
@@ -86,26 +86,16 @@ class ProjectSessions:
         module = {'planner': planner, 'decision': decision, 'executor': executor}[role]
         module.validate_input(payload)
         if role == 'planner':
-            from .strong_structured_output import build_tool_contract
-            contract = build_tool_contract(planner.available_definitions(payload, definitions))
             session = self._session(role, lane)
             limit = session.settings.max_prompt_tokens(session.settings.action_max_output_tokens)
-            replay_count = get_token_count(render_bootstrap(definitions, canonical_json(payload)))
-            if replay_count > limit:
-                raise InputBudgetError(f'planner local session input requires {replay_count} tokens; limit is {limit}')
             if isinstance(session.client, StrongCompletion):
-                from .supervisor_openai import _render_user_payload
-                system, request_payload = planner.chat_input(payload, definitions)
-                _, body, _ = session.client.client._wire_request(
-                    phase=session.client.phase, selected_model=session.client.model_name,
-                    system_prompt=system, payload_text=_render_user_payload(request_payload),
-                    max_tokens=session.settings.action_max_output_tokens, schema_revision='v1',
-                    schema={'type': 'object'}, tool_contract=contract)
-                # Conservative local estimate of the exact serialized request;
-                # it is not the provider's tokenizer or hidden chat template.
-                wire_count = get_token_count(canonical_json(body))
-                if wire_count > limit:
-                    raise InputBudgetError(f'planner visible wire input estimate requires {wire_count} tokens; limit is {limit}')
+                session.client.input_builder = lambda: planner.chat_input(payload, definitions)
+                session.client.tools_builder = lambda: planner.available_definitions(payload, definitions)
+            rendered = render_bootstrap(definitions, canonical_json(payload))
+            count = session.generation_input_tokens(rendered, session.settings.action_max_output_tokens)
+            if count > limit:
+                raise InputBudgetError(f'planner visible wire input estimate requires {count} tokens; limit is {limit}; '
+                    f'max_model_len={session.settings.max_model_len}, output_tokens={session.settings.action_max_output_tokens}')
             return
         selected = self.decision_settings if role == 'decision' else self.settings
         if checkpoint:
@@ -134,7 +124,8 @@ class ProjectSessions:
         # output and never chooses a Decision direction or accepts a plan.
         session.command_parser_with_trace = lambda raw: parse_role_call(raw, role=role, payload=payload)
         session.command_parser = lambda raw: session.command_parser_with_trace(raw)[0]
-        decoder = build_role_decoder(definitions) if role != 'planner' and self.constrained_decoding else None
+        decoder = (build_role_decoder(definitions, role=role, payload=payload)
+                   if role != 'planner' and self.constrained_decoding else None)
         session.event_renderer = partial(render_project_event_append,
                                          close_generation_anchor=decoder is not None)
         binding = {'role': role, 'lane': lane, 'protocol': module.PROTOCOL,
@@ -153,7 +144,8 @@ class ProjectSessions:
             binding['input_handoff'] = INPUT_HANDOFF_VERSION
             binding['prompt_identity'] = project_prompt_identity(role)
             if decoder is not None:
-                binding['decoder_contract_sha256'] = decoder['contract_sha256']
+                binding['decoder_catalog_sha256'] = build_role_decoder(definitions)['contract_sha256']
+                binding['decoder_boundary_policy'] = BOUNDARY_POLICY
                 binding['decoder_input_framing'] = INPUT_FRAMING
         retry = False
         if checkpoint:

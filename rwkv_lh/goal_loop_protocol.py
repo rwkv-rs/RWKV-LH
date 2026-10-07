@@ -1400,7 +1400,7 @@ def _path_covers_root(path: object, root: str) -> bool:
 def action_mutates_root(action: Any, root: str) -> bool:
     """Return whether one Harness action mechanically targets a write root."""
 
-    if action.action_type == "run_command":
+    if action.action_type == "run_shell":
         result = action.result if isinstance(action.result, Mapping) else {}
         metadata = (
             result.get("metadata")
@@ -1442,7 +1442,7 @@ def action_observes_root(action: Any, root: str) -> bool:
         "file_digest",
         "read_file",
         "read_json",
-        "search_text",
+        "search_files",
     }:
         return _path_covers_root(
             action.arguments.get("path", action.arguments.get("root", "")),

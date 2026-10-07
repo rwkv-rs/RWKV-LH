@@ -6,10 +6,11 @@ from pathlib import Path
 import shutil
 import time
 
-from .project_contracts import digest, fields, text, strings, work_map, protected_paths, goal_check_context
+from .project_contracts import digest, fields, text, strings, work_map, protected_paths, work_check_context
 from .project_ledger import ProjectLedger, UncertainOperation
 from .project_protocols import planner, decision, executor
 from .harness import ActionHarness, ActionResult, HarnessError
+from .project_launch import register_project_check
 from .project_workspace import explicit_write_targets, violations as write_violations, publish_workspace
 from .schema import GoalState, TaskAction
 from .workspace_snapshot import tree_identity, copy_verified_workspace
@@ -21,7 +22,7 @@ from .project_output_validation import normalize_role_output, validate_schema
 from .project_evidence import (evidence_stream, executor_observations, record_delivery,
                                executor_evidence_ids, select_evidence)
 
-ARCHITECTURE = 'rwkv-lh.goal-decision-execution.v5'
+ARCHITECTURE = 'rwkv-lh.goal-decision-execution.v6'
 
 
 @dataclass(frozen=True)
@@ -51,42 +52,49 @@ def _role_definitions(role, harness):
         return [read_file, definition('read_files', {'requests': {
                     'type': 'array', 'items': read_file['parameters'], 'minItems': 1}},
                     description='Read every explicitly requested file in order, preserving separate read-only receipts.'),
-                definition('submit_plan', {'plan': planner.PLAN_SCHEMA}, description='Submit the complete current plan contract.'),
+                definition('submit_plan', {'plan': planner.PLAN_SCHEMA}, description='Submit a complete plan candidate for independent review; this does not execute or accept tasks. Preserve every original obligation.'),
                 definition('submit_checks', {'checks': {'type': 'array', 'items': planner.CHECK_SCHEMA, 'minItems': 1},
                     'rationale': STRING, 'replacements': {'type': 'array', 'items': planner.REPLACEMENT_SCHEMA}},
-                    description='Bind independent original-goal checks after implementation, without creating a project plan.'),
+                    description='Submit independent check candidates for the selected submitted work, without redesigning it. Checks are bound only after independent review; submission does not execute them.'),
                 definition('review_checks', {'verdict': {'type': 'string', 'enum': ['accept', 'reject']},
                     'issues': {'type': 'array', 'items': STRING, 'uniqueItems': True}},
-                    description='Independently review goal proof coverage; acceptance is not execution success.'),
+                    description='Independently review selected work proof against its contract and original goal; acceptance is not execution success.'),
                 definition('review_plan', {'verdict': {'type': 'string', 'enum': ['accept', 'reject']},
                     'issues': {'type': 'array', 'items': STRING, 'uniqueItems': True}},
                     description='Independently review a candidate; accept requires no unresolved issues.'),
                 definition('revise_plan', {'plan': planner.PLAN_SCHEMA,
                     'replacements': {'type': 'array', 'items': planner.REPLACEMENT_SCHEMA}},
-                    description='Explicitly replace erroneous checks using original requirements and failure evidence.'),
+                    description='Revise the complete project design, preserving obligations; changed checks still require failure evidence and explicit replacements.'),
                 definition('advise', {'text': STRING, 'evidence_ids': {'type': 'array', 'items': STRING}},
                            description='Return diagnostic advice, never an execution fact.')]
     if role == 'executor':
-        return [*harness.g1i_tool_definitions(), definition('request_info', {'evidence_id': STRING},
-                    description='Retrieve an existing receipt using an authorized references.request_info.evidence_id; goal IDs and file paths are not receipt IDs.'),
+        register_project_check(harness)
+        return [*harness.g1i_tool_definitions(), definition('read_receipt', {'evidence_id': STRING},
+                    description='Retrieve an existing raw receipt using an authorized references.read_receipt.evidence_id. This makes no new observation; recent results are already delivered automatically. Goal IDs, file paths and file hashes are not receipt IDs.'),
             definition('report_work', {
-            'status': {'type': 'string', 'enum': ['submitted', 'blocked']}, 'summary': STRING,
-            'evidence_ids': {'type': 'array', 'items': STRING}}, description='Report local work or a gap, not global completion.'),
-            definition('yield_work', {'summary': STRING, 'evidence_ids': {'type': 'array', 'items': STRING}},
-                description='Report local progress and return direction control without claiming task completion.')]
-    common = {'reason': STRING}
+            'status': {'type': 'string', 'enum': ['progress', 'submitted', 'blocked'],
+                       'description': 'progress requests direction; submitted requests independent verification; blocked records a local obstacle.'},
+            'summary': {**STRING, 'description': 'Actual changes, observed checks and remaining limits; this text is the worker report, not a filename.'},
+            'evidence_ids': {'type': 'array', 'items': STRING}}, description=(
+                'Return a worker claim to Decision. progress keeps this assignment active for direction; '
+                'submitted saves it for compatible resumption and awaits verification; blocked saves it with a local obstacle. '
+                'No status accepts or completes the project. continue_current resumes the same compatible State.'))]
+    common = {'reason': {**STRING, 'description': 'Your evidence-based judgment; not an executable command or a substitute for a receipt.'}}
     definitions = [definition(name, {**common, **extra}, description=description) for name, extra, description in (
-        ('delegate', {'task_id': STRING, 'advice_ids': {'type': 'array', 'items': STRING}}, 'Delegate the original goal directly, or an existing ready planned task; optionally reference work-scoped diagnosis.'),
-        ('continue_current', {'task_id': STRING, 'advice_ids': {'type': 'array', 'items': STRING}}, 'Continue an unchanged assignment along its saved executor State.'),
-        ('verify', {'task_id': STRING}, 'Run the declared checks on a copy of the current workspace.'),
-        ('bind_checks', {'task_id': STRING}, 'Request independent goal-check construction and review after submitted direct work; no project plan required.'),
-        ('accept_task', {'task_id': STRING, 'verification_id': STRING}, 'Judge that current evidence satisfies the original task objective.'),
-        ('request_info', {'evidence_id': STRING}, 'Retrieve an existing receipt by evidence_id; delegate or continue work for new observations.'),
-        ('replan', {'subject_id': {'enum': ['project']}}, 'Request strong planning or an evidenced revision; reason describes the gap.'),
-        ('help', {'subject_id': STRING}, 'Request strong-model diagnosis for an existing task or project; reason describes the uncertainty.'),
-        ('finish', {'task_id': STRING}, 'Select a worker report verbatim for delivery after current goal acceptance.'),
-        ('blocked', {'subject_id': {'enum': ['project']}}, 'Record the missing external condition in the audit reason.'))]
+        ('delegate', {'task_id': STRING, 'advice_ids': {'type': 'array', 'items': STRING}}, 'Start a new Executor assignment for original-goal or a ready planned task. Use continue_current if the unchanged assignment already exists; use advice_ids=[] when no diagnosis applies.'),
+        ('continue_current', {'task_id': STRING, 'advice_ids': {'type': 'array', 'items': STRING}}, 'Resume the existing active or suspended assignment along its saved Executor State. Its contract and dependencies must still match; use advice_ids=[] when no diagnosis applies.'),
+        ('run_task_checks', {'task_id': STRING}, 'Execute the already bound independent checks on disposable copies of the current workspace. Requires a submitted worker report and no active assignment. Returns verification evidence; passing does not accept the task. Use bind_checks to obtain missing checks.'),
+        ('bind_checks', {'task_id': STRING}, 'Request Planner check construction and independent review for submitted work with no active assignment. Preserves the design contract and does not run tests. Replacing existing checks requires evidence of a check defect; use replan for design changes.'),
+        ('accept_task', {'task_id': STRING, 'verification_id': STRING}, 'Record your judgment that current passed verification covers the task objective. Requires its current verification receipt. Acceptance alone does not finish the project; optional deliver_report_id requests simultaneous delivery through the same completion guards.'),
+        ('read_receipt', {'evidence_id': STRING}, 'Retrieve an existing raw receipt by its authorized evidence_id, without rerunning a tool. Recent results are already delivered automatically; delegate or continue work for new observations.'),
+        ('replan', {'subject_id': {'enum': ['project']}}, 'Request optional strong planning or revision of project design, followed by independent review. Does not execute implementation. Use bind_checks for check-only changes and help for diagnosis without a design revision.'),
+        ('help', {'subject_id': STRING}, 'Request strong-model diagnosis for an existing task or the project. Returns advice, not execution evidence, a new plan or task acceptance; reason describes the uncertainty.'),
+        ('deliver_report', {'task_id': {**STRING, 'description': 'Task key of the existing submitted worker report to deliver verbatim.'}}, 'Complete the project by delivering an existing comprehensive worker report verbatim, only after all work has current accepted proof. Does not write a new summary or create a document; task_id selects the stored report.'),
+        ('blocked', {'subject_id': {'enum': ['project']}}, 'End the project run as blocked by a missing external condition, recorded in reason. Ordinary repairable tool failures or a worker local blocker alone do not establish this condition.'))]
     for item in definitions:
+        if item['name'] == 'accept_task':
+            item['parameters']['properties']['deliver_report_id'] = {
+                **STRING, 'description': 'Optional explicit intent to deliver this existing comprehensive worker report in the same transaction, only when all work has current accepted proof.'}
         if item['name'] in ('delegate', 'continue_current'):
             item['parameters']['properties']['handoff'] = decision.HANDOFF_SCHEMA
             item['description'] += ' Optional handoff passes an explicit task focus and authorized receipts, never execution authority.'
@@ -97,6 +105,7 @@ class ProjectRuntime:
     def __init__(self, ledger, roles, *, harness=None):
         self.db, self.roles = ledger, roles
         self.harness = harness or ActionHarness()
+        register_project_check(self.harness)
         self.started = None
         self.initial_elapsed = 0.0
 
@@ -173,12 +182,12 @@ class ProjectRuntime:
         candidate = s['pending_plan']
         if s['pending_checks'] or planning == 'checks':
             pending_checks = s['pending_checks']
-            role, lane, planning = 'planner', pending_checks['lane'] if pending_checks else 'goal-check-author', 'review_checks' if pending_checks else 'checks'
+            role, lane, planning = 'planner', pending_checks['lane'] if pending_checks else 'work-check-author', 'review_checks' if pending_checks else 'checks'
             payload = planner.build_input(s['request'], feedback=planner.review_feedback(s, lane) if pending_checks else s['feedback'],
                 protected_paths=protected_paths(s), evidence=[{'id': key, **value}
                     for key, value in s['evidence'].items() if value['kind'] != 'model'],
                 workspace=tree_identity(s['workspace']), mode=planning, remaining=self.remaining(),
-                goal_context=goal_check_context(s))
+                work_context=work_check_context(s))
         elif candidate:
             role, lane, planning = 'planner', candidate['lane'], 'review'
             payload = planner.build_input(s['request'], plan=candidate['plan'],
@@ -264,16 +273,16 @@ class ProjectRuntime:
                 self._planner_read(params, inbox['lane'])
                 return
             if inbox['planning'] in ('checks', 'review_checks') and name == 'advise':
-                self.db.return_goal_check_advice(params)
+                self.db.return_work_check_advice(params)
                 return
             if inbox['planning'] == 'review_checks':
                 if name != 'review_checks':
                     raise ValueError('independent goal review requires review_checks')
-                self.db.resolve_goal_check_review(params)
+                self.db.resolve_work_check_review(params)
             elif inbox['planning'] == 'checks':
                 if name != 'submit_checks':
                     raise ValueError('goal proof construction requires submit_checks')
-                self.db.propose_goal_checks(**params)
+                self.db.propose_work_checks(**params)
             elif inbox['planning'] == 'review':
                 if name != 'review_plan':
                     raise ValueError('independent review requires review_plan')
@@ -300,13 +309,9 @@ class ProjectRuntime:
                     replacements=params.get('replacements', ()))
             return
         if role == 'executor':
-            if name == 'request_info':
+            if name == 'read_receipt':
                 fields(params, ('evidence_id',))
                 self.expand_evidence(params['evidence_id'], executor_lane=inbox['lane'])
-            elif name == 'yield_work':
-                fields(params, ('summary', 'evidence_ids'))
-                strings(params['evidence_ids'])
-                self.db.report_progress(inbox['lane'], **params)
             elif name == 'report_work':
                 fields(params, ('status', 'summary', 'evidence_ids'))
                 strings(params['evidence_ids'])
@@ -337,14 +342,15 @@ class ProjectRuntime:
             strings(params['advice_ids'])
             self.db.continue_current(params['task_id'], advice_ids=params['advice_ids'], handoff=params.get('handoff'))
         elif name == 'accept_task':
-            self.db.accept_task(params['task_id'], verification_id=params['verification_id'], reason=params['reason'])
-        elif name == 'verify':
+            self.db.accept_task(params['task_id'], verification_id=params['verification_id'], reason=params['reason'],
+                                deliver_report_id=params.get('deliver_report_id'))
+        elif name == 'run_task_checks':
             self._verify(params['task_id'])
         elif name == 'bind_checks':
-            self.db.update('goal_check_binding_requested', lambda state: state.update(
+            self.db.update('work_check_binding_requested', lambda state: state.update(
                 planner_request='checks', planner_subject_id=params['task_id'], inbox=None,
-                feedback={'kind': 'goal_check_binding_requested', 'reason': params['reason']}))
-        elif name == 'request_info':
+                feedback={'kind': 'work_check_binding_requested', 'reason': params['reason']}))
+        elif name == 'read_receipt':
             self.expand_evidence(params['evidence_id'])
         elif name in ('help', 'replan'):
             def request(state):
@@ -374,11 +380,8 @@ class ProjectRuntime:
                     state['control'] = 'decision'
                 state['inbox'] = None
             self.db.update('assistance_requested', request)
-        elif name == 'finish':
-            if not self.db.completion_ready():
-                raise ValueError('completion requires current accepted proof of the complete goal and every planned task')
-            final = s['reports'][params['task_id']]['summary']
-            self.db.update('completed', lambda state: state.update(status='completed', final=final, inbox=None))
+        elif name == 'deliver_report':
+            self.db.complete(params['task_id'])
         elif name == 'blocked':
             self.db.update('blocked', lambda state: state.update(status='blocked', final=params['reason'], inbox=None))
 

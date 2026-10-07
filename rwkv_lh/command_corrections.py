@@ -59,7 +59,7 @@ def validate_command_correction(*, run_root, checkpoint_id, target_text, model_s
     stop=model_io.JSON_CALL_STOP_SUFFIXES[0]
     require(isinstance(target_text,str) and target_text.endswith(stop),'exact production stop required')
     raw=target_text[:-len(stop)];json.loads(raw);command=model_io.parse_model_command(raw)
-    require(command.name in ('check_command','run_command'),'only command execution targets supported')
+    require(command.name in ('check_command','run_shell'),'only command execution targets supported')
     normalized = executed_arguments(command)
     require(normalized.get('timeout', 30) <= 120, 'command exceeds correction execution budget')
     digest=lambda s:hashlib.sha256(s.encode()).hexdigest()

@@ -41,7 +41,7 @@ def main():
     payload = build_advice_request(state.goal, files, result.get('final') or '')
     save('INPUT.json', payload)
     settings = replace(SupervisorAPISettings.from_env(), retry_attempts=1,
-        semantic_repair_attempts=0, fallback_models=(), plan_cache_enabled=False, read_timeout_seconds=180)
+        semantic_repair_attempts=0, plan_cache_enabled=False, read_timeout_seconds=180)
     def audit(event):
         with (output / 'strong_trace.jsonl').open('a') as stream:
             stream.write(json.dumps(dict(event), ensure_ascii=False) + '\n')

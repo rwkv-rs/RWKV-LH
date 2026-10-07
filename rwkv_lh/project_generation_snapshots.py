@@ -14,8 +14,7 @@ def _sha(path):
 
 
 def capture_snapshot(ledger, identifier):
-    events = ledger.verified_events()
-    event = events[-1]
+    event = ledger.scan_verified_events()
     state = event['state']
     pending = state['pending']
     if (event['kind'] != 'operation_started' or not pending
@@ -58,37 +57,46 @@ def validate_snapshots(ledger, identifiers):
         raise ValueError('snapshot batch requires unique operation identifiers')
     if not identifiers:
         return {}
-    events = ledger.verified_events()
-    starts = {}
-    for index, event in enumerate(events):
+    wanted, starts, saved, previous = set(identifiers), {}, {}, None
+    def collect(event):
+        nonlocal previous
+        if previous is not None:
+            identifier, pending, sequence = previous
+            if (event['seq'] != sequence + 1 or event['kind'] != 'generation_snapshot_saved'
+                    or event['state']['pending'] != pending):
+                raise ValueError('snapshot was not saved immediately before the actual model call')
+            saved[identifier] = event['state'].get('generation_snapshots', {}).get(identifier)
+            previous = None
         if event['kind'] == 'operation_started':
-            identifier = event['state']['pending']['id']
-            starts.setdefault(identifier, []).append((index, event))
-    return {identifier: _validate_snapshot(ledger, identifier, events, starts.get(identifier, []))
+            pending = event['state']['pending']
+            identifier = pending['id']
+            if identifier in wanted:
+                if identifier in starts:
+                    raise ValueError('snapshot requires a unique original model operation')
+                if pending['kind'] != 'model':
+                    raise ValueError('missing model snapshot event')
+                intent = pending['payload']
+                starts[identifier] = {'schema_version': SNAPSHOT_SCHEMA, 'operation_id': identifier,
+                    'role': intent['role'], 'lane': intent['lane'], 'input_digest': intent['input_digest'],
+                    'source_event_digest': event['digest'], 'workspace_digest': pending['workspace_digest']}
+                previous = (identifier, pending, event['seq'])
+    tip = ledger.scan_verified_events(collect)
+    if previous is not None:
+        raise ValueError('missing model snapshot event')
+    return {identifier: _validate_snapshot(ledger, identifier, starts.get(identifier), saved.get(identifier),
+                                         tip['state'].get('generation_snapshots', {}).get(identifier))
             for identifier in identifiers}
 
 
-def _validate_snapshot(ledger, identifier, events, starts):
-    if len(starts) != 1:
+def _validate_snapshot(ledger, identifier, expected, reference, current_reference):
+    if expected is None:
         raise ValueError('snapshot requires a unique original model operation')
-    index, started = starts[0]
-    pending = started['state']['pending']
-    if pending['kind'] != 'model' or index + 1 >= len(events):
-        raise ValueError('missing model snapshot event')
-    saved = events[index + 1]
-    if saved['kind'] != 'generation_snapshot_saved' or saved['state']['pending'] != pending:
-        raise ValueError('snapshot was not saved immediately before the actual model call')
-    reference = saved['state'].get('generation_snapshots', {}).get(identifier)
-    if reference is None or events[-1]['state'].get('generation_snapshots', {}).get(identifier) != reference:
+    if reference is None or current_reference != reference:
         raise ValueError('snapshot identity changed after generation')
     manifest = ledger.root / 'generation_snapshots' / identifier / 'SNAPSHOT.json'
     if (reference.get('path') != str(manifest.relative_to(ledger.root))
             or manifest.resolve(strict=True) != manifest or reference.get('sha256') != _sha(manifest)):
         raise ValueError('snapshot manifest identity differs')
-    intent = pending['payload']
-    expected = {'schema_version': SNAPSHOT_SCHEMA, 'operation_id': identifier,
-        'role': intent['role'], 'lane': intent['lane'], 'input_digest': intent['input_digest'],
-        'source_event_digest': started['digest'], 'workspace_digest': pending['workspace_digest']}
     if json.loads(manifest.read_text()) != expected:
         raise ValueError('snapshot does not bind the original model input')
     before = manifest.parent / 'before'

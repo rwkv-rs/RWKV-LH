@@ -102,7 +102,7 @@ def validate_coding_correction(*, run_root, checkpoint_id, target_text, model_sh
         return GoalState.create(request='External correction validation', constraints=(), workspace_root=str(workspace))
     def run_checks(workspace, key):
         for argv in checks:
-            value = harness.execute(TaskAction('run_command', {'argv': argv, 'expected_exit_code': 0,
+            value = harness.execute(TaskAction('check_command', {'argv': argv, 'expected_exit_code': 0,
                 'timeout': check_timeout_seconds, 'env': {'CUDA_DEVICE_ORDER': 'PCI_BUS_ID', 'CUDA_VISIBLE_DEVICES': '0'}}), goal(workspace)).to_dict()
             record[key].append(value)
             save('checking')

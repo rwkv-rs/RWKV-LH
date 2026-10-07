@@ -24,8 +24,8 @@ EXECUTOR_ARGUMENT_PROVENANCE_VERSION = (
 )
 RMW_OPERATIONS = frozenset({"patch_json", "replace_text", "remove_line"})
 READ_OPERATIONS = frozenset({"read_file", "read_json"})
-PAGED_OPERATIONS = frozenset({"list_directory", "search_text"})
-COMMAND_OPERATIONS = frozenset({"check_command", "run_command"})
+PAGED_OPERATIONS = frozenset({"list_directory", "search_files"})
+COMMAND_OPERATIONS = frozenset({"check_command", "run_shell"})
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
 
@@ -162,7 +162,7 @@ def _fragments(fact: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
                 selected.append(fragment)
     structured = result.get("structured_output")
     if (
-        str(fact.get("operation") or "") == "search_text"
+        str(fact.get("operation") or "") == "search_files"
         and isinstance(structured, Mapping)
     ):
         source_snapshots = structured.get("source_snapshots")
@@ -340,7 +340,7 @@ def _artifact_identity(
             "authority": "harness_file_artifact_identity",
         }
 
-    if str(fact.get("operation") or "") != "search_text":
+    if str(fact.get("operation") or "") != "search_files":
         return None
     structured = result.get("structured_output")
     if not isinstance(structured, Mapping):
@@ -522,7 +522,7 @@ def _rmw_bindings(
     required_read_operations = (
         ("read_json",)
         if operation == "patch_json"
-        else ("read_file", "search_text")
+        else ("read_file", "search_files")
     )
     for fact in reversed(facts):
         if str(fact.get("operation") or "") not in required_read_operations:
@@ -688,7 +688,7 @@ def _structured_path_locator(
         if not isinstance(structured, Mapping):
             continue
         operation = str(fact.get("operation") or "")
-        item_key = "matches" if operation == "search_text" else "entries"
+        item_key = "matches" if operation == "search_files" else "entries"
         for index, item in enumerate(structured.get(item_key) or ()):
             if not isinstance(item, Mapping) or item.get("path") != path:
                 continue
@@ -698,7 +698,7 @@ def _structured_path_locator(
                 "raw_result_sha256": str(result["observation"].get("raw_result_sha256") or ""),
                 "source_operation": operation,
             }
-            if operation == "search_text":
+            if operation == "search_files":
                 line_text = item.get("line_text")
                 line_sha = str(item.get("line_text_sha256") or "")
                 snapshot_sha = str(item.get("source_snapshot_sha256") or "")
@@ -708,7 +708,7 @@ def _structured_path_locator(
                     end_byte = int(item["line_text_end_byte"])
                 except (KeyError, TypeError, ValueError) as exc:
                     raise ExecutorProvenanceError(
-                        "search_text path item lacks an exact source-line locator"
+                        "search_files path item lacks an exact source-line locator"
                     ) from exc
                 identity = {
                     "source_ref": path,
@@ -725,7 +725,7 @@ def _structured_path_locator(
                     or span_id != f"OBS-SPAN-{canonical_digest(identity)[:20]}"
                 ):
                     raise ExecutorProvenanceError(
-                        "search_text path item failed its exact source-line identity"
+                        "search_files path item failed its exact source-line identity"
                     )
                 locator.update(
                     {
@@ -796,7 +796,7 @@ def _path_discovery_binding(
     discovery_facts = [
         fact
         for fact in facts
-        if str(fact.get("operation") or "") in {"search_text", "list_directory"}
+        if str(fact.get("operation") or "") in {"search_files", "list_directory"}
     ]
     if not discovery_facts:
         return []

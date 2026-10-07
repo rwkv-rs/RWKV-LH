@@ -69,7 +69,7 @@ def build_action_feedback(state, *, role, assignment=None, permitted=None, refer
             rejected['function_name'] = definition['name'] if definition else None
         rejected['parameter_references'] = (deepcopy(references or {}) if rejected['role'] == role else {
             name: {field: rejected['usable_evidence_ids']} for name, field in (
-                ('report_work', 'evidence_ids'), ('yield_work', 'evidence_ids'), ('request_info', 'evidence_id'))})
+                ('report_work', 'evidence_ids'), ('read_receipt', 'evidence_id'))})
         from .project_rejection_history import rejection_attempt_history
         rejected['attempt_history'] = rejection_attempt_history(
             state, rejected, assignment=assignment, workers=resumable, boundary_id=boundary_id)

@@ -635,6 +635,10 @@ class ModelSession:
         )
         return child
 
+    def generation_input_tokens(self, transcript: str, max_output_tokens: int) -> int:
+        """Count the input consumed by this transport, separately from audit storage."""
+        return get_token_count(transcript)
+
     def generate(
         self,
         checkpoint: ModelCheckpoint,
@@ -654,9 +658,10 @@ class ModelSession:
             raise ModelSessionError('seeded generation requires the Native transport')
         output_limit = max(1, int(max_output_tokens))
         input_limit = self.settings.max_prompt_tokens(output_limit)
-        if checkpoint.token_count > input_limit:
+        input_tokens = self.generation_input_tokens(checkpoint.transcript, output_limit)
+        if input_tokens > input_limit:
             raise InputBudgetError(
-                f"lane {checkpoint.lane_id} uses {checkpoint.token_count} input tokens; "
+                f"lane {checkpoint.lane_id} uses {input_tokens} input tokens; "
                 f"limit is {input_limit} with max_output_tokens={output_limit}"
             )
         request_id = f"MR-{uuid4().hex[:16]}"
@@ -668,8 +673,9 @@ class ModelSession:
                 "lane_kind": checkpoint.lane_kind.value,
                 "input_checkpoint_id": checkpoint.checkpoint_id,
                 "input_digest": checkpoint.transcript_digest,
-                "prompt_tokens_local": checkpoint.token_count,
-                "static_replay_tokens": checkpoint.token_count,
+                "prompt_tokens_local": input_tokens,
+                "static_replay_tokens": input_tokens,
+                "audit_transcript_tokens": checkpoint.token_count,
                 "max_tokens": output_limit,
                 "sampling": selected.to_dict(),
                 "state_transport": self.transport,
@@ -912,7 +918,7 @@ class NativeRWKVModelSession(ModelSession):
     ) -> None:
         if capabilities is None:
             capabilities = client.capabilities()
-        if not capabilities.durable_recurrent_state:
+        if not capabilities.transactional_recurrent_state:
             raise NativeStateUnavailableError(
                 "native state requires declared create/resume/fork/commit/rollback/export/import "
                 "and the current request recovery protocol"
@@ -923,8 +929,25 @@ class NativeRWKVModelSession(ModelSession):
                 "native state server did not attest the required cache-binding protocol"
             )
         super().__init__(client, settings=settings, audit_hook=audit_hook)  # type: ignore[arg-type]
+        if (type(capabilities.max_model_len) is not int or capabilities.max_model_len < 2
+                or self.settings.max_model_len > capabilities.max_model_len):
+            raise NativeStateUnavailableError(
+                f"native_rwkv context declaration is missing or too small: "
+                f"configured max_model_len={self.settings.max_model_len}; "
+                f"service max_model_len={capabilities.max_model_len}"
+            )
         self.native_client = client
         self.capabilities = capabilities
+
+    def _check_delta_budget(self, token_count: int, boundary: str) -> None:
+        limit = self.settings.max_prompt_tokens(1)
+        if token_count > limit:
+            raise InputBudgetError(
+                f"native_rwkv {boundary} requires {token_count} input tokens; limit is {limit}; "
+                f"max_model_len={self.settings.max_model_len}, "
+                f"service_max_model_len={self.capabilities.max_model_len}; "
+                "this limit applies to the new delta, not cumulative State history"
+            )
 
     def _cache_binding(
         self,
@@ -1024,8 +1047,7 @@ class NativeRWKVModelSession(ModelSession):
         # selected Executor call is about to disclose its parameter contract.
         checkpoint = super().bootstrap(*args, **kwargs)
         checkpoint.native_state_metadata["native_input_pending"] = True
-        if checkpoint.token_count > self.settings.max_prompt_tokens(1):
-            raise InputBudgetError("prepared native input exceeds the context boundary")
+        self._check_delta_budget(checkpoint.token_count, 'prepared input')
         return checkpoint
 
     def materialize_input(self, checkpoint: ModelCheckpoint,
@@ -1122,8 +1144,7 @@ class NativeRWKVModelSession(ModelSession):
             event_ids=event_ids,
             status=ModelCheckpointStatus.COMMITTED,
         )
-        if checkpoint.token_count > self.settings.max_prompt_tokens(1):
-            raise InputBudgetError("native RWKV bootstrap exceeds the 16K input boundary")
+        self._check_delta_budget(checkpoint.token_count, 'bootstrap')
         binding = self._cache_binding(
             checkpoint,
             state_chain_digest=_next_state_chain_digest("", transcript),
@@ -1169,8 +1190,7 @@ class NativeRWKVModelSession(ModelSession):
         event_ids: Sequence[str],
     ) -> ModelCheckpoint:
         self._require_committed(checkpoint)
-        if get_token_count(suffix) > self.settings.max_prompt_tokens(1):
-            raise InputBudgetError("native RWKV continuation delta exceeds 16K")
+        self._check_delta_budget(get_token_count(suffix), 'continuation delta')
         appended = self._checkpoint(
             lane_id=checkpoint.lane_id,
             lane_kind=checkpoint.lane_kind,
@@ -1711,7 +1731,7 @@ def create_model_session(
     if (
         not missing
         and capabilities is not None
-        and capabilities.durable_recurrent_state
+        and capabilities.transactional_recurrent_state
         and capabilities.recurrent_state_protocol == NATIVE_STATE_PROTOCOL_VERSION
     ):
         return NativeRWKVModelSession(
@@ -1725,7 +1745,7 @@ def create_model_session(
         if missing
         else "runtime recurrent-state protocol is absent or incompatible"
         if capabilities is not None
-        and capabilities.durable_recurrent_state
+        and capabilities.transactional_recurrent_state
         and capabilities.recurrent_state_protocol != NATIVE_STATE_PROTOCOL_VERSION
         else "runtime did not declare the complete durable recurrent-state capability"
     )

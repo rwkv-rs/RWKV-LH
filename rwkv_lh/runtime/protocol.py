@@ -238,6 +238,7 @@ class RuntimeCapabilities:
     """Server-declared capabilities; absence always means unsupported."""
 
     source: str = "local_fallback"
+    max_model_len: int = 0
     prompt_replay: bool = True
     native_tool_calls_declared: bool = False
     recurrent_state_create: bool = False
@@ -251,12 +252,13 @@ class RuntimeCapabilities:
     recurrent_state_chunked_prefill: bool = False
     recurrent_state_request_recovery: bool = False
     recurrent_state_request_recovery_protocol: str = ""
+    recurrent_state_persistent_store: bool = False
     structured_output_protocol: str = ""
     structured_output_backend: str = ""
     error: str = ""
 
     @property
-    def durable_recurrent_state(self) -> bool:
+    def transactional_recurrent_state(self) -> bool:
         return all(
             (
                 self.recurrent_state_create,
@@ -271,6 +273,10 @@ class RuntimeCapabilities:
             )
         )
 
+    @property
+    def durable_recurrent_state(self) -> bool:
+        return self.transactional_recurrent_state and self.recurrent_state_persistent_store
+
     @classmethod
     def from_mapping(
         cls,
@@ -284,8 +290,12 @@ class RuntimeCapabilities:
         raw_tools = tools if isinstance(tools, Mapping) else {}
         decoder = value.get('structured_output')
         raw_decoder = decoder if isinstance(decoder, Mapping) else {}
+        capacity = value.get('max_model_len', 0)
+        if type(capacity) is not int or capacity < 0:
+            raise RWKVProtocolError('capabilities.max_model_len must be a nonnegative integer')
         return cls(
             source=source,
+            max_model_len=capacity,
             prompt_replay=bool(value.get("prompt_replay", True)),
             native_tool_calls_declared=bool(raw_tools.get("native_tool_calls", False)),
             recurrent_state_create=bool(raw_state.get("create", False)),
@@ -299,6 +309,7 @@ class RuntimeCapabilities:
             recurrent_state_request_recovery=raw_state.get("request_recovery") is True,
             recurrent_state_chunked_prefill=raw_state.get("chunked_prefill") is True,
             recurrent_state_request_recovery_protocol=str(raw_state.get("request_recovery_protocol") or ""),
+            recurrent_state_persistent_store=raw_state.get('persistent_store') is True,
             structured_output_protocol=str(raw_decoder.get('protocol') or ''),
             structured_output_backend=str(raw_decoder.get('backend') or ''),
         )
@@ -306,6 +317,7 @@ class RuntimeCapabilities:
     def to_dict(self) -> dict[str, Any]:
         return {
             "source": self.source,
+            "max_model_len": self.max_model_len,
             "prompt_replay": self.prompt_replay,
             "native_tool_calls_declared": self.native_tool_calls_declared,
             "recurrent_state": {
@@ -321,6 +333,8 @@ class RuntimeCapabilities:
                 "chunked_prefill": self.recurrent_state_chunked_prefill,
                 "request_recovery_protocol": self.recurrent_state_request_recovery_protocol,
                 "durable": self.durable_recurrent_state,
+                "transactional": self.transactional_recurrent_state,
+                "persistent_store": self.recurrent_state_persistent_store,
             },
             "error": self.error,
             **({'structured_output': {'protocol': self.structured_output_protocol,

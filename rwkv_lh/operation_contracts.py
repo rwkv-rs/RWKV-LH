@@ -28,7 +28,7 @@ _FILE_TARGET_KINDS = frozenset({"json_file", "text_file", "binary_file", "large_
 _CREATABLE_FILE_KINDS = frozenset({"missing", *_FILE_TARGET_KINDS})
 _PATH_KINDS = {
     "list_directory": {"path": frozenset({"directory"})},
-    "search_text": {"path": frozenset({"directory", *_FILE_TARGET_KINDS})},
+    "search_files": {"path": frozenset({"directory", *_FILE_TARGET_KINDS})},
     **{operation: {"path": _FILE_TARGET_KINDS} for operation in (
         "read_file", "read_json", "file_digest", "patch_json", "replace_text",
         "remove_line", "bind_evidence",
@@ -55,7 +55,7 @@ PATH_ARGUMENT_CONTRACTS = {
     operation: {
         name: PathArgumentContract(kinds,
             "read_write" if operation == "move_file" and name == "source"
-            else "read" if operation in {"list_directory", "search_text", "read_file",
+            else "read" if operation in {"list_directory", "search_files", "read_file",
                 "read_json", "file_digest", "bind_evidence"} or name == "source"
             else "write")
         for name, kinds in arguments.items()
@@ -181,13 +181,13 @@ GOAL_STEP_PHASES = (
     "derive_evidence",
 )
 LOCAL_OBSERVE_OPERATIONS = frozenset(
-    {"list_directory", "search_text", "read_file", "read_json", "file_digest"}
+    {"list_directory", "search_files", "read_file", "read_json", "file_digest"}
 )
 EXTERNAL_OBSERVE_OPERATIONS = frozenset({"web_search", "connector_lookup"})
 GOAL_STEP_PHASE_OPERATIONS: dict[str, frozenset[str]] = {
     "observe": LOCAL_OBSERVE_OPERATIONS | EXTERNAL_OBSERVE_OPERATIONS,
     "mutate": PATH_MUTATION_OPERATIONS,
-    "execute": frozenset({"check_command", "run_command"}),
+    "execute": frozenset({"check_command", "run_shell"}),
     "derive_evidence": frozenset(
         {"bind_evidence", "calculator", "date_diff", "current_time"}
     ),
@@ -215,7 +215,7 @@ def project_goal_step_operations(
     if selected_phase == "observe":
         family = LOCAL_OBSERVE_OPERATIONS if read_roots else EXTERNAL_OBSERVE_OPERATIONS
     elif selected_phase == "execute":
-        family = frozenset({"run_command" if write_roots else "check_command"})
+        family = frozenset({"run_shell" if write_roots else "check_command"})
     return tuple(
         operation
         for operation in dict.fromkeys(str(item) for item in authorized_operations)

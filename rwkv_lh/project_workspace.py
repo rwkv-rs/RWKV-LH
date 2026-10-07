@@ -29,7 +29,7 @@ def violations(paths, *, scope, protected, before=None, after=None):
 def explicit_write_targets(harness, action):
     """Concrete file APIs are preauthorized; commands are confined to staging."""
     name, args = action.action_type, action.arguments
-    if name in ('run_command', 'check_command') or not harness.definition(name).side_effect:
+    if name in ('run_shell', 'check_command') or not harness.definition(name).side_effect:
         return []
     if name == 'copy_file':
         targets = [args['destination']]

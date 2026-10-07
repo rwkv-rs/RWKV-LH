@@ -36,7 +36,7 @@ _PATH_READ_OPERATIONS = frozenset(
         "file_digest",
         "read_file",
         "read_json",
-        "search_text",
+        "search_files",
     }
 )
 

@@ -272,7 +272,7 @@ class StatefulGoalLoopController(LongHorizonController):
         command_scope_gaps = tuple(
             gap
             for action in assigned_actions
-            for gap in cls._run_command_write_scope_gaps(
+            for gap in cls._run_shell_write_scope_gaps(
                 action,
                 tuple(step.write_roots),
             )
@@ -591,7 +591,7 @@ class StatefulGoalLoopController(LongHorizonController):
         return path_within_roots(path, roots)
 
     @classmethod
-    def _run_command_write_scope_gaps(
+    def _run_shell_write_scope_gaps(
         cls,
         action: Any,
         write_roots: tuple[str, ...],
@@ -600,10 +600,10 @@ class StatefulGoalLoopController(LongHorizonController):
 
         # check_command runs against a discarded workspace view (its writes are
         # never retained); non-command actions are bounded by their own
-        # argument contracts. A FAILED run_command is still scope-checked: a
+        # argument contracts. A FAILED run_shell is still scope-checked: a
         # command can write outside the declared roots and then exit nonzero,
         # and those writes pollute the workspace all the same.
-        if action.action_type != "run_command" or not write_roots:
+        if action.action_type != "run_shell" or not write_roots:
             return ()
         result = action.result if isinstance(action.result, Mapping) else {}
         metadata = (
@@ -618,7 +618,7 @@ class StatefulGoalLoopController(LongHorizonController):
         )
         if changes.get("complete") is not True:
             reason = str(changes.get("reason") or "workspace change set unavailable")
-            return (f"run_command workspace changes are not fully observable: {reason}",)
+            return (f"run_shell workspace changes are not fully observable: {reason}",)
         changed_paths = tuple(
             dict.fromkeys(
                 str(path)
@@ -638,7 +638,7 @@ class StatefulGoalLoopController(LongHorizonController):
         if not outside:
             return ()
         return (
-            "run_command changed paths outside declared write_roots: "
+            "run_shell changed paths outside declared write_roots: "
             + repr(list(outside)),
         )
 
@@ -2128,7 +2128,7 @@ class StatefulGoalLoopController(LongHorizonController):
                         step_revision=active_step_revision,
                         patch_ids=plan.patch_ids,
                     )
-                    command_scope_gaps = self._run_command_write_scope_gaps(
+                    command_scope_gaps = self._run_shell_write_scope_gaps(
                         action,
                         tuple(frontier.write_roots),
                     )
@@ -2149,7 +2149,7 @@ class StatefulGoalLoopController(LongHorizonController):
                         )
                         return self._block(
                             state,
-                            "run_command_write_scope_violation",
+                            "run_shell_write_scope_violation",
                             transitions,
                         )
                     if (

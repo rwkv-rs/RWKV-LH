@@ -26,7 +26,7 @@ source and checking APIs. An unread local implementation is not by itself an
 external blocker. Executor may inspect workspace files with its available tools;
 task scope and protected paths constrain writes. Delegation does not claim that
 implementation or verification has already succeeded. Conversely, a report,
-acceptance or finish must be supported by its actual required execution evidence.
+acceptance or deliver_report must be supported by its actual required execution evidence.
 Prior rejected output is not execution evidence. Never accept solely because a
 target parses; reject unsupported claims or a genuinely missing prerequisite.
 Do not invent future workspace facts or provide a replacement target. Return one

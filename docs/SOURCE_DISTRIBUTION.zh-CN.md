@@ -44,4 +44,6 @@ uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev
 
 Torch、State 注入和必需浏览器验证不得跳过。新 clone 不含私有 tests，由 owner 单独交接必要测试、`data/test_fixtures/` 及开发基准；不交接 `.env.local`、原始权重、推理 State 或受保护 Holdout。缺材料不能标记通过。
 
+本地测试按独立行为和失败模式保留，修复优先扩展已有行为测试。相同校验规则按不同 schema 与边界值覆盖，每个注册字段仍参与 schema 收集，避免工具名与相同规则机械交叉展开。提示词措辞、任意字数、常量自我比较和导入别名不单独构成回归目标；有实际产品合同的字节、版本和身份约束仍须验证。公开构建与六入口帮助检查由 CI 负责，真实 CLI、浏览器、Native、State、恢复及异常行为保留本地回归。删除测试前登记原 SHA、理由及替代覆盖，精简后运行完整回归；用例数减少不等于模型能力或运行性能改善。
+
 逐轮日志、实验原文、SHA 与失败记录保存在本地 `data/experiments/`。维护文档仅保留当前规范，最新验证证据从[当前交接](HANDOFF.zh-CN.md)进入；不在公开文档累积历史轮次。

@@ -95,6 +95,7 @@ class RWKVNativeStateService:
         self.worker_capabilities: dict[str, Any] = {}
         self.source_identity: dict[str, Any] = {}
         self.gc_last_error = ""
+        self.storage_epoch = uuid4().hex
 
     async def initialize(self) -> None:
         if self.engine_client is None:
@@ -119,7 +120,8 @@ class RWKVNativeStateService:
                 raise RuntimeError("worker state store is not configured")
             if self.journal is None:
                 raise RuntimeError("RWKV_NATIVE_REQUEST_JOURNAL must name a persistent journal")
-            if capabilities.get("store_persistent") is not True:
+            if (capabilities.get("store_persistent") is not True
+                    and capabilities.get('tensor_storage') != 'memory'):
                 raise RuntimeError("request recovery requires persistent worker state storage (capacity=0)")
             if capabilities.get("state_lifecycle_protocol") != NATIVE_STATE_LIFECYCLE_VERSION:
                 raise RuntimeError("worker State lifecycle protocol is unavailable")
@@ -198,6 +200,9 @@ class RWKVNativeStateService:
                     "cache_capacity", 0
                 ),
                 "persistent_store": self.worker_capabilities.get("store_persistent") is True,
+                "tensor_storage": self.worker_capabilities.get('tensor_storage', 'disk'),
+                "storage_epoch": self.storage_epoch if self.worker_capabilities.get('tensor_storage') == 'memory' else '',
+                "restore_after_restart": self.worker_capabilities.get("store_persistent") is True,
                 "gc_pending_blobs": self.journal.gc_pending_count() if self.journal is not None else 0,
                 "gc_last_error": self.gc_last_error,
             },
@@ -315,6 +320,7 @@ class RWKVNativeStateService:
                     raise HTTPException(status_code=410, detail="state cache was retired")
                 record = _StateRecord(**metadata)
                 exported = record.export_record
+                self._validate_storage_epoch(exported)
                 expected = {
                     "schema_version": EXPORT_VERSION, "protocol_version": PROTOCOL_VERSION,
                     "state_format_version": STATE_FORMAT_VERSION, "model": self.model_name,
@@ -334,6 +340,8 @@ class RWKVNativeStateService:
         return record
 
     async def _ensure_loaded(self, record: _StateRecord) -> None:
+        if record.export_record is not None:
+            self._validate_storage_epoch(record.export_record)
         try:
             result = self._consensus(
                 await self._collective("get", {"state_ref": record.state_ref})
@@ -346,6 +354,15 @@ class RWKVNativeStateService:
         if not isinstance(export_record, dict):
             raise HTTPException(status_code=410, detail="state cache entry was evicted")
         await self._import_workers(record, export_record)
+
+    def _validate_storage_epoch(self, exported) -> None:
+        if not isinstance(exported, dict):
+            return
+        mode = self.worker_capabilities.get('tensor_storage', 'disk')
+        if exported.get('tensor_storage', 'disk') != mode:
+            raise HTTPException(status_code=410, detail='State storage lifetime differs')
+        if mode == 'memory' and exported.get('storage_epoch') != self.storage_epoch:
+            raise HTTPException(status_code=410, detail='in-memory State expired after service restart')
 
     async def _recover_current_states(self, record) -> None:
         """Replay original response bytes while loading only the latest State facts."""
@@ -721,6 +738,8 @@ class RWKVNativeStateService:
             "authoritative": False,
             "cache_role": "disposable_acceleration",
         }
+        if self.worker_capabilities.get('tensor_storage') == 'memory':
+            export_record.update(tensor_storage='memory', storage_epoch=self.storage_epoch)
         return replace(record, export_record=export_record)
 
     async def _import_workers(

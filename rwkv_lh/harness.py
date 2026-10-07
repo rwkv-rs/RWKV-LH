@@ -17,6 +17,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
+from rwkv_lh.schema_validation import validate_schema
 from rwkv_lh.chunks import ChunkingError, slice_text_from_byte_cursor
 from rwkv_lh.schema import GoalState, TaskAction, ValidationSpec
 from rwkv_lh.token_budget import get_token_count
@@ -144,9 +145,16 @@ class ActionDefinition:
         }
 
     def g1i_definition(self) -> dict[str, Any]:
+        description = self.description
+        if self.data_boundary == "workspace_process" or self.network_access != "none":
+            description += {
+                "none": " Network is isolated; remote services and dependency downloads are unavailable.",
+                "public_web": " Uses shared network access for the declared public services or dependency downloads.",
+                "structured_source": " Network access is limited to the declared structured source.",
+            }[self.network_access]
         return {
             "name": self.name,
-            "description": self.description,
+            "description": description,
             "parameters": self.parameters_schema(),
         }
 
@@ -317,7 +325,7 @@ class ActionHarness:
         "copy_file": ("action_succeeded", "file_exists"),
         "move_file": ("action_succeeded", "file_exists", "file_absent"),
         "list_directory": ("action_succeeded",),
-        "search_text": ("action_succeeded",),
+        "search_files": ("action_succeeded",),
         "file_digest": ("action_succeeded", "file_exists", "hash_equals"),
         "read_file": ("action_succeeded", "file_exists"),
         "read_json": (
@@ -325,13 +333,17 @@ class ActionHarness:
         ),
         "bind_evidence": ("action_succeeded", "evidence_bound"),
         "check_command": ("action_succeeded", "command_exit_code"),
-        "run_command": ("action_succeeded", "command_exit_code"),
+        "run_shell": ("action_succeeded", "command_exit_code"),
         "noop": ("action_succeeded", "memory_ref_exists"),
     }
 
     _definitions = {
         "write_file": ActionDefinition(
-            "write_file", "Atomically write UTF-8 text inside the workspace.", False, True, True, 30.0,
+            "write_file", (
+                "Create or atomically replace the entire UTF-8 file with content, creating missing parents. "
+                "Returns the new file snapshot and SHA-256. Use replace_text for a targeted edit; "
+                "writing succeeds without proving the program works."
+            ), False, True, True, 30.0,
             {
                 "path": {"type": "string", "description": "path relative to the workspace root"},
                 "content": {"type": "string", "description": "UTF-8 text"},
@@ -355,7 +367,8 @@ class ActionHarness:
         "write_json": ActionDefinition(
             "write_json", (
                 'Atomically replace the complete JSON value supplied by the model; omitted existing '
-                'fields are deleted.'
+                'fields are deleted. Creates missing parents and returns the new file snapshot. '
+                'Use patch_json to preserve unspecified top-level keys.'
             ), False, True, True, 30.0,
             {
                 "path": {"type": "string", "description": "path relative to the workspace root"},
@@ -379,7 +392,9 @@ class ActionHarness:
         ),
         "patch_json": ActionDefinition(
             "patch_json",
-            "Update explicit top-level keys in an existing JSON object while preserving every unspecified key.",
+            ("Replace explicit top-level keys in an existing JSON object, preserving unspecified top-level keys. "
+             "Nested objects are replaced whole, not recursively merged. Requires the original file SHA-256; "
+             "returns the new snapshot. Use write_json to replace the entire value."),
             False,
             True,
             True,
@@ -403,7 +418,12 @@ class ActionHarness:
             required_arguments=("path", "updates", "base_sha256"),
         ),
         "replace_text": ActionDefinition(
-            "replace_text", "Replace an exact text occurrence in an existing UTF-8 file.", False, True, True, 30.0,
+            "replace_text", (
+                "Edit exact text in an existing UTF-8 file using its original snapshot SHA-256. "
+                "The total number of old matches must equal count (default 1), unless all=true. "
+                "Missing or ambiguous matches fail without editing. Returns the new snapshot; "
+                "use read_file for original text and its artifact SHA, not read_json's normalized text."
+            ), False, True, True, 30.0,
             {
                 "path": {"type": "string", "description": "path relative to the workspace root"},
                 "old": {"type": "string", "description": "exact text"},
@@ -420,12 +440,12 @@ class ActionHarness:
                 "count": {
                     "type": "integer",
                     "minimum": 1,
-                    "description": "positive replacement count",
+                    "description": "Required total number of old matches in the entire file; default 1. Ignored when all=true.",
                 },
                 "all": {
                     "type": "boolean",
                     "default": False,
-                    "description": "replace every occurrence when true",
+                    "description": "Replace every occurrence when true, ignoring count; at least one match is required.",
                 },
             },
             ("file_exists",),
@@ -433,7 +453,11 @@ class ActionHarness:
             required_arguments=("path", "old", "new", "base_sha256"),
         ),
         "remove_line": ActionDefinition(
-            "remove_line", "Remove a complete UTF-8 text line from an existing file.", False, True, True, 30.0,
+            "remove_line", (
+                "Delete one complete nonempty UTF-8 line matching text exactly, using the original file SHA-256. "
+                "Missing or duplicate lines fail unless all=true selects every matching line. "
+                "Returns the new snapshot. Use replace_text with surrounding context for duplicate lines or partial edits."
+            ), False, True, True, 30.0,
             {
                 "path": {"type": "string", "description": "path relative to the workspace root"},
                 "text": {"type": "string", "description": "line text without newline"},
@@ -446,14 +470,17 @@ class ActionHarness:
                         "exact SHA-256 of the UTF-8 file snapshot containing the line"
                     ),
                 },
-                "all": {"type": "boolean", "default": False},
+                "all": {"type": "boolean", "default": False, "description": "Delete all matching complete lines; a missing line still fails."},
             },
             ("file_exists",),
             failure_observation_cacheable=True,
             required_arguments=("path", "text", "base_sha256"),
         ),
         "append_file": ActionDefinition(
-            "append_file", "Append UTF-8 text; this action is non-idempotent.", False, True, False, 30.0,
+            "append_file", (
+                "Append UTF-8 content without changing existing text; create missing file and parents. "
+                "Returns the new snapshot. Repeating this call appends again; use write_file for whole-file replacement."
+            ), False, True, False, 30.0,
             {
                 "path": {"type": "string", "description": "path relative to the workspace root"},
                 "content": {"type": "string", "description": "UTF-8 text"},
@@ -461,7 +488,10 @@ class ActionHarness:
             required_arguments=("path", "content"),
         ),
         "delete_file": ActionDefinition(
-            "delete_file", "Delete one explicitly scoped path.", False, True, True, 30.0,
+            "delete_file", (
+                "Delete a workspace file or empty directory; recursive=true also removes a nonempty directory tree. "
+                "A missing path fails unless missing_ok=true. Returns deletion status; no file contents are returned."
+            ), False, True, True, 30.0,
             {
                 "path": {"type": "string", "description": "path relative to the workspace root"},
                 "missing_ok": {"type": "boolean", "default": False},
@@ -471,7 +501,10 @@ class ActionHarness:
             required_arguments=("path",),
         ),
         "make_directory": ActionDefinition(
-            "make_directory", "Create a directory inside the workspace.", False, True, True, 30.0,
+            "make_directory", (
+                "Create a workspace directory, including missing parents when parents=true. "
+                "An existing directory succeeds; an existing file fails. Returns directory identity, not file contents."
+            ), False, True, True, 30.0,
             {
                 "path": {"type": "string", "description": "path relative to the workspace root"},
                 "parents": {"type": "boolean", "default": True},
@@ -481,7 +514,8 @@ class ActionHarness:
         ),
         "copy_file": ActionDefinition(
             "copy_file", (
-                'Copy the exact bytes of one scoped file to the destination.'
+                'Copy one file without changing the source. destination is an exact file path, not a directory; '
+                'an existing file is overwritten and missing parents are created. Returns the destination file SHA-256 and size.'
             ), False, True, True, 30.0,
             {
                 "source": {"type": "string", "description": "relative source path"},
@@ -492,7 +526,9 @@ class ActionHarness:
         ),
         "move_file": ActionDefinition(
             "move_file", (
-                'Move one scoped file to the destination, removing the source; non-idempotent.'
+                'Move one file, removing the source. destination is an exact file path, not a directory; '
+                'an existing file is overwritten and missing parents are created. Returns the destination file SHA-256 and size. '
+                'Repeating after success fails because the source is gone; use copy_file to retain it.'
             ), False, True, False, 30.0,
             {
                 "source": {"type": "string", "description": "relative source path"},
@@ -502,7 +538,8 @@ class ActionHarness:
         ),
         "file_digest": ActionDefinition(
             "file_digest", (
-                'Read the SHA-256 and byte size of one scoped file.'
+                'Read only the SHA-256 and byte size of one file, without reading its contents into the response. '
+                'Use read_file to inspect text; its artifact already includes this full-file SHA-256.'
             ), True, False, True, 30.0,
             {
                 "path": {"type": "string", "description": "path relative to the workspace root"},
@@ -512,7 +549,9 @@ class ActionHarness:
         ),
         "list_directory": ActionDefinition(
             "list_directory", (
-                'List paginated path, type and size metadata; does not read file contents.'
+                'List paginated paths, types and sizes, without file contents. Use this to discover paths; '
+                'search_files searches contents. Recursive listing skips .git, .venv, node_modules and __pycache__. '
+                'Continue with next_cursor until complete.'
             ), True,
             False,
             True,
@@ -526,10 +565,11 @@ class ActionHarness:
             },
             failure_observation_cacheable=True,
         ),
-        "search_text": ActionDefinition(
-            "search_text", (
-                'Search UTF-8 lines with a literal string or Python regex; returns ordered locators '
-                'and a continuation cursor.'
+        "search_files": ActionDefinition(
+            "search_files", (
+                'Search local UTF-8 file contents, not file names or the web. Default mode is Python regex; '
+                'choose literal for exact text. Returns ordered match lines, source locators, skipped-file details '
+                'and next_cursor; use read_file or bind_evidence to inspect surrounding source.'
             ), True,
             False,
             True,
@@ -590,13 +630,14 @@ class ActionHarness:
             },
             failure_observation_cacheable=True,
             required_arguments=("pattern",),
-            result_schema="rwkv-lh.search-text-result.v1",
+            result_schema="rwkv-lh.search-files-result.v1",
         ),
         "read_file": ActionDefinition(
             "read_file", (
-                'Read a UTF-8 chunk; the caller supplies no ending position. Continue from '
-                'next_start_byte until complete; EOF returns empty '
-                'text and a missing file fails.'
+                'Read original UTF-8 file text plus the full-file artifact SHA-256. start_byte is a byte '
+                'offset, not a line number; the caller supplies no ending position. Continue from next_start_byte until complete. EOF returns '
+                'empty text and a missing file fails. Use bind_evidence for an exact line range; '
+                'use the original text and artifact SHA for targeted edits.'
             ), True, False, True, 30.0,
             {
                 "path": {"type": "string", "description": 'File path relative to the workspace root.'},
@@ -618,8 +659,10 @@ class ActionHarness:
         ),
         "read_json": ActionDefinition(
             "read_json", (
-                'Read a token-bounded chunk of canonical compact JSON. An invalid .json file returns '
-                'a source-bound parse diagnostic; plain text is unsupported.'
+                'Parse a file as JSON and return a chunk of canonical compact JSON, not the original text. '
+                'Cursors refer to normalized bytes, and a chunk need not be a complete JSON value. '
+                'Invalid JSON returns a successful diagnostic with valid_json=false; this does not mean valid data. '
+                'Use read_file to inspect or edit exact source text.'
             ), True, False, True, 30.0,
             {
                 "path": {"type": "string", "description": "path relative to the workspace root"},
@@ -641,7 +684,9 @@ class ActionHarness:
         ),
         "bind_evidence": ActionDefinition(
             "bind_evidence", (
-                'Read an exact line span and retain its source locator and quote.'
+                'Read an exact inclusive line range with a source quote, locator and snapshot SHA-256. '
+                'Both line numbers must exist; over-budget ranges fail without truncation. '
+                'This reads source text, not a tool receipt or task-check binding; use read_receipt for prior execution results.'
             ), True, False, True, 30.0,
             {
                 "path": {"type": "string", "description": "path relative to the workspace root"},
@@ -658,13 +703,25 @@ class ActionHarness:
         "check_command": ActionDefinition(
             "check_command", (
                 'Run argv with shell disabled in a disposable workspace; all writes are discarded. '
-                'Use env for environment variables; argv does not expand variables or redirect stdin.'
+                'Use stdin for input text and env for environment variables; argv does not expand '
+                'variables or interpret shell redirection. Omitted stdin supplies EOF. Returns stdout, stderr '
+                'and the process exit code; success means expected_exit_code matched, not task acceptance. '
+                'Use this for local self-checks; run_task_checks is Decision\'s bound verification. '
+                'Use run_shell when workspace changes must persist.'
             ), True, False, True, 120.0,
             {
                 "argv": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
+                "stdin": {"type": "string", "default": "", "description": (
+                    "Exact UTF-8 text sent to the process, followed by EOF. Supply the input contents, "
+                    "not a filename; no file reading or JSON extraction is performed."
+                )},
                 "cwd": {"type": "string", "default": ".", "description": "directory relative to the workspace root"},
                 "timeout": {"type": "number", "exclusiveMinimum": 0, "maximum": 120.0, "default": 120.0},
-                "env": {"type": "object", "default": {}, "description": "explicit environment additions"},
+                "env": {"type": "object", "default": {}, "description": (
+                    "Explicit environment additions. PATH replaces the default search path, preserving order; "
+                    "relative/empty entries use cwd, mounted host workspace paths are rebased. Values are not shell-expanded. "
+                    "Without PATH, python uses the project runtime."
+                )},
                 "expected_exit_code": {
                     "type": "integer",
                     "minimum": 0,
@@ -679,16 +736,31 @@ class ActionHarness:
             data_boundary="workspace_process",
             side_effect_class="local_process_read_only",
         ),
-        "run_command": ActionDefinition(
-            "run_command", (
-                'Run argv with shell disabled and retain permitted workspace changes. Use env for '
-                'environment variables; argv does not expand variables or redirect stdin.'
+        "run_shell": ActionDefinition(
+            "run_shell", (
+                'Run command as a Bash script in the workspace and retain permitted changes. '
+                'Supports pipes, redirection and variable expansion. Each call starts a new '
+                'noninteractive Bash with --noprofile --norc; no terminal session is resumed. '
+                'The script is executed verbatim: use workspace-relative paths (sandbox root /workspace) '
+                'and python from PATH; host paths inside script text are not rewritten. '
+                'Use stdin for exact input text and env for environment variables. Omitted stdin supplies EOF. '
+                'Returns stdout, stderr and the whole script exit code; success means expected_exit_code matched. '
+                'Bash uses its normal final-command/pipeline status; use explicit && or pipefail when required. '
+                'A failed script may already have changed files. Use check_command to discard all writes.'
             ), False, True, False, 120.0,
             {
-                "argv": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
+                "command": {"type": "string", "minLength": 1},
+                "stdin": {"type": "string", "default": "", "description": (
+                    "Exact UTF-8 text sent to the process, followed by EOF. Supply the input contents, "
+                    "not a filename; no file reading or JSON extraction is performed."
+                )},
                 "cwd": {"type": "string", "default": ".", "description": "directory relative to the workspace root"},
                 "timeout": {"type": "number", "exclusiveMinimum": 0, "maximum": 120.0, "default": 120.0},
-                "env": {"type": "object", "default": {}, "description": "explicit environment additions"},
+                "env": {"type": "object", "default": {}, "description": (
+                    "Explicit environment additions. PATH replaces the default search path, preserving order; "
+                    "relative/empty entries use cwd, mounted host workspace paths are rebased. Values are not shell-expanded. "
+                    "Without PATH, python uses the project runtime."
+                )},
                 "expected_exit_code": {
                     "type": "integer",
                     "minimum": 0,
@@ -698,7 +770,7 @@ class ActionHarness:
                 },
             },
             ("command_exit_code",),
-            required_arguments=("argv",),
+            required_arguments=("command",),
             capability_class="local.process_mutation",
             data_boundary="workspace_process",
             side_effect_class="local_process_mutation",
@@ -745,13 +817,13 @@ class ActionHarness:
             "copy_file": self._copy_file,
             "move_file": self._move_file,
             "list_directory": self._list_directory,
-            "search_text": self._search_text,
+            "search_files": self._search_files,
             "file_digest": self._file_digest,
             "read_file": self._read_file,
             "read_json": self._read_json,
             "bind_evidence": self._bind_evidence,
             "check_command": self._check_command,
-            "run_command": self._run_command,
+            "run_shell": self._run_shell,
             "noop": self._noop,
         }
         self._recovery_handlers: dict[
@@ -822,14 +894,14 @@ class ActionHarness:
     @staticmethod
     def runtime_capabilities() -> dict[str, Any]:
         return {
-            "command_execution": "argv only; shell=False; workspace scoped",
+            "command_execution": "run_shell: Bash command script; check_command: direct argv; workspace scoped",
             "python": {
                 "canonical_argv_prefix": ["python", "-m"],
                 "resolved_by_harness": str(Path(sys.executable).resolve()),
                 "python_alias_available": True,
                 "pytest_invocation": ["python", "-m", "pytest"],
             },
-            "network": "shared only inside the command sandbox",
+            "network": "command sandbox uses an isolated network namespace",
         }
 
     def g1i_tool_definitions(
@@ -955,7 +1027,7 @@ class ActionHarness:
             specs.append(ValidationSpec("file_exists", {"path": path}, True))
         elif name == "bind_evidence":
             specs.append(ValidationSpec("evidence_bound", {}, True))
-        elif name in {"check_command", "run_command"}:
+        elif name in {"check_command", "run_shell"}:
             specs.append(
                 ValidationSpec(
                     "command_exit_code",
@@ -970,7 +1042,7 @@ class ActionHarness:
 
         definition = self.definition(action_type)
         contract = {
-            "description": definition.description,
+            "description": definition.g1i_definition()["description"],
             "read_only": definition.read_only,
             "side_effect": definition.side_effect,
             "idempotent": definition.idempotent,
@@ -987,7 +1059,7 @@ class ActionHarness:
             "recovery_policy": definition.recovery_policy,
             "evidence_output": definition.evidence_output,
         }
-        if definition.name in {"run_command", "check_command"}:
+        if definition.name in {"run_shell", "check_command"}:
             contract["runtime_capabilities"] = self.runtime_capabilities()
         return contract
 
@@ -1146,7 +1218,7 @@ class ActionHarness:
                 normalized.pop("count")
                 normalized["all"] = True
                 transformations.append("explicit_value:count=all->all=true")
-        if definition.name in {"run_command", "check_command"} and "timeout_ms" in normalized:
+        if definition.name == "check_command" and "timeout_ms" in normalized:
             milliseconds = normalized.get("timeout_ms")
             if not isinstance(milliseconds, (int, float)) or isinstance(milliseconds, bool):
                 raise HarnessError(
@@ -1166,14 +1238,14 @@ class ActionHarness:
                 normalized.pop("timeout_ms")
                 normalized["timeout"] = seconds
                 transformations.append("explicit_unit:timeout_ms->timeout_seconds")
-        if definition.name in {"run_command", "check_command"} and "shell" in normalized:
+        if definition.name == "check_command" and "shell" in normalized:
             if normalized["shell"] is not False:
                 raise HarnessError(
                     f"action {definition.name} shell must be false"
                 )
             normalized.pop("shell")
             transformations.append("fixed_policy:shell=false->omitted")
-        if definition.name in {"run_command", "check_command"} and normalized.get("env") == []:
+        if definition.name == "check_command" and normalized.get("env") == []:
             normalized["env"] = {}
             transformations.append("empty_mapping:env=[]->{}")
 
@@ -1203,85 +1275,10 @@ class ActionHarness:
     ) -> None:
         """Validate the same compact JSON Schema fragment exposed to RWKV."""
 
-        expected_type = schema.get("type")
-        valid_type = True
-        if expected_type == "string":
-            valid_type = isinstance(value, str)
-        elif expected_type == "boolean":
-            valid_type = isinstance(value, bool)
-        elif expected_type == "integer":
-            valid_type = isinstance(value, int) and not isinstance(value, bool)
-        elif expected_type == "number":
-            valid_type = (
-                isinstance(value, (int, float)) and not isinstance(value, bool)
-            )
-        elif expected_type == "object":
-            valid_type = isinstance(value, Mapping)
-        elif expected_type == "array":
-            valid_type = isinstance(value, list)
-        if not valid_type:
-            raise HarnessError(
-                f"action {action_name} argument {argument_name} must have type {expected_type}"
-            )
-        if "const" in schema and value != schema["const"]:
-            raise HarnessError(
-                f"action {action_name} argument {argument_name} must equal {schema['const']!r}"
-            )
-        if "enum" in schema and value not in schema["enum"]:
-            raise HarnessError(
-                f"action {action_name} argument {argument_name} must be one of "
-                f"{list(schema['enum'])!r}"
-            )
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
-            if "minimum" in schema and value < schema["minimum"]:
-                raise HarnessError(
-                    f"action {action_name} argument {argument_name} must be at least {schema['minimum']}"
-                )
-            if "maximum" in schema and value > schema["maximum"]:
-                raise HarnessError(
-                    f"action {action_name} argument {argument_name} must be at most {schema['maximum']}"
-                )
-            if "exclusiveMinimum" in schema and value <= schema["exclusiveMinimum"]:
-                raise HarnessError(
-                    f"action {action_name} argument {argument_name} must be greater than {schema['exclusiveMinimum']}"
-                )
-        if isinstance(value, str) and "minLength" in schema and len(value) < int(schema["minLength"]):
-            raise HarnessError(
-                f"action {action_name} argument {argument_name} is shorter than minLength"
-            )
-        if isinstance(value, str) and "maxLength" in schema and len(value) > int(schema["maxLength"]):
-            raise HarnessError(
-                f"action {action_name} argument {argument_name} is longer than maxLength"
-            )
-        if isinstance(value, str) and "pattern" in schema and re.search(schema["pattern"], value) is None:
-            raise HarnessError(f"action {action_name} argument {argument_name} does not match pattern")
-        if isinstance(value, list):
-            if "minItems" in schema and len(value) < int(schema["minItems"]):
-                raise HarnessError(
-                    f"action {action_name} argument {argument_name} has too few items"
-                )
-            if "maxItems" in schema and len(value) > int(schema["maxItems"]):
-                raise HarnessError(
-                    f"action {action_name} argument {argument_name} has too many items"
-                )
-            if schema.get("uniqueItems") is True:
-                canonical_items = [
-                    json.dumps(item, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-                    for item in value
-                ]
-                if len(set(canonical_items)) != len(canonical_items):
-                    raise HarnessError(
-                        f"action {action_name} argument {argument_name} items must be unique"
-                    )
-            item_schema = schema.get("items")
-            if isinstance(item_schema, Mapping):
-                for index, item in enumerate(value):
-                    ActionHarness._validate_argument_schema(
-                        action_name,
-                        f"{argument_name}[{index}]",
-                        item,
-                        item_schema,
-                    )
+        try:
+            validate_schema(value, schema, f"action {action_name} argument {argument_name}")
+        except ValueError as exc:
+            raise HarnessError(str(exc)) from exc
 
     def workspace_manifest(
         self,
@@ -1952,6 +1949,10 @@ class ActionHarness:
     def _copy_file(self, goal: GoalState, arguments: dict[str, Any]) -> ActionResult:
         source = self.resolve_path(goal, arguments.get("source", ""), must_exist=True)
         destination = self.resolve_path(goal, arguments.get("destination", ""))
+        if not source.is_file():
+            raise HarnessError("copy_file source must be an existing file")
+        if destination.is_dir():
+            raise HarnessError("copy_file destination must be an exact file path, not a directory")
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
         return self._file_result("copy_file", goal, destination, output="file copied")
@@ -1961,6 +1962,8 @@ class ActionHarness:
         if not source.is_file():
             raise HarnessError("move_file source must be an existing file")
         destination = self.resolve_path(goal, arguments.get("destination", ""))
+        if destination.is_dir():
+            raise HarnessError("move_file destination must be an exact file path, not a directory")
         if source == destination:
             raise HarnessError(
                 "move_file source and destination must resolve to different paths"
@@ -2126,7 +2129,7 @@ class ActionHarness:
             separators=(",", ":"),
         ).encode("utf-8")
         encoded = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
-        return f"search-v1.{encoded}"
+        return f"search-files-v1.{encoded}"
 
     @staticmethod
     def _parse_search_cursor(
@@ -2136,20 +2139,20 @@ class ActionHarness:
         selected = str(value or "").strip()
         if not selected:
             return None
-        prefix = "search-v1."
+        prefix = "search-files-v1."
         if not selected.startswith(prefix):
-            raise HarnessError("search_text start_after is not a v1 search cursor")
+            raise HarnessError("search_files start_after is not a v1 search cursor")
         encoded = selected[len(prefix):]
         try:
             padding = "=" * (-len(encoded) % 4)
             decoded = base64.urlsafe_b64decode((encoded + padding).encode("ascii"))
             payload = json.loads(decoded.decode("utf-8"))
         except (ValueError, UnicodeError, json.JSONDecodeError) as exc:
-            raise HarnessError("search_text start_after is malformed") from exc
+            raise HarnessError("search_files start_after is malformed") from exc
         if not isinstance(payload, Mapping) or payload.get("version") != 1:
-            raise HarnessError("search_text start_after has an unsupported version")
+            raise HarnessError("search_files start_after has an unsupported version")
         if payload.get("contract") != contract_digest:
-            raise HarnessError("search_text start_after belongs to a different search contract")
+            raise HarnessError("search_files start_after belongs to a different search contract")
         key = payload.get("key")
         if (
             not isinstance(key, list)
@@ -2160,7 +2163,7 @@ class ActionHarness:
                 for item in key[1:]
             )
         ):
-            raise HarnessError("search_text start_after key is malformed")
+            raise HarnessError("search_files start_after key is malformed")
         return key[0], key[1], key[2], key[3]
 
     @staticmethod
@@ -2179,16 +2182,16 @@ class ActionHarness:
             left = max(0, right - max_chars)
         return line[left:right], left + 1, True
 
-    def _search_text(
+    def _search_files(
         self,
         goal: GoalState,
         arguments: dict[str, Any],
     ) -> ActionResult:
         pattern = str(arguments.get("pattern") or "")
         if not pattern:
-            raise HarnessError("search_text requires a non-empty pattern")
+            raise HarnessError("search_files requires a non-empty pattern")
         if len(pattern) > 4096:
-            raise HarnessError("search_text pattern exceeds 4096 characters")
+            raise HarnessError("search_files pattern exceeds 4096 characters")
         mode = str(arguments.get("mode") or "regex")
         case_sensitive = bool(arguments.get("case_sensitive", True))
         flags = 0 if case_sensitive else re.IGNORECASE
@@ -2196,7 +2199,7 @@ class ActionHarness:
         try:
             matcher = re.compile(expression, flags)
         except re.error as exc:
-            raise HarnessError(f"search_text regular expression is invalid: {exc}") from exc
+            raise HarnessError(f"search_files regular expression is invalid: {exc}") from exc
 
         root = Path(goal.workspace_root).resolve(strict=True)
         raw_path = Path(str(arguments.get("path") or "."))
@@ -2294,7 +2297,7 @@ class ActionHarness:
                         if path.is_file() or path.is_symlink()
                     ]
             else:
-                raise HarnessError("search_text path must be a file or directory")
+                raise HarnessError("search_files path must be a file or directory")
 
         candidates = sorted(
             candidates,
@@ -2408,7 +2411,7 @@ class ActionHarness:
         def render_payload() -> dict[str, Any]:
             truncated = has_more
             return {
-                "schema_version": "rwkv-lh.search-text-result.v1",
+                "schema_version": "rwkv-lh.search-files-result.v1",
                 "path": normalized_path,
                 "pattern": pattern,
                 "mode": mode,
@@ -2454,9 +2457,9 @@ class ActionHarness:
             payload = render_payload()
             output = json.dumps(payload, ensure_ascii=False, sort_keys=True)
         if get_token_count(output) > max_tokens or (has_more and not matches):
-            raise HarnessError("one search_text result exceeds max_tokens")
+            raise HarnessError("one search_files result exceeds max_tokens")
         return ActionResult(
-            "search_text",
+            "search_files",
             True,
             output=output,
             metadata={
@@ -2636,9 +2639,8 @@ class ActionHarness:
         lines = source_text.splitlines(keepends=True)
         start_line = max(1, int(arguments.get("start_line", 1)))
         end_line = int(arguments.get("end_line", start_line))
-        if end_line < start_line or start_line > len(lines):
+        if end_line < start_line or start_line > len(lines) or end_line > len(lines):
             raise HarnessError("evidence line span is outside the source")
-        end_line = min(end_line, len(lines))
         selected_lines = lines[start_line - 1 : end_line]
         quote = "".join(selected_lines)
         if quote.endswith("\r\n"):
@@ -2698,18 +2700,32 @@ class ActionHarness:
             },
         )
 
-    def _run_command(
+    def _run_shell(
+        self, goal: GoalState, arguments: dict[str, Any],
+    ) -> ActionResult:
+        command = arguments["command"]
+        result = self._execute_process(goal, {
+            **arguments, "argv": ["/bin/bash", "--noprofile", "--norc", "-c", command],
+        }, action_type="run_shell")
+        result.metadata["command"] = command
+        result.metadata["shell"] = "/bin/bash"
+        return result
+
+    def _execute_process(
         self,
         goal: GoalState,
         arguments: dict[str, Any],
         *,
+        action_type: str,
         ephemeral_workspace: bool = False,
     ) -> ActionResult:
         if self.sandbox_commands and not self._bubblewrap:
             raise HarnessError("command sandbox was requested but bubblewrap is unavailable")
         argv = arguments.get("argv")
         if not isinstance(argv, list) or not argv or not all(isinstance(item, str) and item for item in argv):
-            raise HarnessError("run_command requires a non-empty string argv array")
+            raise HarnessError("process requires a non-empty string argv array")
+        stdin = arguments.get("stdin", "")
+        stdin_bytes = stdin.encode("utf-8")
         cwd = self.resolve_path(goal, arguments.get("cwd", "."), must_exist=True)
         if not cwd.is_dir():
             raise HarnessError("command cwd is not a directory")
@@ -2722,7 +2738,7 @@ class ActionHarness:
         environment.update({str(key): str(value) for key, value in explicit_environment.items()})
         requested_argv = list(argv)
         resolved_argv = list(argv)
-        if resolved_argv[0] == "python":
+        if resolved_argv[0] == "python" and "PATH" not in explicit_environment:
             resolved_argv[0] = str(Path(sys.executable).resolve(strict=True))
             executable_resolution = "python_alias_to_project_runtime"
         else:
@@ -2731,12 +2747,23 @@ class ActionHarness:
             runtime_entrypoint: Path | None = None
             project_venv = Path(sys.prefix).absolute()
             if "/" not in executable:
-                located = shutil.which(executable)
+                search_path = None
+                if "PATH" in explicit_environment:
+                    host_path = self._rebase_search_path(str(explicit_environment["PATH"]), (
+                        (Path("/workspace"), Path(goal.workspace_root)),
+                        (Path("/opt/rwkv-lh-venv"), Path(sys.prefix)),
+                        (Path("/opt/rwkv-lh-python"), Path(sys.executable).resolve().parent.parent),
+                    ))
+                    search_path = os.pathsep.join(
+                        str(cwd / entry) if not Path(entry).is_absolute() else entry
+                        for entry in host_path.split(os.pathsep)
+                    )
+                located = shutil.which(executable, path=search_path)
                 if located:
                     candidate = Path(located).absolute()
                     if candidate.is_relative_to(project_venv):
                         runtime_entrypoint = candidate
-                if runtime_entrypoint is None:
+                if runtime_entrypoint is None and "PATH" not in explicit_environment:
                     candidate = Path(sys.executable).parent / executable
                     if candidate.is_file() and os.access(candidate, os.X_OK):
                         runtime_entrypoint = candidate.absolute()
@@ -2777,9 +2804,10 @@ class ActionHarness:
             if "PYTHONPATH" in explicit_environment else str(site_packages)
         )
         runtime_bin = Path(sys.executable).resolve(strict=True).parent
-        environment["PATH"] = os.pathsep.join(
-            [str(runtime_bin), str(Path(sys.prefix) / "bin"), environment.get("PATH", os.defpath)]
-        )
+        if "PATH" not in explicit_environment:
+            environment["PATH"] = os.pathsep.join(
+                [str(runtime_bin), str(Path(sys.prefix) / "bin"), environment.get("PATH", os.defpath)]
+            )
         workspace_root = Path(goal.workspace_root)
         expected_exit_code = int(arguments.get("expected_exit_code", 0))
         ephemeral_copy: tempfile.TemporaryDirectory | None = None
@@ -2801,6 +2829,9 @@ class ActionHarness:
                 ]
                 cwd = copy_root / cwd.relative_to(workspace_root)
                 workspace_root = copy_root
+                if "PATH" in explicit_environment:
+                    environment["PATH"] = self._rebase_search_path(environment["PATH"], (
+                        (Path(goal.workspace_root), copy_root),))
                 if "PYTHONPATH" in explicit_environment:
                     environment["PYTHONPATH"] = os.pathsep.join(
                         self._rebase_workspace_path(entry, Path(goal.workspace_root), copy_root)
@@ -2816,8 +2847,16 @@ class ActionHarness:
                     include_project_venv=True,
                     workspace=workspace_root,
                     ephemeral_overlay=ephemeral_workspace and ephemeral_copy is None,
+                    literal_arguments=action_type == "run_shell",
+                    resolve_host_executable="PATH" not in explicit_environment,
                 )
-                environment["PATH"] = sandbox_path
+                environment["PATH"] = (
+                    self._rebase_search_path(str(explicit_environment["PATH"]), (
+                        (Path(goal.workspace_root), Path("/workspace")),
+                        (Path(sys.prefix), Path("/opt/rwkv-lh-venv")),
+                        (runtime_bin.parent, Path("/opt/rwkv-lh-python")),
+                    )) if "PATH" in explicit_environment else sandbox_path
+                )
                 # Explicit project import paths must survive runtime mounting.
                 # Rebase host workspace paths, but preserve relative entries
                 # (which are relative to the selected command cwd) and empty
@@ -2852,6 +2891,11 @@ class ActionHarness:
                     "executable_resolution": executable_resolution,
                     "cwd": str(cwd.relative_to(workspace_root)),
                     "output_truncated": False,
+                    "command_stdin": {
+                        "encoding": "utf-8",
+                        "bytes": len(stdin_bytes),
+                        "sha256": hashlib.sha256(stdin_bytes).hexdigest(),
+                    },
                     "command_streams": {
                         "stdout": {
                             "start_byte": 0,
@@ -2897,7 +2941,7 @@ class ActionHarness:
                         ),
                     }
                 return ActionResult(
-                    "run_command",
+                    action_type,
                     exit_code_matched and not timed_out,
                     output=stdout + stderr,
                     exit_code=exit_code,
@@ -2911,6 +2955,7 @@ class ActionHarness:
                     cwd=cwd,
                     env=environment,
                     shell=False,
+                    input=stdin,
                     text=True,
                     encoding="utf-8",
                     errors="replace",
@@ -2943,6 +2988,27 @@ class ActionHarness:
         if isinstance(value, bytes):
             return value.decode("utf-8", errors="replace")
         return value
+
+    @staticmethod
+    def _rebase_search_path(value: str, mounts: Sequence[tuple[Path, Path]]) -> str:
+        """Preserve PATH order and cwd entries while mapping known mounted roots.
+
+        Missing directories may be created by the script later; unlike argv
+        rebasing, mapping PATH cannot depend on a directory already existing.
+        Unmounted host paths remain unavailable rather than granting new mounts.
+        """
+        roots = sorted(((source.resolve(), target) for source, target in mounts),
+                       key=lambda pair: len(pair[0].parts), reverse=True)
+        entries = []
+        for entry in value.split(os.pathsep):
+            path = Path(entry)
+            if entry and path.is_absolute():
+                for source, target in roots:
+                    if path.is_relative_to(source):
+                        entry = str(target / path.relative_to(source))
+                        break
+            entries.append(entry)
+        return os.pathsep.join(entries)
 
     @staticmethod
     def _rebase_workspace_path(argument: str, workspace: Path, replacement: Path) -> str:
@@ -3015,6 +3081,8 @@ class ActionHarness:
         include_project_venv: bool = False,
         workspace: Path | None = None,
         ephemeral_overlay: bool = False,
+        literal_arguments: bool = False,
+        resolve_host_executable: bool = True,
     ) -> tuple[list[str], str]:
         """Build a read-isolated command sandbox with one writable workspace."""
 
@@ -3026,7 +3094,7 @@ class ActionHarness:
         resolved_executable: Path | None = None
         if Path(executable).is_absolute():
             resolved_executable = Path(executable).resolve(strict=True)
-        elif "/" not in executable:
+        elif "/" not in executable and resolve_host_executable:
             located = shutil.which(executable)
             if located:
                 resolved_executable = Path(located).resolve(strict=True)
@@ -3067,6 +3135,8 @@ class ActionHarness:
                     f"{executable}"
                 )
         for index, argument in enumerate(child_argv[1:], start=1):
+            if literal_arguments:
+                continue
             path = Path(argument)
             if not path.is_absolute() or not path.exists():
                 continue
@@ -3186,9 +3256,7 @@ class ActionHarness:
         # The declared read-only contract is enforced physically: the command
         # sees a discardable workspace view (kernel overlay, or a copied tree
         # when no overlay is available), so no write it makes is retained.
-        result = self._run_command(goal, arguments, ephemeral_workspace=True)
-        result.action_type = "check_command"
-        return result
+        return self._execute_process(goal, arguments, action_type="check_command", ephemeral_workspace=True)
 
     @staticmethod
     def _noop(goal: GoalState, arguments: dict[str, Any]) -> ActionResult:

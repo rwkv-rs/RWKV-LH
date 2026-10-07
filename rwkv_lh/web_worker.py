@@ -11,7 +11,7 @@ from typing import Any, Mapping
 
 from rwkv_lh.model_session import create_model_session
 from rwkv_lh.read_only_agent import ReadOnlyJob, run_read_only_job
-from rwkv_lh.coding_agent import CodingJob
+from rwkv_lh.agent_jobs import CodingJob
 from rwkv_lh.project_agent import run_project_job as run_coding_job, resume_project
 from rwkv_lh.project_runtime import ARCHITECTURE
 from rwkv_lh.web_ui import atomic_write_json, read_json, update_metadata, utc_now

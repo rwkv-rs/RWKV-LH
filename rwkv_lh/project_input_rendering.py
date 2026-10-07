@@ -18,6 +18,41 @@ _SPECIAL_FIELDS = {'instruction', 'next_decision', 'step_progress', 'action_feed
                    'observations', 'evidence_updates', 'latest_feedback', 'protocol_feedback', 'feedback'}
 
 
+def share_verbatim_json(payload):
+    """Encode repeated complete strings once, with explicit self-contained paths.
+
+    No source facts or occurrence identities change. Null placeholders are only
+    aliases at the listed paths, so arbitrary tool text cannot forge references.
+    The original semantic snapshot remains the ledger and trace authority.
+    """
+    occurrences = {}
+    def visit(value, path):
+        if isinstance(value, str) and len(value) >= 128:
+            occurrences.setdefault(value, []).append(path)
+        elif isinstance(value, dict):
+            for key, item in value.items():
+                visit(item, [*path, key])
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                visit(item, [*path, index])
+    visit(payload, [])
+    shared = [{'text': text, 'paths': paths} for text, paths in occurrences.items()
+              if len(paths) > 1 and len(canonical_json({'text': text, 'paths': paths}))
+                 < (len(canonical_json(text)) - 4) * len(paths)]
+    if not shared:
+        return deepcopy(payload)
+    body = deepcopy(payload)
+    for block in shared:
+        for path in block['paths']:
+            node = body
+            for key in path[:-1]:
+                node = node[key]
+            node[path[-1]] = None
+    wire = {'encoding': 'verbatim-json-strings.v1', 'payload': body, 'shared_strings': shared}
+    from .token_budget import get_token_count
+    return wire if get_token_count(canonical_json(wire)) < get_token_count(canonical_json(payload)) else deepcopy(payload)
+
+
 def _join_shared_blocks(lines):
     """Factor identical complete blocks within this update; retain every occurrence.
 

@@ -11,6 +11,7 @@ import time
 import traceback
 
 from .job_budget import WallDeadlineExpired as _WallDeadlineExpired
+from .generation_accounting import count_generation_records
 from .controller import LongHorizonController
 from .harness import ActionHarness
 from .model import LongHorizonModel
@@ -91,12 +92,9 @@ def append_pending_observations(state, controller, model, parent):
 
 
 def generation_trace_integrity(records):
-    started = [r['request_id'] for r in records if r['type'] == 'model_session_generation_started']
-    returned = [r['request_id'] for r in records if r['type'] == 'model_session_generation_returned']
-    return {'paired': (len(started) == len(set(started)) and len(returned) == len(set(returned))
-                       and set(started) == set(returned)),
-            'started': len(started), 'returned': len(returned),
-            'unresolved': sorted(set(started) - set(returned))}
+    counts = count_generation_records(records)
+    return {'paired': counts.paired, 'started': counts.started, 'returned': counts.returned,
+            'unresolved': sorted(counts.started_ids - counts.returned_ids)}
 
 
 def require_parent_trace(previous, result):
@@ -297,7 +295,7 @@ def _run_job(job, *, settings, session_factory, harness_factory, controller_type
                               else 'controller_returned_without_terminal_reason')
     commands = []
     for action in state.actions.values() if state else ():
-        if action.action_type not in ('run_command', 'check_command') or not action.result:
+        if action.action_type not in ('run_shell', 'check_command') or not action.result:
             continue
         value = action.result
         code = value.get('exit_code')
@@ -325,7 +323,7 @@ def _run_job(job, *, settings, session_factory, harness_factory, controller_type
               'trace_complete': trace_complete, 'trace_persistence_ok': not audit_errors,
               'generation_returned': integrity['returned'], 'unresolved_request_ids': integrity['unresolved'],
               'trace_errors': audit_errors, 'tool_scope': job.tool_scope,
-              'generation_started': len(generations), 'protocol_rejections': state.protocol_rejections if state is not None else 0,
+              'generation_started': integrity['started'], 'protocol_rejections': state.protocol_rejections if state is not None else 0,
               'actions': [a.to_dict() for a in state.actions.values()] if state is not None else [],
               'elapsed_seconds': time.monotonic()-started}
     _save(output / 'MATERIALS.json', {'items': items})

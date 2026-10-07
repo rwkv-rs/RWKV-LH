@@ -10,10 +10,10 @@ from uuid import uuid4
 from .project_contracts import assignment_dependencies_resumable
 from .project_contracts import (digest, make_assignment, task_map, validate_plan, text, fields, strings,
     selected_task_advice, require_current_verification, make_goal, validate_goal,
-    work_items, work_map, work_requirements, protected_paths, GOAL_ID, goal_check_context, validate_check)
+    work_items, work_map, work_requirements, protected_paths, GOAL_ID, work_check_context, validate_check, affected_work)
 from .workspace_snapshot import tree_identity
 
-PROTOCOL = 'rwkv-lh.project-ledger.v10'
+PROTOCOL = 'rwkv-lh.project-ledger.v13'
 
 
 class UncertainOperation(RuntimeError):
@@ -124,22 +124,36 @@ class ProjectLedger:
             return json.loads(connection.execute('SELECT body FROM current WHERE id=1').fetchone()[0])
 
     def verified_events(self):
-        """Read a consistent event snapshot and verify its link to current state."""
+        """Materialize verified events only when the caller needs every state."""
+        records = []
+        self.scan_verified_events(records.append)
+        return records
+
+    def scan_verified_events(self, visit=None):
+        """Verify a fresh, consistent chain with bounded working memory.
+
+        Visit is for in-memory projections only. Nothing may be published or
+        executed until this method returns: a later row can invalidate the
+        chain. The returned tip includes the verified current state. No caller
+        cache, skipped prefix or unverified tail is accepted.
+        """
         with self._connection() as connection:
             connection.execute('BEGIN')
-            rows = connection.execute('SELECT seq,kind,body,digest FROM events ORDER BY seq').fetchall()
+            previous, count, tip = None, 0, None
+            rows = connection.execute('SELECT seq,kind,body,digest FROM events ORDER BY seq')
+            for seq, kind, body, checksum in rows:
+                state = json.loads(body)
+                expected = digest(state) if previous is None else digest([previous, kind, state])
+                if checksum != expected or seq != count + 1 or (seq == 1 and kind != 'created'):
+                    raise ValueError('project event digest chain mismatch')
+                tip = {'seq': seq, 'kind': kind, 'state': state, 'digest': checksum}
+                if visit is not None:
+                    visit(tip)
+                previous, count = checksum, seq
             current = json.loads(connection.execute('SELECT body FROM current WHERE id=1').fetchone()[0])
-        previous, records = None, []
-        for seq, kind, body, checksum in rows:
-            state = json.loads(body)
-            expected = digest(state) if previous is None else digest([previous, kind, state])
-            if checksum != expected or seq != len(records) + 1 or (seq == 1 and kind != 'created'):
-                raise ValueError('project event digest chain mismatch')
-            records.append({'seq': seq, 'kind': kind, 'state': state, 'digest': checksum})
-            previous = checksum
-        if not records or records[-1]['state'] != current:
-            raise ValueError('project current state differs from event digest chain')
-        return records
+            if tip is None or tip['state'] != current:
+                raise ValueError('project current state differs from event digest chain')
+        return tip
 
     def update(self, kind, mutate):
         if self.read_only:
@@ -253,13 +267,8 @@ class ProjectLedger:
             # Initial MVP is conservative: tasks may be revised or added, not erased.
             if old_tasks.keys() - tasks.keys():
                 raise ValueError('cannot erase existing tasks or their requirements')
-        affected = {key for key, task in tasks.items() if old_tasks.get(key) != task
-                    or set(task['requirements']) & changed_requirements}
-        while True:
-            expanded = affected | {key for key, task in tasks.items() if set(task['dependencies']) & affected}
-            if expanded == affected:
-                break
-            affected = expanded
+        affected = affected_work(list(tasks.values()), {key for key, task in tasks.items()
+            if old_tasks.get(key) != task or set(task['requirements']) & changed_requirements})
         if state['active']:
             active = state['active']
             if digest(tasks.get(active['task']['id'])) != active['contract_digest']:
@@ -318,12 +327,13 @@ class ProjectLedger:
             state, plan, expected_version=expected_version, replacements=replacements, review=review))
 
     @staticmethod
-    def _validate_goal_checks(state, checks, replacements):
-        if state['plan'] is not None or state['active']:
-            raise ValueError('goal proof requires inactive direct goal work')
-        report = state['reports'].get(GOAL_ID)
+    def _validate_work_checks(state, checks, replacements):
+        task_id = state.get('planner_subject_id')
+        if state['active'] or task_id not in work_map(state):
+            raise ValueError('work proof requires an inactive selected work contract')
+        report = state['reports'].get(task_id)
         if not report or report['status'] != 'submitted':
-            raise ValueError('goal proof requires an actual submitted worker claim')
+            raise ValueError('work proof requires an actual submitted worker claim')
         if not isinstance(checks, list) or not checks:
             raise ValueError('reviewed nonempty goal checks required')
         seen = set()
@@ -333,15 +343,15 @@ class ProjectLedger:
                 raise ValueError('duplicate goal check identity')
             seen.add(check['id'])
             registered = state['check_catalog'].get(check['id'])
-            if registered is not None and registered != {'task_id': GOAL_ID, 'check': check}:
+            if registered is not None and registered != {'task_id': task_id, 'check': check}:
                 raise ValueError('changed historical check identity requires a new identifier')
         from .project_protocols.planner import validate_work_check_replacements
         old = work_items(state)
         new = deepcopy(old)
-        new[0]['checks'] = deepcopy(checks)
+        next(t for t in new if t['id'] == task_id)['checks'] = deepcopy(checks)
         validate_work_check_replacements(old, new, replacements, state['evidence'])
 
-    def propose_goal_checks(self, checks, rationale, replacements):
+    def propose_work_checks(self, checks, rationale, replacements):
         text(rationale)
         current = self.workspace_digest()
         def propose(s):
@@ -349,16 +359,22 @@ class ProjectLedger:
                 raise ValueError('goal checks require an explicit binding request')
             if current != s['workspace_digest']:
                 raise ValueError('workspace changed before goal check proposal')
-            self._validate_goal_checks(s, checks, replacements)
+            self._validate_work_checks(s, checks, replacements)
+            context = work_check_context(s)
+            inbox = s['inbox']
+            if (inbox['plan_version'] != s['plan_version']
+                    or s['evidence'][inbox['operation_id']]['intent']['input']['work_context'] != context):
+                raise ValueError('work check author context changed')
             author = s['inbox']['operation_id']
             s['pending_checks'] = {'checks': deepcopy(checks), 'rationale': rationale,
-                'replacements': deepcopy(replacements), 'goal_digest': digest(s['goal']),
+                'replacements': deepcopy(replacements), 'task_id': context['task']['id'],
+                'work_digest': digest({k: v for k, v in context.items() if k != 'candidate'}),
                 'workspace_digest': current, 'expected_version': s['plan_version'],
                 'author_operation_id': author, 'lane': 'check-review-' + author}
             s['inbox'] = None
-        return self.update('goal_checks_proposed', propose)
+        return self.update('work_checks_proposed', propose)
 
-    def return_goal_check_advice(self, params):
+    def return_work_check_advice(self, params):
         """Apply the model's explicit handoff, retaining unresolved proof as advice."""
         fields(params, ('text', 'evidence_ids'))
         text(params['text']); strings(params['evidence_ids'])
@@ -368,7 +384,7 @@ class ProjectLedger:
                 or state['planner_request'] != 'checks' or inbox['plan_version'] != state['plan_version']):
             raise ValueError('goal check advice requires the current explicit proof request')
         receipt = state['evidence'][inbox['operation_id']]
-        if receipt['intent']['input']['goal_context'] != goal_check_context(state):
+        if receipt['intent']['input']['work_context'] != work_check_context(state):
             raise ValueError('goal check advice context changed')
         visible = {item['id'] for item in receipt['intent']['input']['evidence']}
         if set(params['evidence_ids']) - visible:
@@ -376,35 +392,38 @@ class ProjectLedger:
         if candidate and inbox['lane'] != candidate['lane']:
             raise ValueError('goal check advice is not bound to its proposal')
         def advised(s):
-            advice = {**deepcopy(params), 'subject_id': GOAL_ID, 'is_execution_evidence': False}
+            advice = {**deepcopy(params), 'subject_id': state['planner_subject_id'], 'is_execution_evidence': False}
             s['advice'][inbox['operation_id']] = advice
-            s['feedback'] = {'kind': 'goal_check_advice', 'advice_id': inbox['operation_id'],
+            s['feedback'] = {'kind': 'work_check_advice', 'advice_id': inbox['operation_id'],
                 'mode': inbox['planning'], 'candidate': deepcopy(candidate), **advice}
             s['pending_checks'] = None
             s['planner_request'] = None
             s['inbox'] = None
-        return self.update('goal_check_advised', advised)
+        return self.update('work_check_advised', advised)
 
-    def resolve_goal_check_review(self, params):
+    def resolve_work_check_review(self, params):
         from .project_protocols.planner import validate_review
         validate_review(params)
         state = self.state()
         candidate, inbox = state['pending_checks'], state['inbox']
         if (not candidate or inbox['lane'] != candidate['lane']
-                or inbox['plan_version'] != candidate['expected_version']):
+                or inbox['plan_version'] != candidate['expected_version']
+                or state['plan_version'] != candidate['expected_version']):
             raise ValueError('goal check review is not bound to its proposal')
         receipt = state['evidence'][inbox['operation_id']]
-        if receipt['intent']['input']['goal_context'] != goal_check_context(state):
+        if receipt['intent']['input']['work_context'] != work_check_context(state):
             raise ValueError('goal check review context changed')
         current = self.workspace_digest()
-        if current != candidate['workspace_digest'] or digest(state['goal']) != candidate['goal_digest']:
+        context = work_check_context(state)
+        if (current != candidate['workspace_digest']
+                or digest({k: v for k, v in context.items() if k != 'candidate'}) != candidate['work_digest']):
             def stale(s):
                 self.invalidate(s, current)
                 s['pending_checks'] = None
                 s['planner_request'] = 'checks'
                 s['inbox'] = None
-                s['feedback'] = {'kind': 'goal_check_review_stale', 'candidate': candidate}
-            return self.update('goal_check_review_stale', stale)
+                s['feedback'] = {'kind': 'work_check_review_stale', 'candidate': candidate}
+            return self.update('work_check_review_stale', stale)
         review = {**deepcopy(params), 'candidate': deepcopy(candidate),
             'review_operation_id': inbox['operation_id'], 'input_digest': receipt['intent']['input_digest'],
             'is_execution_evidence': False}
@@ -415,22 +434,34 @@ class ProjectLedger:
             s['pending_checks'] = None
             s['inbox'] = None
             if params['verdict'] == 'reject':
-                s['feedback'] = {'kind': 'goal_check_review_rejected', **review}
+                s['feedback'] = {'kind': 'work_check_review_rejected', **review}
                 s['planner_request'] = 'checks'
                 return
-            self._validate_goal_checks(s, candidate['checks'], candidate['replacements'])
-            s['goal_checks'] = deepcopy(candidate['checks'])
+            self._validate_work_checks(s, candidate['checks'], candidate['replacements'])
+            task_id = candidate['task_id']
+            if task_id != s['planner_subject_id']:
+                raise ValueError('check review task identity changed')
+            if s['plan'] is None:
+                s['goal_checks'] = deepcopy(candidate['checks'])
+            else:
+                next(t for t in s['plan']['tasks'] if t['id'] == task_id)['checks'] = deepcopy(candidate['checks'])
             for check in candidate['checks']:
-                s['check_catalog'][check['id']] = {'task_id': GOAL_ID, 'check': deepcopy(check)}
+                s['check_catalog'][check['id']] = {'task_id': task_id, 'check': deepcopy(check)}
             s['plan_version'] += 1
-            s['acceptance'].pop(GOAL_ID, None)
-            s['suspended'].pop(GOAL_ID, None)
-            if GOAL_ID in s['verification']:
-                s['verification'][GOAL_ID]['status'] = 'stale'
-            s['task_status'][GOAL_ID] = 'awaiting_verification'
+            if candidate['replacements']:
+                s['check_revisions'].append({'plan_version': s['plan_version'],
+                    'replacements': deepcopy(candidate['replacements'])})
+            for key in affected_work(work_items(s), {task_id}):
+                s['acceptance'].pop(key, None)
+                s['suspended'].pop(key, None)
+                if key in s['verification']:
+                    s['verification'][key]['status'] = 'stale'
+                # Proof changes preserve implementation claims, never accepted proof.
+                s['task_status'][key] = ('awaiting_verification'
+                    if s['reports'].get(key, {}).get('status') == 'submitted' else 'pending')
             s['planner_request'] = None
-            s['feedback'] = {'kind': 'goal_checks_bound', 'review_operation_id': inbox['operation_id']}
-        return self.update('goal_check_reviewed', resolve)
+            s['feedback'] = {'kind': 'work_checks_bound', 'review_operation_id': inbox['operation_id']}
+        return self.update('work_check_reviewed', resolve)
 
     @staticmethod
     def selected_advice(state, task_id, advice_ids):
@@ -472,49 +503,37 @@ class ProjectLedger:
         return self.update('delegated', change)['active']
 
     def report_work(self, assignment_id, status, summary, evidence_ids):
-        if status not in ('submitted', 'blocked'):
+        """One worker report boundary; progress keeps the active assignment."""
+        from .project_contracts import strings
+        if status not in ('progress', 'submitted', 'blocked'):
             raise ValueError('unknown worker status')
         text(summary)
+        strings(evidence_ids)
         def change(state):
             active = state['active']
-            if not active or active['id'] != assignment_id:
-                raise ValueError('inactive assignment')
+            if (not active or active['id'] != assignment_id or state['pending']
+                    or state['control'] != 'executor'):
+                raise ValueError('report requires a confirmed active execution boundary')
             from .project_evidence import executor_evidence_ids
             if set(evidence_ids) - executor_evidence_ids(state):
                 raise ValueError(f'params.evidence_ids: unknown or unauthorized evidence reference; '
                                  f'permitted {sorted(executor_evidence_ids(state))!r}')
-            report = {'assignment_id': assignment_id, 'status': status, 'summary': summary,
-                      'evidence_ids': list(evidence_ids), 'authority': 'worker_claim'}
-            key = active['task']['id']
-            state['reports'][key] = report
-            state['task_status'][key] = 'awaiting_verification' if status == 'submitted' else 'blocked'
-            state['suspended'][key] = deepcopy(active)
-            state['active'] = None
-            state['control'] = 'decision'
-            state['feedback'] = report
-            state['inbox'] = None
-        return self.update('worker_reported', change)
-
-    def report_progress(self, assignment_id, summary, evidence_ids):
-        """A worker claim can yield control without closing its assignment."""
-        from .project_contracts import strings
-        text(summary)
-        strings(evidence_ids)
-        def change(s):
-            active = s['active']
-            if not active or active['id'] != assignment_id or s['pending'] or s['control'] != 'executor':
-                raise ValueError('progress requires a confirmed active execution boundary')
-            from .project_evidence import executor_evidence_ids
-            if set(evidence_ids) - executor_evidence_ids(s):
-                raise ValueError(f'params.evidence_ids: unknown or unauthorized progress evidence reference; '
-                                 f'permitted {sorted(executor_evidence_ids(s))!r}')
             report = {'assignment_id': assignment_id, 'summary': summary,
-                'evidence_ids': list(evidence_ids), 'authority': 'worker_claim'}
-            active['local_context']['progress_report'] = report
-            s['control'] = 'decision'
-            s['feedback'] = {'kind': 'execution_progress', 'report': deepcopy(report)}
-            s['inbox'] = None
-        return self.update('execution_progress', change)
+                      'evidence_ids': list(evidence_ids), 'authority': 'worker_claim'}
+            if status == 'progress':
+                active['local_context']['progress_report'] = report
+                state['feedback'] = {'kind': 'execution_progress', 'report': deepcopy(report)}
+            else:
+                report['status'] = status
+                key = active['task']['id']
+                state['reports'][key] = report
+                state['task_status'][key] = 'awaiting_verification' if status == 'submitted' else 'blocked'
+                state['suspended'][key] = deepcopy(active)
+                state['active'] = None
+                state['feedback'] = report
+            state['control'] = 'decision'
+            state['inbox'] = None
+        return self.update('execution_progress' if status == 'progress' else 'worker_reported', change)
 
     def continue_current(self, task_id, *, advice_ids=(), handoff=None):
         """Resume an unchanged assignment; never rebuild its recurrent State."""
@@ -552,7 +571,7 @@ class ProjectLedger:
                 'previous_feedback': deepcopy(s['feedback']), 'unit': deepcopy(s['work_unit'])}
         return self.update('execution_yielded', change)
 
-    def accept_task(self, task_id, *, verification_id, reason):
+    def accept_task(self, task_id, *, verification_id, reason, deliver_report_id=None):
         text(reason)
         current = self.workspace_digest()
         def change(s):
@@ -562,7 +581,36 @@ class ProjectLedger:
             s['task_status'][task_id] = 'verified'
             s['feedback'] = {'kind': 'task_accepted', 'task_id': task_id}
             s['inbox'] = None
-        return self.update('task_accepted', change)
+            if deliver_report_id is not None:
+                self._complete(s, deliver_report_id, current)
+        return self.update('accepted_and_completed' if deliver_report_id is not None else 'task_accepted', change)
+
+    @staticmethod
+    def _completion_ready(s, current):
+        return bool(work_items(s) and not s['active'] and not s['pending'] and not s['pending_plan']
+            and not s['pending_checks'] and not s['planner_request']
+            and s['workspace_digest'] == current
+            and all(t['checks'] and s['task_status'][t['id']] == 'verified'
+                and s['reports'].get(t['id'], {}).get('status') == 'submitted'
+                and s['verification'].get(t['id'], {}).get('status') == 'passed'
+                and s['acceptance'].get(t['id'], {}).get('verification_id') == s['verification'][t['id']]['operation_id']
+                and s['acceptance'][t['id']]['workspace_digest'] == current
+                and s['verification'][t['id']]['workspace_digest'] == current
+                and s['verification'][t['id']]['task_digest'] == digest(t) for t in work_items(s)))
+
+    @classmethod
+    def _complete(cls, state, report_id, current):
+        text(report_id)
+        if not cls._completion_ready(state, current):
+            raise ValueError('completion requires current accepted proof of the complete goal and every planned task')
+        report = state['reports'].get(report_id)
+        if not report or report['status'] != 'submitted':
+            raise ValueError('delivery requires an existing submitted worker report')
+        state.update(status='completed', final=report['summary'], inbox=None)
+
+    def complete(self, report_id):
+        current = self.workspace_digest()
+        return self.update('completed', lambda state: self._complete(state, report_id, current))
 
     def begin_operation(self, kind, payload):
         identifier = 'OP-' + uuid4().hex
@@ -621,17 +669,10 @@ class ProjectLedger:
         return self.finish_operation(identifier, {'checks': checks}, mutate=change)
 
     def completion_ready(self):
-        s = self.state()
-        return bool(work_items(s) and not s['active'] and not s['pending'] and not s['pending_plan']
-            and not s['pending_checks']
-            and s['workspace_digest'] == self.workspace_digest()
-            and all(t['checks'] and s['task_status'][t['id']] == 'verified'
-                and s['acceptance'].get(t['id'], {}).get('verification_id') == s['verification'][t['id']]['operation_id']
-                and s['verification'][t['id']]['workspace_digest'] == s['workspace_digest']
-                and s['verification'][t['id']]['task_digest'] == digest(t) for t in work_items(s)))
+        return self._completion_ready(self.state(), self.workspace_digest())
 
     def require_recoverable(self):
-        self.verified_events()
+        self.scan_verified_events()
         state = self.state()
         if state['pending']:
             raise UncertainOperation('operation needs reconciliation: ' + state['pending']['id'])

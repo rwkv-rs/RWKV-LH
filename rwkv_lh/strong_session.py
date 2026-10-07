@@ -4,6 +4,9 @@ import json
 from types import SimpleNamespace
 from .supervisor_openai import OpenAICompatibleSupervisorClient, SupervisorGenerationInterrupted
 from .read_only_agent import ReadOnlyBudgetExpired
+from .model_session import ModelSession
+from .model_io import canonical_json
+from .token_budget import get_token_count
 
 
 class KnownStrongOutputBudgetExpired(ReadOnlyBudgetExpired):
@@ -14,6 +17,12 @@ class KnownStrongOutputBudgetExpired(ReadOnlyBudgetExpired):
 
 
 class AuditedStrongClient(OpenAICompatibleSupervisorClient):
+    def __init__(self, settings, **kwargs):
+        from .deepseek_api import BACKEND_PROFILE
+        if settings.backend_profile != BACKEND_PROFILE:
+            raise ValueError('strong model calls require the official DeepSeek backend')
+        super().__init__(settings, **kwargs)
+
     def _post_completion(self, endpoint, body, *, audit_context):
         self._emit({'type': 'strong_execution_wire_request', 'endpoint': endpoint,
                     'body': dict(body), **audit_context})
@@ -34,11 +43,7 @@ class StrongCompletion:
         with (self.output / 'strong_trace.jsonl').open('a') as stream:
             stream.write(json.dumps(dict(event), ensure_ascii=False) + '\n')
 
-    def text_completion(self, prompt, max_tokens=1800, stop=None):
-        if self.calls >= self.max_calls:
-            raise RuntimeError('strong request budget exhausted')
-        self.calls += 1
-        start = len(self.events)
+    def _input(self, prompt):
         system_prompt, request_payload = (
             self.input_builder() if self.input_builder is not None else (prompt, {})
         )
@@ -46,6 +51,24 @@ class StrongCompletion:
         if self.tools_builder is not None:
             from .strong_structured_output import build_tool_contract
             contract = build_tool_contract(self.tools_builder())
+        return system_prompt, request_payload, contract
+
+    def wire_input_tokens(self, prompt, max_tokens):
+        """Conservative local estimate; provider tokenizer/template remain distinct."""
+        from .supervisor_openai import _render_user_payload
+        system, payload, contract = self._input(prompt)
+        _, body, _ = self.client._wire_request(phase=self.phase, selected_model=self.model_name,
+            system_prompt=system, payload_text=_render_user_payload(payload),
+            max_tokens=max_tokens, tool_contract=contract)
+        return get_token_count(canonical_json(body))
+
+    def text_completion(self, prompt, max_tokens=1800, stop=None):
+        if self.calls >= self.max_calls:
+            raise RuntimeError('strong request budget exhausted')
+        self.calls += 1
+        start = len(self.events)
+        system_prompt, request_payload, contract = self._input(prompt)
+        if contract is not None:
             self.audit({'type': 'strong_decoder_contract', 'contract': contract})
         try:
             content = self.client._request_json(phase=self.phase, run_id=self.output.parent.name,
@@ -74,3 +97,9 @@ class StrongCompletion:
         return SimpleNamespace(content=content, finish_reason=choice['finish_reason'],
             model=raw.get('model', self.model_name), response_id=raw.get('id', ''),
             metadata={'strong_decoder_contract_sha256': contract['contract_sha256']} if contract is not None else {})
+
+
+class StrongModelSession(ModelSession):
+    """Keep the complete audit checkpoint; budget only the strong request wire."""
+    def generation_input_tokens(self, transcript, max_output_tokens):
+        return self.client.wire_input_tokens(transcript, max_output_tokens)

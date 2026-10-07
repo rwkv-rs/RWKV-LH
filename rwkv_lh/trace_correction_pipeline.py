@@ -44,8 +44,8 @@ def validate_learning_contract(contract, input_text, *, function=None):
     if _evidence_binding(input_text, contract['evidence_quote']) is None:
         raise ValueError('learning evidence must occur in visible input')
     scopes = {'local_behavior': {'write_file', 'replace_text'},
-              'diagnostic_observation': {'run_command', 'check_command'},
-              'grounded_observation': {'read_file', 'search_text', 'list_directory'},
+              'diagnostic_observation': {'run_shell', 'check_command'},
+              'grounded_observation': {'read_file', 'search_files', 'list_directory'},
               'honest_final': {'final_answer'}}
     scope = contract['acceptance_scope']
     if scope not in scopes or (function is not None and function not in scopes[scope]):
@@ -61,6 +61,7 @@ def file_sha(path):
 def pipeline_identity():
     root = Path(__file__).resolve().parents[1]
     names = ('rwkv_lh/trace_correction_pipeline.py', 'rwkv_lh/offline_teacher_api.py',
+             'rwkv_lh/deepseek_api.py',
              'rwkv_lh/observation_corrections.py', 'rwkv_lh/correction_review.py',
              'rwkv_lh/coding_corrections.py', 'rwkv_lh/command_corrections.py',
              'rwkv_lh/direct_trace_data.py', 'scripts/run_trace_correction_pipeline.py')
@@ -121,10 +122,10 @@ def prepare(plan, output):
         raise ValueError('positive context limit required')
     allowed = plan['allowed_functions']
     if not isinstance(allowed, list) or not allowed or not set(allowed) <= {
-            'read_file', 'search_text', 'list_directory', 'write_file', 'replace_text',
-            'run_command', 'check_command', 'final_answer'}:
+            'read_file', 'search_files', 'list_directory', 'write_file', 'replace_text',
+            'run_shell', 'check_command', 'final_answer'}:
         raise ValueError('explicit supported action permissions required')
-    if plan.get('read_only') is True and set(allowed) & {'write_file', 'replace_text', 'run_command'}:
+    if plan.get('read_only') is True and set(allowed) & {'write_file', 'replace_text', 'run_shell'}:
         raise ValueError('read-only plan permits mutation')
     if set(allowed) & {'write_file', 'replace_text'}:
         checks = plan.get('checks')
@@ -132,7 +133,7 @@ def prepare(plan, output):
                 isinstance(argv, list) and argv and all(isinstance(v, str) and v for v in argv)
                 for argv in checks):
             raise ValueError('edit plan requires public execution checks before API use')
-    if set(allowed) & {'run_command', 'check_command'}:
+    if set(allowed) & {'run_shell', 'check_command'}:
         expected = plan.get('expected_output')
         if (type(plan.get('expected_exit_code')) is not int
                 or not 0 <= plan['expected_exit_code'] <= 255
@@ -238,7 +239,7 @@ def run(directory, *, expected_packet_sha256, teacher):
                     check_timeout_seconds=plan.get('check_timeout_seconds', 30))
                 authority, field = 'verified_coding', 'correction_validation'
                 after = proof.get('corrected_tree')
-            elif command.name in ('run_command', 'check_command'):
+            elif command.name in ('run_shell', 'check_command'):
                 proof = validate_command_correction(**common,
                     expected_exit_code=plan['expected_exit_code'], expected_output=plan['expected_output'])
                 authority, field = 'verified_command', 'command_validation'

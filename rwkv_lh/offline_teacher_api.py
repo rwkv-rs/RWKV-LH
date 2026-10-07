@@ -13,6 +13,7 @@ import time
 import uuid
 
 import requests
+from .deepseek_api import chat_request
 
 
 def digest(text):
@@ -62,10 +63,8 @@ class DeepSeekTeacher:
                        'timeout_seconds': timeout_seconds}
 
     def complete(self, system, user):
-        body = {'model': self.model, 'messages': [
-            {'role': 'system', 'content': system}, {'role': 'user', 'content': user}],
-            'thinking': {'type': 'disabled'}, 'response_format': {'type': 'json_object'},
-            'temperature': 0, 'max_tokens': self.output_limit, 'stream': False}
+        endpoint, body, _ = chat_request(model=self.model, system=system, user=user,
+            max_tokens=self.output_limit, options={'temperature': 0})
         # Deliberately pessimistic UTF-8 bound plus chat framing allowance. This
         # is estimated spend under registered rates, not a provider billing cap.
         prompt_bound = 4 * len(json.dumps(body, ensure_ascii=False).encode()) + 8192
@@ -93,7 +92,7 @@ class DeepSeekTeacher:
             try:
                 with requests.Session() as session:
                     session.trust_env = False
-                    response = session.post('https://api.deepseek.com/chat/completions',
+                    response = session.post(endpoint,
                         headers={'Authorization': 'Bearer ' + key}, json=body,
                         timeout=(min(15, self.timeout), self.timeout), allow_redirects=False)
                 if response.status_code != 200:

@@ -11,7 +11,8 @@ from .schema import ModelEvent
 from .harness import ActionHarness
 from .token_budget import tokenizer, VOCAB_PATH
 from .project_input_delta import INPUT_HANDOFF_VERSION, input_update
-from .project_decoder import build_role_decoder, INPUT_FRAMING
+from .project_decoder import build_role_decoder, INPUT_FRAMING, BOUNDARY_POLICY
+from .project_protocols import decision, executor
 from .runtime.structured_output import decoder_receipt, state_output_token_ids
 
 
@@ -42,6 +43,7 @@ def replay_native_rows(rows):
         role, lane = row['role'], row['lane']
         if role == 'planner':
             continue
+        {'decision': decision, 'executor': executor}[role].validate_input(row['input'])
         definitions = role_definitions(role, ActionHarness())
         exported = row['checkpoint']
         if exported['binding']['tools_digest'] != digest(definitions):
@@ -49,14 +51,17 @@ def replay_native_rows(rows):
         cp = exported['checkpoint']
         evidence = row['result']['evidence']
         raw = evidence.get('raw_generation', {})
-        decoder_id = exported['binding'].get('decoder_contract_sha256')
+        decoder_id = exported['binding'].get('decoder_catalog_sha256')
         if decoder_id is not None:
-            decoder = build_role_decoder(definitions)
-            if (decoder_id != decoder['contract_sha256'] or raw.get('decoder') != decoder_receipt(decoder)
+            decoder = build_role_decoder(definitions, role=role, payload=row['input'])
+            if (decoder_id != build_role_decoder(definitions)['contract_sha256']
+                    or exported['binding'].get('decoder_boundary_policy') != BOUNDARY_POLICY
+                    or raw.get('decoder') != decoder_receipt(decoder)
                     or exported['binding'].get('decoder_input_framing') != INPUT_FRAMING):
                 raise ValueError('recorded decoder contract/receipt differs from current role schema')
         elif (raw.get('decoder') is not None or raw.get('state_token_ids') is not None
-              or exported['binding'].get('decoder_input_framing') is not None):
+              or any(key in exported['binding'] for key in
+                     ('decoder_input_framing', 'decoder_boundary_policy', 'decoder_contract_sha256'))):
             raise ValueError('unbound decoder in original generation')
         if (raw.get('prompt_token_ids_scope') != 'full_context'
                 or raw.get('input_bos_token_count') != 1 or raw.get('postprocessed') is not False):
@@ -67,7 +72,7 @@ def replay_native_rows(rows):
         retry, selected_parent = False, None
         if lane in lanes:
             previous, ids, prior_text = lanes[lane]
-            if decoder_id != previous['binding'].get('decoder_contract_sha256'):
+            if decoder_id != previous['binding'].get('decoder_catalog_sha256'):
                 raise ValueError('decoder changed inside a recorded lane')
             if incremental != previous['binding'].get('input_handoff'):
                 raise ValueError('input handoff changed inside a recorded lane')

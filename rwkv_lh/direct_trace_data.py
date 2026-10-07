@@ -236,12 +236,12 @@ def normalize_direct_row(row: Mapping, *, model_sha256: str, context_tokens: int
                          'coding label requires sealed atomic correction proof')
             executed_arguments(command)
         elif authority in ('verified_read', 'verified_final'):
-            functions = ('final_answer',) if authority == 'verified_final' else ('read_file', 'search_text', 'list_directory')
+            functions = ('final_answer',) if authority == 'verified_final' else ('read_file', 'search_files', 'list_directory')
             core.require(command.name in functions and isinstance(row.get('observation_validation'), Mapping)
                          and set(row['observation_validation']) == {'path', 'sha256'},
                          'observation label requires sealed execution/grounding proof')
         else:
-            core.require(command.name in ('check_command', 'run_command')
+            core.require(command.name in ('check_command', 'run_shell')
                          and isinstance(row.get('command_validation'), Mapping)
                          and set(row['command_validation']) == {'path', 'sha256'},
                          'command label requires sealed command proof')
@@ -267,7 +267,7 @@ def _complete_observed_text_hashes(result: Mapping) -> list[str]:
             return []
         text = ''.join(span['content'] for span in observation['exact_spans'])
         return [hashlib.sha256(text.encode()).hexdigest()]
-    core.require(result.get('action_type') in ('check_command', 'run_command')
+    core.require(result.get('action_type') in ('check_command', 'run_shell')
                  and observation.get('fact_authority') == 'exit_code_and_exact_stream_spans',
                  'command evidence authority differs')
     hashes = []

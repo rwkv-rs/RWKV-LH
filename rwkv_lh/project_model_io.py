@@ -15,7 +15,7 @@ PROJECT_INPUT_PREFIX = (
     "its declared parameters inside a function/params JSON call. Role input: "
 )
 _GENERIC_INPUT_PREFIX = "\n\nUser: Function output: "
-PROMPT_LAYOUT_VERSION = 'project-role-prompt.v7'
+PROMPT_LAYOUT_VERSION = 'project-role-prompt.v8'
 
 
 def project_prompt_identity(role):

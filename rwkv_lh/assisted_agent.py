@@ -201,7 +201,7 @@ def _main():
     settings = RuntimeSettings(**payload['settings'])
     load_local_env()
     strong = replace(SupervisorAPISettings.from_env(), retry_attempts=1, semantic_repair_attempts=0,
-                     fallback_models=(), plan_cache_enabled=False, read_timeout_seconds=180)
+                     plan_cache_enabled=False, read_timeout_seconds=180)
     previous, result, state, _ = load_parent(job)
     root = Path(job.output_dir)
     root.mkdir(parents=True, exist_ok=False)

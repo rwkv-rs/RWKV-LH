@@ -25,6 +25,6 @@ rwkv-lh --resume /absolute/runs/project
 
 编码输出包括 `workspace/`、`INITIAL_TREE.json`、`SOURCE_COPY.json`、`DELIVERY.json` 和 `execution/`。执行记录包括 SQLite 账本、模型 trace、强模型原始提供方记录、工具原始回执和隔离检查副本。Web 导出会对 SQLite 做一致快照。
 
-退出 0 表示提交；编码任务还通过了当前计划内检查，仍不代表外部 Strict 合格。`DELIVERY.json` 中的 `acceptance` 明确区分该边界。`generation_started` 是项目账本预留的模型调用次数，未知响应仍占用调用预算；不能直接当作提供方计费次数。原始 usage 以强模型 trace 为准。`trace_complete` 仅表示当前没有未决操作，不代表张量数值、训练准入或外部验收已通过。
+退出 0 表示提交；编码任务还通过了当前计划内检查，仍不代表外部 Strict 合格。`DELIVERY.json` 中的 `acceptance` 明确区分该边界。`model_calls` 记录账本预留，`generation_started` / `generation_returned` 记录已观察的开始／返回事件；未知计数保留 null。预留不等于实际生成，更不等于提供方计费次数，原始 usage 以强模型 trace 为准。Project 的 `trace_complete` 要求事件身份与顺序配对、预留与实际开始一致、返回与发布证据对应且没有 pending；不证明 State 数值、训练资格或外部验收通过。
 
 队列等待和整个批次的总用时单列；项目准备、模型执行、工具与验证均有协作式墙钟约束。清理/持久化可能略超时，不能把 Python 信号上限当成系统硬配额。源目录复制前后身份检测也不等于对外部并发写入提供文件系统原子快照。

@@ -7,6 +7,7 @@ import json
 import hashlib
 import math
 from pathlib import Path
+from .generation_accounting import execution_trace_files
 
 
 def _count(value):
@@ -124,8 +125,7 @@ def audit_run_usage(root, *, rates=None, currency=None):
     root = Path(root).resolve(strict=True)
     names = {'model_trace.jsonl', 'strong_trace.jsonl', 'ADVICE_PROVIDER_TRACE.jsonl'}
     traces = {str(p.relative_to(root)): [json.loads(line) for line in p.read_text().splitlines() if line.strip()]
-              for p in sorted(root.rglob('*.jsonl')) if p.name in names and 'workspace' not in p.relative_to(root).parts
-              and 'tool_snapshots' not in p.relative_to(root).parts}
+              for p in sorted(execution_trace_files(root, names))}
     result = summarize_usage(traces, rates=rates, currency=currency)
     result['trace_files'] = sorted(traces)
     result['trace_sha256'] = {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in traces}

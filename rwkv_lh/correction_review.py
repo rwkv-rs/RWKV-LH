@@ -22,7 +22,7 @@ Distinguish final_answer from next_action:
   or cite tests that have not happened yet. Do not reject a semantically valid implementation
   merely because it uses a different route. Do not conflate a library method and SQL semantics.
   If uncertain about an API or behavior, state the uncertainty rather than invent a defect.
-A check_command/run_command may deliberately reproduce an existing failure before any edit.
+A check_command/run_shell may deliberately reproduce an existing failure before any edit.
 A nonzero expected_exit_code is a tool-level expected outcome, not a declaration that the user
 problem is solved. Never reject an otherwise grounded diagnostic merely because it runs before
 an edit, returns an expected nonzero exit code, or does not itself repair the implementation.

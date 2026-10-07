@@ -229,6 +229,16 @@ def work_map(state):
     return {item['id']: item for item in work_items(state)}
 
 
+def affected_work(tasks, changed):
+    """Contracts and their transitive dependents share one invalidation closure."""
+    affected = set(changed)
+    while True:
+        expanded = affected | {t['id'] for t in tasks if set(t['dependencies']) & affected}
+        if expanded == affected:
+            return affected
+        affected = expanded
+
+
 def work_requirements(state, task):
     if task['id'] == GOAL_ID:
         return [{'id': GOAL_ID, 'text': state['goal']['request']}]
@@ -242,9 +252,11 @@ def protected_paths(state):
     return list(dict.fromkeys(paths))
 
 
-def goal_check_context(state):
-    return {'goal': deepcopy(state['goal']), 'current_checks': deepcopy(state['goal_checks']),
-        'worker_report': deepcopy(state['reports'].get(GOAL_ID)),
+def work_check_context(state):
+    task = work_map(state)[state['planner_subject_id']]
+    return {'goal': deepcopy(state['goal']), 'task': task,
+        'requirements': deepcopy(work_requirements(state, task)),
+        'worker_report': deepcopy(state['reports'].get(task['id'])),
         'candidate': deepcopy(state['pending_checks'])}
 
 

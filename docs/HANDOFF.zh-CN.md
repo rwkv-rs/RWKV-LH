@@ -1,73 +1,62 @@
-# 第一轮：当前能力、工具整改与模型对照准备
+# 当前状态与交接
 
-当前实验入口为 `data/experiments/ROUND_01/`。只在本页维护当前状态；原始输入输出、失败、State/回执、产物、逐轮过程和SHA保留本地，历史查Git。
+产品使用 G1k 13.3B、独立 Decision／Executor State 和按需强 Planner。当前两角色均为 zero。架构见 [ARCHITECTURE](ARCHITECTURE.zh-CN.md)，数据与准入见 [PROJECT_ROLE_DATA_PIPELINE](PROJECT_ROLE_DATA_PIPELINE.zh-CN.md)，额度见 [PROJECT_BUDGETS](PROJECT_BUDGETS.zh-CN.md)。源码公开，测试和原始证据由 owner 单独交接，边界见 [SOURCE_DISTRIBUTION](SOURCE_DISTRIBUTION.zh-CN.md)。
 
-## Agent结果
+## Agent 基线
 
-| 批次 | Strict | completed | mutation | 独立整体验收 | 预算与用途 |
-|---|---:|---:|---:|---:|---|
-| 原十二道完整项目 | 0/12 | 0/12 | 55 | 0/12 | 每题64调用/1200秒；当前基线 |
-| 新增108相关变种 | 0/108 | 0/108 | 122 | 0/108 | 每题32调用/900秒；十二题型各九变种 |
-| 工具整改后六题 | 0/6 | 0/6 | 1 | 0/6 | 每题32调用/900秒；固定六方向工程验证 |
+**Strict 0/120、completed 0/120、独立功能验收 0/120，实际 mutation 4。** 终止原因：单次输出额度 18、输入容量 1、总调用额度 24、墙钟 71、未确认操作 6；其中 2 次 Native 非有限 State、4 次 SSH 中断。
 
-原120题已全部结束并完成逐调用审计。六题整改验证使用原变种V01的debug、环境、CLI、数据、Web、全栈，六题并发、各一次zero。终止为 `{"resource_budget_exhausted": 6}`。这些是有目的的工程验证，未做同代码两模型或旧/新随机对照，也没有两遍zero噪声参照；不据此宣称120题整体能力提升。原成绩未重算，失败未重跑，产物未人工补写。
+客户端返回 Decision 182、Executor 5484、Planner 0，共 5666。预算预留 5711，生成开始 5672，账本发布 5634（Decision 182、Executor 5452）；32 次返回未发布，39 次预留未开始，6 次开始后无客户端返回。另有 4 次服务端独有完成结果，分别保留，未补写客户端或账本；其余 2 次仍 unknown。
 
-当前仍不能把“能生成代码”当作“稳定完成项目”。保留的静态作品集样本可在桌面/手机运行，独立检查18/19，缺项是README；但120题中大量任务没有完成入口、启动或业务实现，并非普遍只差文档。mutation是工作区提交数，也包含命令产生的数据变化，不是修复成功次数。纯Web和全栈验收要求实际Chromium；服务无法启动时不声称浏览器业务通过。
+来源为 `data/experiments/ROUND_01/HARNESS_LEDGER_STREAM_20261006/`：12 道开发项目各 128 调用／1800 秒，108 道相关变种各 64 调用／1200 秒。源码、模型、zero State、参数、评分和分母冻结；相关变种不等于独立用户任务，也不是 Holdout。EX-FULL-02-V02–V05 在 SSH 恢复窗口耗尽后提前结束；仅原先未启动的 V06–V09 按同一冻结条件继续一次。未确认操作未重放，原始成绩、STOPPED 和关闭记录未改写。
 
-新六题192次调用均返回并提交、无协议拒绝，但有73次工具失败：54次把OP回执ID当搜索分页游标，19次将`<`放入argv。debug随后7次只打印常量，未调用实际程序；唯一代码修改仍接受公开要求禁止的bool数量，其余五题没有修改产物。180对相邻Executor输入都送达上一条真实回执，82次原样重复的完整输入也都发生了变化。首错、原文和产物差距见`TOOL_CONTRACT_VALIDATION/DEEP_TRACE_REVIEW.zh-CN.md`。当前结果不支持完整交付已改善的说法。
+逐题输入、输出、工具回执、独立验收和人工复核入口为该目录下的 `REVIEW_REPORT.zh-CN.md`、`MANUAL_JUDGMENTS.json`、`REVIEW_MATERIAL/MANUAL_COVERAGE.json`。部分浏览器功能可用不等于完整交付；核对失败须按原题合同，不能把标签缺失误称为金额计算错误。
 
-报告：`PROJECT_12/REPORT.zh-CN.md` SHA-256 `da689b8c531b2d846466af70c549550299137a5d9dd04eef2e241530a23c9a0d`；`EXPANDED_PROJECTS/REPORT.zh-CN.md` SHA-256 `9af21aea2a2327ac4ba4860b1cac51a04dbd864680f71f6ec496048c5d725c83`；`TOOL_CONTRACT_VALIDATION/REPORT.zh-CN.md` SHA-256 `369473315961e08782140eb097e839911d4535c280dc1d75a3095d0f91e5be43`。
+## 当前实现与验证
 
-## 失败主要发生在哪里
+当前 Decision v21、Executor v17、Planner v16、Ledger v13、prompt v8；外层仍为 `function/params`。工具合同、当前协议和 State 身份不兼容时拒绝恢复。编码 CLI、Web 和 batch 使用同一 Project 入口；独立只读及离线 Direct 采集保留明确边界。
 
-120题已能直接进入Executor；新增108题有105个首个Decision为delegate，另外3题在首次生成前发生启动失败。只有1个新增任务在提交工作后进入强检查编写/审查，不能再笼统归因为Planner挡住开工。
+边界解码策略 v1 只允许当前方向和授权引用，任务建议／交接／验收 ID 按任务关联；无回执时不提供检索生成分支。静态目录及策略绑定 State，实际 grammar 随生产边界变化并逐次留证，运行、精确 token 重放及角色评测共用。Executor 统一 `report_work(progress/submitted/blocked)`，保留三种状态转移，旧交接入口已删除。评测 plan/run 为 v3；本批没有精简完整 bootstrap 工具目录或测得 token／成绩改善。
 
-主要缺陷是错误引用后重复、偏离用户公开接口、没有实际运行就报告、重复长正文或工具循环、以及检查绑定后没有推进验证。132次保留开发运行（120题加12次前端样本）的1,821次语义拒绝中，1,797次来自Executor、24次来自Planner、Decision为0；其中Executor的request_info为1,747次、report_work为50次，均是引用拒绝。类别可重叠，不作为互斥根因占比。120题中2,395次相邻原样输出重复的前后实际完整输入token均不同；预算/反馈已更新不代表模型已理解。
+无生产消费者的旧调度、Teacher、依赖集成、自动接管和非正式审核队列已移除。CodingJob 定义独立于旧执行器，包导入不装载模型。工具与角色输出共用递归 schema 校验；内存及文件生成记录共用身份、顺序和重复检测。正式审核读取的锁、原始 Native 输入、来源与独立审查回归保留。
 
-debug涉及错误回执和SHA，API涉及接口改写与遗漏导入，CLI/数据涉及根入口、JSONL/数值边界和持久化，全栈涉及用stdin程序代替HTTP服务，Web涉及长代码重复后截断。强服务也出现过嵌套参数缺失和无效JSON；运行器的已预留未发出、已返回未提交、仅服务端完成均独立记录。具体首错、前后调用与产物见错误目录和各批逐调用索引。
+账本读取、恢复和离线提取采用一致事务内的完整流式验真；这减少读取内存，但尚未解决每事件保存完整状态的累计成本。生成记账分别核对预留、开始、返回、发布与 pending；未知用量不补零。
 
-## 已应用的工具与职责整改
+本次工具边界清理的完整本地回归、耗时及源码清单一致性记录统一见 `data/experiments/ROUND_01/TOOL_CONTRACT_CLEANUP_20261007/FULL_REGRESSION.result.json`，修复前反例与定向失败保留在同目录。公开源码构建和命令入口检查单列，不代替含 Torch、State 与浏览器的本地回归；定向通过也不代表全量通过。
 
-- 编辑SHA在共享schema中统一为64位小写十六进制，路径基本形状在同一注册处声明，生产输出校验、实际工具及decoder共用约束。
-- 证据source是标签或URL，空标签可回退到来源路径；copy/move的source仍是受权限限制的工作区路径。
-- 确定发生在工具预留前的校验错误返回模型反馈；已预留后的未知操作继续保留pending，不自动重发。
-- Native只读能力探测和Planner实际共享请求预算检查前置；工厂复用能力响应并保留底层诊断。State创建已发送却无明确登记等问题仍单独保守处理。
-- Decision选择方向并根据验证判断目标，Executor连续读/改/运行/修错，Planner按需设计、诊断及独立审查。完整用户义务、权限、真实回执、State身份和完成门保留，Controller不代选动作。
+这些工程改动晚于冻结 Agent 基线；本次没有运行新模型、训练或新增角色数据集，没有测得任务成绩或强模型成本改善。
 
-工具名、参数名和必填字段不变。职责文字减少：Decision335→242、Executor425→269、Planner计划768→448 token；补齐参数约束后，Executor工具定义加职责合计3214→3307，因此不宣称所有输入变短。详情及当前定义对比见 `TOOL_CONTRACT_CLEANUP/IMPLEMENTATION_DESIGN.zh-CN.md` 和 `CURRENT_TOOL_SURFACE_COMPARISON.json`。
+## 未解决问题与优先级
 
-同66个有限工程边界探针中，schema放行而normalize拒绝从49降至0；181个实际Guidance/RWKV tokenizer离线探针通过。真实六题已提交调用的合同异常数为0，各修复路径是否实际触发见 `TOOL_CONTRACT_VALIDATION/ENGINEERING_PATH_COVERAGE.json`，未触发项明确登记。形状正确不证明引用、权限或业务内容正确，单测通过不替代Agent验收。
+1. **记录成本与数值故障。** 账本的原始 token／完整状态重复保存；Native 回收队列非空时会扫描完整 State 元数据。已停止服务上的主动扫描测量只能说明函数成本，不能当作每题延迟占比。两次非有限 State 发生在生成结果重新物化后的导出，已核验输入链，失败输出未保存；首个异常 token、张量和数值根因仍未确定。保留有限值检查及 unknown，不重放未知请求。
+2. **模型不能稳定利用执行反馈。** 120 题主要偏离标注中 Decision 8、Executor 112；偏离点输入 2321–13025 token，中位数 5441。5666 次客户端返回中，5181 次与同题同 lane 上次输出完全相同（Decision 59、Executor 5122）。这些包含连续重复和相关变种，不是独立因果统计。常见问题是混淆工作／操作／回执 ID、反复读取、无依据提交、代码失败不修复及生成内复读。
+3. **Planner 输入容量。** 一次待发送输入估算 36518 token，超过预留输出后的 32735 上限，请求未发送；不能记为 Planner 生成失败。跨角色完整事实传递仍需通用修复，不删证据或静默摘要。
+4. **工具收敛、模块职责与架构对照。** 文件菜单 14 项候选尚未实施，须先覆盖精确编辑、追加、二进制摘要及证据片段语义；委派／恢复与校验调度入口也待收敛。强模型传输与旧研究策略拆分、不可变证据存储仍待整改。RWKV 单执行器需要与当前双角色在冻结源码、固定题集、预算和独立验收下比较；当前 Planner 实际返回为 0，不能据此宣称节省强模型成本。
 
-## 调用、证据与数据入口
+RWKV 采样维持 temperature=0.1、输出 1800／4096；既有温度 0、0.3、1 及输出额度候选未证明通用收益，不能统一推广。固定权重下 HTTP 串行／并发提交结果一致，不证明训练采用 fully async；工具续写调查也不是官方训练工具清单或 Agent 能力证明。诊断细节和候选设计留在本地原始报告，不重复写入维护文档。
 
-六题预留192次、开始192次、客户端返回192次、提交边界192次；已提交角色为 `{"decision": 6, "executor": 186}`。已提交Native 192次/11461 token，客户端返回但未提交0次/0 token，仅服务端完成0次/0 token，分别对账。Strong原始tool_calls/SSE、原始/消费token、父State、逐步工作区及最终只读快照均留证。未提交输出不回放成动作。
+## 运行及训练边界
 
-`TASK_INVENTORY_120.zh-CN.md`和`EVALUATION_120.zh-CN.md`列出120题；各批`CALL_INDEX.zh-CN.md`定位原样输入输出。`ERROR_CATALOG/`仍以原132次保留运行作为独立基线目录，新六题的诊断与产物对照放`TOOL_CONTRACT_VALIDATION/`，不混合不同预算的成绩。
+既有 Decision 候选有 32 个实际 optimizer steps，资格评测遇到接口与 engine 错误，没有有效合格结果，未保留为生产 State。旧协议来源和训练身份保持原样，不改标复用。新实验须遵循现有授权及预登记。
 
-`ERROR_CATALOG/ALL_CALLS.jsonl`包含3,476次已知客户端返回；`OCCURRENCES.jsonl`保存7,550个可重叠观测事件，`DEFECT_CARDS.json`整理27类已核实缺陷，`ARTIFACT_REVIEWS.json`对照真实文件、语法、入口和执行回执。`SEMANTIC_REJECTION_BREAKDOWN.json`按真实角色及原始动作拆分，`REPEAT_INPUT_AUDIT.json`核对重复前后的实际输入，`DATA_DESIGN.zh-CN.md`说明纠正方向与来源隔离。
+权重 `/mnt/nas-model/g1k/rwkv7-g1k-13.3b-20260930-ctx25600.pth`，SHA-256 `31799b3f8207e74c1b47f359184ac1c658c927ff697971447f7bf0fd18ae393f`。基线原 2 个和续接 2 个 Native 服务及 SSH 转发均已关闭核验。中间 State 仅在内存，服务重启后旧句柄不能冒称可恢复。
 
-这些是开发评测材料，正式角色训练行0、训练步骤0。私有验收/reference/mutant不进入Agent工作区或训练标签；不能把评测答案或脚本化单测当作生产角色来源。后续角色数据仍须从真实生产trace提取并独立审查，工程异常先修工程。
+自然语言入口运行真实 Agent；当前终端执行期间阻塞输入，`/stop` 仅停止预览，Ctrl+C 取消运行，会话历史尚无重开入口。[TUI 方案](TERMINAL_TUI_PLAN.zh-CN.md)未实施。静态／标准 Vite 启动和 `check_project` 已有真实安装、HTTP、Chromium机制验证；不覆盖后端、SSR 或自定义构建目录，也不证明模型能自主交付。检查返回时临时服务已停止。
 
-下一阶段优先复查搜索游标的共享形状合同，保留运行时对真实来源和查询绑定的检查；不能将错误ID自动改为游标。能力方向重点是从定位转到读写验证、失败后实质改变动作、真实运行程序而非打印常量。修复分支在六题中未实际触发的项目明确标记未覆盖，避免将单测或角色格式通过冒充Agent收益。
+项目命令仅在 WSL UbuntuRecovered 执行。服务器禁止 Git，部署只接收本地冻结清单及源码。owner 负责 push；已有研发改动不并入清理提交。
 
-## G1k后续任务
+## 本地证据入口
 
-已登记独立持久任务 `G1K_FOLLOWUP/TASK.json`。当前工具没有新建Codex侧边栏任务接口，未声称已创建侧边栏任务。
+以下路径相对于 `data/experiments/ROUND_01/`；各目录保留原始记录和逐文件 SHA。
 
-[官方G1k13.3B权重](https://huggingface.co/BlinkDL/rwkv7-g1/blob/main/rwkv7-g1k-13.3b-20260930-ctx25600.pth)已完整下载到本地，并与NAS核对完整SHA。固定revision `cd67fb95fa9e2ce8757f8d21d713e74a9c788118`，26,540,868,485字节，SHA-256 `31799b3f8207e74c1b47f359184ac1c658c927ff697971447f7bf0fd18ae393f`。NAS原本已有正确文件，核验后复用，未重复上传。回执见 `TRANSFER_COMPLETE.json`。
-
-本地已使用冻结engine完成转换：61层、4096隐藏维、65536词表，原始2019个tensor中2016个映射tensor逐项验证dtype/shape/value一致，3个未使用的首层value-mix参数另存。证据见`WEIGHT_LAYOUT.json`和`CONVERSION_COMPLETE.json`。尚未加载G1k到GPU，也未开始能力对照；同形状不表示旧State可以复用。
-
-后续分开测试相同24576预算下的模型差异、预登记提示词/输出外壳的格式差异，以及G1k完整25600上下文的额外收益。共用唯一角色协议和语义合同，保留原始请求、代码和回执，不能无差别压缩事实字段的空白。官方当前模板适用于G1系列，不足以证明G1k特有偏好。
-
-整轮对照先解决资源预算：六题运行前服务器约126GiB空闲；已保留108题工件约261GiB，按此粗估两模型各120题需新增约579GiB，双重复约1.13TiB。具体以`CAPACITY_ASSESSMENT.json`及开跑时核验为准。不能为腾空间删除待复核证据或把State放进只存原始权重的NAS目录。
-
-## 架构、回归与发布
-
-完整目标→Decision基于证据选择直接执行或强规划→Executor持续执行与局部修正→独立检查→Decision判断目标满足→完成门。当前唯一协议为Ledger v10、Goal v1、Plan v5、Assignment v6、Planner v14/chat v3、Decision v17、Executor v13；prompt v7、输入传输v2、格式适配v6。细节只在[架构](ARCHITECTURE.zh-CN.md)维护。约束解码保持默认，新实验全部启用。
-
-完整本地回归 **3043通过、0跳过，729.94秒**，全部源码/脚本/测试文件集合及SHA在运行前后相同。Torch、State及必需浏览器检查未跳过。初次26失败/12夹具错误及修正过程在`TOOL_CONTRACT_CLEANUP/FULL_REGRESSION_ATTEMPT_01.*`和`FULL_REGRESSION_REPAIRS.json`保留；旧trace不改写，当前生产重放仍拒绝旧工具菜单。正向机制测试使用明确的脚本化传输，不能作为模型能力或训练证据。
-
-owner既有未提交研发改动保留。完整工作树回归和六题运行包含这些改动；公开提交只包含本次维护源码、架构文档和必要构建配置，公开源码的构建/入口CI不替代完整本地回归，也不冒称与整个研发工作树相同。公开分支为 `chase/g1j-agent-improvement-public`，边界见[发布规范](SOURCE_DISTRIBUTION.zh-CN.md)。实验、测试、trace和生成产物只保留本地。
-
-当前120题及六题服务/隧道均已停止，证据保留。没有操作远端Git、Holdout、OA、正式训练或新datasets版本。G1j本阶段工程整理和验证已完成；模型重复、引用与完整交付能力仍需后续对照和合格生产数据改善。
+|用途|入口|
+|---|---|
+|冻结 Agent 基线及登记|`HARNESS_LEDGER_STREAM_20261006/REGISTRATION_02.json`；SHA `e95888b4dc00b930bd421421f16d3783a07034fc32e48e514002b6f67d264a42`|
+|实际调用与重复统计|同目录 `ACCOUNTING_ALL_REAL_TRACE_CHECK.json`、`FINAL_OBSERVED_GENERATION_STATS.json`|
+|Native 数值与传输限制|同目录 `REVIEW_MATERIAL/DEFECTS_AND_LIMITS.zh-CN.md`、`CONTACT_TRANSPORT_SERVER_OUTCOMES.json`、两个 `*_NONFINITE_FILE_CAPTURE/FORENSICS.zh-CN.md`|
+|存储成本和服务关闭|同目录 `NATIVE_STATE_ROWS_POSTSHUTDOWN_PROFILE.json`、`SHUTDOWN.json`、`CONTINUATION_04_SHUTDOWN.json`|
+|预算／采样机制实验|`G1K_RWKV_DECODE_20261004/COMBINED_REPORT.zh-CN.md`|
+|工具表达调查|`G1K_TOOL_DISTRIBUTION_20261005/STOP_ONLY_20261006/REPORT.zh-CN.md`、`FINAL_MANIFEST.json`|
+|清理审计|`ARCHITECTURE_CLEANUP_AUDIT_20261007/REPORT.zh-CN.md`；SHA `c18ee9c94c6ed6f6c37a78e3f81720787ec5731b7f72d2352db9dd1af4a46bcd`|
+|工具菜单审核|`TOOL_SURFACE_AUDIT_20261007/REPORT.zh-CN.md`、`SHA256SUMS`|
+|本次工具边界清理、回归与构建|`TOOL_CONTRACT_CLEANUP_20261007/REPORT.zh-CN.md`、`SHA256SUMS`|

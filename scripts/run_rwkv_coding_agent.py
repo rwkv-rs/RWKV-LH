@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from rwkv_lh.coding_agent import CodingJob
+from rwkv_lh.agent_jobs import CodingJob
 from rwkv_lh.project_agent import run_project_job as run_coding_job
 from rwkv_lh.runtime.settings import direct_agent_settings, RuntimeSettings, load_local_env
 

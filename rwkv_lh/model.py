@@ -226,7 +226,7 @@ class LongHorizonModel:
         }
         preferred_order = (
             "list_directory",
-            "search_text",
+            "search_files",
             "read_file",
             "read_json",
             "file_digest",
@@ -242,7 +242,7 @@ class LongHorizonModel:
             "delete_file",
             "bind_evidence",
             "check_command",
-            "run_command",
+            "run_shell",
         )
         if getattr(self.harness, "operation_order_authority", ""):
             ordered = list(operation_definitions.values())

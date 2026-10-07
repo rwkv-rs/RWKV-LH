@@ -595,6 +595,7 @@ class RWKV7ModelState(ModelState):
 
     def native_state_capabilities(self) -> dict[str, Any]:
         cache = self._require_native_cache()
+        store = self._tensor_store()
         from rwkv_lh.inference.native_weight_identity import fingerprint_model
         actual_weights = fingerprint_model(self.model)
         if actual_weights != self._native_weight_identity:
@@ -602,8 +603,10 @@ class RWKV7ModelState(ModelState):
         return {
             "state_format_version": RWKV7_NATIVE_STATE_FORMAT,
             "cache_capacity": cache.capacity,
-            "store_configured": bool(envs.VLLM_RWKV7_NATIVE_STATE_DIR),
-            "store_persistent": envs.VLLM_RWKV7_NATIVE_STATE_STORE_CAPACITY == 0,
+            "store_configured": store.mode == 'memory' or bool(envs.VLLM_RWKV7_NATIVE_STATE_DIR),
+            "store_persistent": store.mode == 'disk' and envs.VLLM_RWKV7_NATIVE_STATE_STORE_CAPACITY == 0,
+            "tensor_storage": store.mode,
+            "memory_store_capacity_bytes": store.capacity_bytes if store.mode == 'memory' else 0,
             "state_lifecycle_protocol": NATIVE_STATE_LIFECYCLE_VERSION,
             "model_identity": dict(self._prefix_identity_fields),
             "source_identity": dict(self._native_source_identity),
@@ -794,6 +797,12 @@ class RWKV7ModelState(ModelState):
         self._ensure_native_store_directory(rank_dir)
         return rank_dir / f"{store_key}.pt"
 
+    def _tensor_store(self):
+        from rwkv_lh.inference.native_tensor_store import NativeTensorStore
+        if not hasattr(self, '_native_tensor_store'):
+            self._native_tensor_store = NativeTensorStore.from_environment()
+        return self._native_tensor_store
+
     def export_native_state(
         self,
         *,
@@ -804,7 +813,8 @@ class RWKV7ModelState(ModelState):
         entry = self._require_native_cache().get(state_ref)
         # A durable receipt must never make a poisoned live State resumable.
         self._validate_native_snapshot(entry.snapshot)
-        path = self._native_store_path(store_key, worker_rank)
+        if not _SHA256_PATTERN.fullmatch(store_key) or type(worker_rank) is not int or worker_rank < 0:
+            raise ValueError('invalid Native State store key or worker rank')
         payload = {
             "schema_version": RWKV7_NATIVE_STATE_FORMAT,
             "execution_identity": self._native_execution_identity(),
@@ -812,6 +822,10 @@ class RWKV7ModelState(ModelState):
             "shift_state": entry.snapshot.shift_state.detach().cpu(),
             "wkv_state": entry.snapshot.wkv_state.detach().cpu(),
         }
+        if self._tensor_store().mode == 'memory':
+            self._tensor_store().put(worker_rank, store_key, payload)
+            return {**entry.metadata(), "store_key": store_key, "worker_rank": worker_rank}
+        path = self._native_store_path(store_key, worker_rank)
         temporary = path.with_suffix(f".tmp-{os.getpid()}")
         created = False
         try:
@@ -851,6 +865,11 @@ class RWKV7ModelState(ModelState):
         """Only the API's durable, reference-checked GC may call this action."""
         if isinstance(worker_rank, bool) or not isinstance(worker_rank, int) or worker_rank < 0:
             raise ValueError("invalid Native State worker rank")
+        if not _SHA256_PATTERN.fullmatch(store_key):
+            raise ValueError('invalid Native State store key')
+        if self._tensor_store().mode == 'memory':
+            self._tensor_store().delete(worker_rank, store_key)
+            return {"store_key": store_key, "worker_rank": worker_rank, "deleted": True}
         path = self._native_store_path(store_key, worker_rank)
         # Do not follow a substituted entry or accept a directory as a blob.
         if path.is_symlink() or (path.exists() and not path.is_file()):
@@ -874,10 +893,16 @@ class RWKV7ModelState(ModelState):
         store_key: str,
         worker_rank: int,
     ) -> dict[str, Any]:
-        path = self._native_store_path(store_key, worker_rank)
-        if not path.is_file():
-            raise KeyError(f"RWKV7 native state store entry {store_key!r} is absent")
-        payload = torch.load(path, map_location="cpu", weights_only=True)
+        if not _SHA256_PATTERN.fullmatch(store_key) or type(worker_rank) is not int or worker_rank < 0:
+            raise ValueError('invalid Native State store key or worker rank')
+        memory = self._tensor_store().mode == 'memory'
+        if memory:
+            payload = self._tensor_store().get(worker_rank, store_key)
+        else:
+            path = self._native_store_path(store_key, worker_rank)
+            if not path.is_file():
+                raise KeyError(f"RWKV7 native state store entry {store_key!r} is absent")
+            payload = torch.load(path, map_location="cpu", weights_only=True)
         if not isinstance(payload, dict):
             raise ValueError("RWKV7 native state store entry is invalid")
         if payload.get("execution_identity") != self._native_execution_identity():
@@ -906,9 +931,9 @@ class RWKV7ModelState(ModelState):
             raise ValueError("RWKV7 native state store tensor dtype mismatch")
         snapshot = RWKV7PrefixStateSnapshot(
             shift_state=shift_state.to(
-                device=self.device, dtype=self.shift_state.dtype
+                device=self.device, dtype=self.shift_state.dtype, copy=memory
             ),
-            wkv_state=wkv_state.to(device=self.device, dtype=self.wkv_state.dtype),
+            wkv_state=wkv_state.to(device=self.device, dtype=self.wkv_state.dtype, copy=memory),
             elapsed=processed_token_count,
         )
         self._validate_native_snapshot(snapshot)
@@ -922,7 +947,8 @@ class RWKV7ModelState(ModelState):
             snapshot=snapshot,
         )
         self._require_native_cache().put(entry, replace=True)
-        os.utime(path, None)
+        if not memory:
+            os.utime(path, None)
         return entry.metadata()
 
     def _validate_native_snapshot(self, snapshot: RWKV7PrefixStateSnapshot) -> None:
@@ -1368,6 +1394,8 @@ class RWKV7ModelState(ModelState):
             self.prefix_state_cache.clear()
         if self.native_state_cache is not None:
             self.native_state_cache.clear()
+        if hasattr(self, '_native_tensor_store'):
+            self._native_tensor_store.clear()
         self.req_native_state_writes.clear()
         self.staged_native_state_snapshots.clear()
         self.pending_sampled_native_state_refs.clear()

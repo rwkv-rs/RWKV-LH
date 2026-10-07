@@ -30,11 +30,43 @@
 
 输出目录必须尚不存在，且不能与源工作区重叠。Agent 在输出目录的 `workspace/` 副本中工作；原项目不会被覆盖。正常结束后检查 `DELIVERY.json`、修改产物和 `execution/` 中的真实调用记录。异常或预算中断应检查已写入的执行记录，不能假定一定存在完整交付文件。退出码 0 表示模型提交回答，**不表示产物已经通过外部验收**。工作区副本用于隔离文件变更，命令仍使用现有工具权限，不能将其视为任意命令的安全沙箱。
 
-强模型不逐次审核工具调用。当前闭环已完成工程机制验证，真实模型的重复调用、错误诊断、遗漏修改和无依据回答尚未证明解决。StateTune 候选只有经过固定回归和任务级对照验证后才可作为推荐配置。项目可用 `rwkv-lh --resume /absolute/path/to/new-run` 沿原预算恢复；未确认操作不能自动重放。
+强模型不逐次审核工具调用。当前闭环已完成工程机制验证，真实模型的重复调用、错误诊断、遗漏修改和无依据回答尚未证明解决。StateTune 候选只有经过固定回归和任务级对照验证后才可作为推荐配置。推理服务仍保有本次 State 时，可用 `rwkv-lh --resume /absolute/path/to/new-run` 沿原预算恢复；未确认操作不能自动重放。中间 tensor State 默认仅存内存，服务重启后原句柄失效，输入输出和真实回执仍留证；明确需要持久恢复的部署可显式使用 disk 存储。
 
 ## 前端演示
 
-在 WSL 中启动一次：
+配置好当前模型服务后，可直接用自然语言启动项目；默认从空目录开始。只有实际生成工作区根目录的 `index.html` 后，终端才会启动静态预览并给出地址：
+
+```bash
+.venv/bin/rwkv-lh "创建一个无需构建的中文静态日志系统前端，使用原生 HTML/CSS/JavaScript，交付根目录 index.html，包含演示日志、统计、搜索、级别筛选和 JSON 导出，验证交互并写运行说明。"
+```
+
+也可以不带参数运行 `.venv/bin/rwkv-lh` 进入交互终端，输入需求后继续追加修改。`-i "初始需求"` 同样进入交互模式；用 `--source-workspace /absolute/project` 从已有项目开始。后续回合保留原始目标和追加要求，以前一回合产物的副本为源，不覆盖旧产物。`/files` 查看文件，`/status` 查看结果，`/open` 启动预览，`/stop` 停止服务，`/exit` 退出。执行中 Ctrl+C 停止本回合；未确认操作阻止自动继续，不重发请求。
+
+终端显示角色生成状态、模型工具请求、实际修改文件、终止原因和原始记录位置。自然语言/交互模式默认每回合 64 次调用、900 秒，可用 `--max-calls` / `--max-seconds` 设置。`--no-preview` 禁用自动预览，`--port` 默认 8767。模型请求展示不代表工具已执行，实际动作以回执为准。
+
+命令会打印新项目目录；可用 `--output-dir /absolute/path/to/new-run` 指定首回合目录。预览不修改 Agent 的完成判断；预算耗尽但已有页面时仍可预览，停止预览后的退出码保留为 1。默认预览支持无需构建的静态网页；显式 `--launch-kind vite` 可启动采用根目录 index.html、build 脚本及 dist/index.html 的 Vite 前端副本。后端与其他脚手架尚未覆盖。原有 `--new-project --request "需求" --serve` 和批量参数仍可使用。
+
+`model_output_budget_exhausted` 表示一次模型输出达到 token 上限，不是 `--max-calls` 耗尽；不完整的工具调用不会执行。缺少页面时终端明确显示“未启动网页预览”。仅有 README、package.json 或 Vite 配置不代表前端已经生成或服务已启动，README 中的网址也不是运行回执。不能保证任意前端请求都会得到可运行网页。
+
+已有网页可直接运行，不调用模型：
+
+```bash
+.venv/bin/rwkv-lh --preview /absolute/path/to/generated/workspace --port 8767
+```
+
+浏览器打开 `http://localhost:8767`，终端按 Ctrl+C 停止预览。页面能打开与功能符合要求分别核验，当前产物状态见[交接文档](docs/HANDOFF.zh-CN.md)。
+
+已有 Vite 项目可显式安装、构建并预览，不调用模型：
+
+```bash
+.venv/bin/rwkv-lh --launch /absolute/path/to/generated/workspace --launch-kind vite --port 8767 --launch-timeout 180
+```
+
+启动器把文件复制到独立目录，在 bubblewrap 中执行 npm ci（有 lockfile 时）或 npm install、npm run build 和本地 vite preview；安装关闭生命周期脚本，构建执行项目声明的 build 脚本。需要 WSL 的 Node/npm、bubblewrap 和依赖下载网络。只读挂载系统工具与解析器配置，不继承模型凭据或挂载用户 home；网络用于下载依赖及本地预览。需要安装脚本、SSR、自定义输出目录或后端的项目会明确失败，不能假装通用支持。
+
+只有实际进程返回与构建入口一致的 HTTP 200 才显示 URL；安装、构建、启动与停止回执和日志保存在 `data/project_launches/`，也可用 `--output-dir` 为单独的 `--launch` 指定新回执目录。原工作区保持不变，Ctrl+C 停止服务；`--launch-kind static` 可为静态项目取得同类快照与健康回执。启动成功不等于用户交互通过，Vite preview 仅用于本地查看构建产物，参见 [Vite 启动合同](https://vite.dev/guide/cli#vite-preview)。
+
+若需要项目的任务管理 Web 界面，在 WSL 中启动：
 
 ```bash
 cd /home/chase/GitHub/RWKV-LH
@@ -51,7 +83,7 @@ cd /home/chase/GitHub/RWKV-LH
 
 - [项目工作规范](AGENTS.md)
 - [当前架构与唯一角色输入](docs/ARCHITECTURE.zh-CN.md)
-- [第一轮当前状态及未解决问题](docs/HANDOFF.zh-CN.md)
+- [当前 G1k 状态及未解决问题](docs/HANDOFF.zh-CN.md)
 - [Project 数据入口与训练准入](docs/PROJECT_ROLE_DATA_PIPELINE.zh-CN.md)
 - [可复用的经验](docs/LESSONS.zh-CN.md)
 - [源码发布范围与本地验证](docs/SOURCE_DISTRIBUTION.zh-CN.md)

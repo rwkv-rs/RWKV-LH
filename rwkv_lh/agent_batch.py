@@ -1,4 +1,4 @@
-"""Schedule independent direct Agent jobs; no planning, State sharing or integration."""
+"""Schedule current Project and independent read-only jobs in separate processes."""
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprocessing import get_context
 from pathlib import Path
@@ -7,21 +7,14 @@ from .job_budget import unresolved_assistance
 
 
 def _execute(job, settings):
-    from .agent_integration import DependentJob, run_dependent_job
-    if isinstance(job, DependentJob):
-        return run_dependent_job(job, settings=settings)
-    from .goal_delivery import GoalJob, run_goal_job
-    from .assisted_agent import AssistedJob, run_assisted_job
-    from .coding_agent import CodingJob
-    from .project_agent import run_project_job
-    from .read_only_agent import run_read_only_job
-    if isinstance(job, GoalJob):
-        return run_goal_job(job, settings=settings)
-    if isinstance(job, AssistedJob):
-        return run_assisted_job(job, settings=settings)
-    if isinstance(job, CodingJob):
+    from .agent_jobs import CodingJob
+    from .read_only_agent import ReadOnlyJob, run_read_only_job
+    if type(job) is CodingJob:
+        from .project_agent import run_project_job
         return run_project_job(job, settings=settings)
-    return run_read_only_job(job, settings=settings)
+    if type(job) is ReadOnlyJob:
+        return run_read_only_job(job, settings=settings)
+    raise ValueError('unsupported Agent job')
 
 
 def _save_failure(job, result):
@@ -59,31 +52,24 @@ def validate_agent_jobs(jobs, *, concurrency=1):
     Shared input snapshots are allowed. Outputs cannot overlap any input or
     other output. No result is automatically merged or marked accepted.
     """
-    from .assisted_agent import AssistedJob, load_parent
-    from .coding_agent import CodingJob
+    from .agent_jobs import CodingJob
     from .read_only_agent import ReadOnlyJob
-    from .goal_delivery import GoalJob, validate_goal_job
     jobs = list(jobs)
     if type(concurrency) is not int or concurrency < 1:
         raise ValueError('positive integer concurrency required')
-    if not all(isinstance(job, (CodingJob, ReadOnlyJob, AssistedJob)) for job in jobs):
+    if not all(type(job) in (CodingJob, ReadOnlyJob) for job in jobs):
         raise ValueError('unsupported Agent job')
     if len({job.task_id for job in jobs}) != len(jobs):
         raise ValueError('duplicate task IDs')
     sources = []
     for job in jobs:
-        if isinstance(job, GoalJob):
-            validate_goal_job(job)
         if not str(job.task_id).strip() or not str(job.request).strip():
             raise ValueError('task ID and request are required')
         if (type(job.max_calls) is not int or job.max_calls < 1
                 or type(job.max_seconds) not in (int, float)
                 or not math.isfinite(job.max_seconds) or job.max_seconds <= 0):
             raise ValueError('positive finite task budgets required')
-        if isinstance(job, AssistedJob):
-            previous, _, _, source = load_parent(job)
-            sources.append(previous)
-        elif isinstance(job, ReadOnlyJob):
+        if type(job) is ReadOnlyJob:
             if job.tool_scope not in ('files', 'inspect'):
                 raise ValueError('unknown read-only tool scope')
             source = Path(job.workspace).resolve()

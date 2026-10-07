@@ -20,7 +20,7 @@ from .project_contracts import digest
 from .project_format_adapter import parse_role_call
 from .project_output_validation import normalize_role_output, validate_role_output
 from .project_runtime import role_definitions
-from .project_decoder import build_role_decoder
+from .project_decoder import build_role_decoder, BOUNDARY_POLICY
 from .runtime.structured_output import decoder_receipt, state_output_token_ids
 from .project_token_data import _decode_generated_rwkv
 from .project_training_labels import load_reviewed_candidates
@@ -31,8 +31,8 @@ from .statetune_data import sealed, _member, _protocol, normalize_row
 from .statetune_native_runtime import verify_project_source
 from .token_budget import tokenizer
 
-PLAN_SCHEMA = 'rwkv-lh.statetune-project-evaluation-plan.v2'
-RUN_SCHEMA = 'rwkv-lh.statetune-project-evaluation-run.v2'
+PLAN_SCHEMA = 'rwkv-lh.statetune-project-evaluation-plan.v3'
+RUN_SCHEMA = 'rwkv-lh.statetune-project-evaluation-run.v3'
 SPLITS = ('dev', 'confirmation')
 METRICS = ['role_contract_validity', 'reference_match', 'transport_failures', 'unknown_outcomes', 'budget_failures', 'not_run']
 SAMPLING = {'temperature', 'top_p', 'top_k', 'presence_penalty', 'frequency_penalty', 'penalty_decay', 'seed'}
@@ -43,7 +43,8 @@ def validate_plan(plan):
     core.require(plan.get('schema_version') == PLAN_SCHEMA and plan.get('role') in ROLES,
                  'current Project evaluation plan required')
     expected_decoder = build_role_decoder(role_definitions(plan['role'].removeprefix('project_'), ActionHarness()))
-    core.require(plan.get('decoder_contract_sha256') == expected_decoder['contract_sha256'],
+    core.require(plan.get('decoder_catalog_sha256') == expected_decoder['contract_sha256']
+                 and plan.get('decoder_boundary_policy') == BOUNDARY_POLICY,
                  'Project evaluation requires the current production constrained decoder')
     core.require((plan.get('input_protocol'), plan.get('protocol_sha256')) == _protocol(plan['role']),
                  'Project evaluation protocol differs')
@@ -177,7 +178,8 @@ def _reference_identity(wire, role):
 
 def evaluate_arm(cases, client, *, plan, run_id, arm, record, clock=time.monotonic, halted=False):
     validate_plan(plan); validate_cases(cases, plan)
-    decoder = build_role_decoder(role_definitions(plan['role'].removeprefix('project_'), ActionHarness()))
+    role = plan['role'].removeprefix('project_')
+    definitions = role_definitions(role, ActionHarness())
     start = clock()
     results = {s: {'total': 0, 'contract_valid': 0, 'reference_correct': 0, 'transport_failures': 0,
         'unknown_outcomes': 0, 'budget_failures': 0, 'not_run': 0, 'contract_correctness': {},
@@ -193,6 +195,7 @@ def evaluate_arm(cases, client, *, plan, run_id, arm, record, clock=time.monoton
             result['not_run'] += 1
             entry.update(status='not_run', reason='unknown_outcome' if halted else 'registered_wall_time_budget')
         else:
+            decoder = build_role_decoder(definitions, role=role, payload=row['input'])
             request = _request(row['input_token_ids'], plan, request_id)
             # A journal failure must stop before any network generation.
             record({'event': 'project_case_started', 'request_id': request_id, 'arm': arm, 'sample_id': sample})

@@ -10,6 +10,8 @@ from .project_ledger import ProjectLedger
 from .project_runtime import ProjectRuntime
 from .project_sessions import ProjectSessions
 from .model_session import create_model_session
+from .generation_accounting import (count_generation_traces, execution_model_traces,
+                                    project_generation_accounting)
 
 
 def _deliver(output, runtime):
@@ -19,11 +21,13 @@ def _deliver(output, runtime):
         result = runtime.result('wall_budget_exhausted')
         result.update(status='interrupted', final=None, acceptance='not_accepted')
     state = runtime.db.state()
+    counts = count_generation_traces(execution_model_traces(output))
+    result.update(project_generation_accounting(counts, budget_reserved=state['calls'],
+        pending_operation=state['pending'], evidence=state['evidence'].values()))
     termination = ('submitted' if result['status'] == 'completed' else
                    'budget' if result['termination_reason'] in ('resource_budget_exhausted', 'wall_budget_exhausted',
                        'model_output_budget_exhausted', 'model_input_budget_exhausted') else 'blocked')
     result.update(id=state.get('task_id', output.name), termination=termination,
-        generation_started=state['calls'], trace_complete=state['pending'] is None,
         source_workspace=state.get('source_workspace'), output_dir=str(output))
     actual = tree_identity(state['workspace'])
     original = json.loads((output / 'INITIAL_TREE.json').read_text())

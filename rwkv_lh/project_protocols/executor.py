@@ -4,7 +4,7 @@ from rwkv_lh.project_contracts import ASSIGNMENT_PROTOCOL, GOAL_ID, digest, fiel
 from rwkv_lh.project_step_progress import build_step_progress, validate_step_progress
 from rwkv_lh.project_action_feedback import build_action_feedback, validate_action_feedback
 
-PROTOCOL = 'rwkv-lh.project-executor-input.v13'
+PROTOCOL = 'rwkv-lh.project-executor-input.v17'
 INSTRUCTION = (
     'Next action, finish current work, or seek help? '
     'Choose from current evidence. Return one function/params JSON call.')
@@ -19,13 +19,23 @@ RULES = (
     'suggestion: check its evidence and choose concrete actions yourself. continue_current resumes '
     'your State. Step 已做 confirms an action, not task completion. Compare written content and '
     'observed behavior with the complete goal. report_work(status=submitted) submits local work for '
-    'independent verification; status=blocked records a blocker. yield_work returns control for a '
-    'specific gap or scope change. Neither completes the project. Report actual changes, checks run '
+    'independent verification; status=blocked records a blocker; status=progress returns control '
+    'for direction while preserving the active assignment. No status completes the project. Report actual changes, checks run '
     'and observed results, and remaining limits; mark unrun checks as not run. Writing a file proves '
     'only its supplied contents were written, not that tests passed or the requested behavior exists.'
     ' Cite exact authorized receipt IDs; unverified work may be submitted honestly. Correct rejected '
-    'parameters from feedback.'
+    'parameters from feedback. delivery_context contains prior worker claims for a comprehensive '
+    'delivery report, not execution proof or authority to change another task. When the current '
+    'work completes the original request, report across those prior parts and this assignment: '
+    'what was delivered, how to use it, observed checks and remaining limits. Distinguish prior '
+    'claims from checks you actually observed; do not infer successful tests from a summary.'
 )
+
+
+def _delivery_context(project_state):
+    return {'prior_reports': [{'task_id': key, 'status': report['status'],
+        'summary': report['summary'], 'authority': 'worker_claim'}
+        for key, report in (project_state or {}).get('reports', {}).items()]}
 
 
 def local_feedback(state):
@@ -60,9 +70,10 @@ def build_input(assignment, *, observations=(), feedback=None, selected_evidence
         allowed.update((dependency.get('report') or {}).get('evidence_ids', []))
     allowed = sorted(allowed)
     references = {name: {field: allowed} for name, field in (
-        ('request_info', 'evidence_id'), ('report_work', 'evidence_ids'), ('yield_work', 'evidence_ids'))}
+        ('read_receipt', 'evidence_id'), ('report_work', 'evidence_ids'))}
     return {'protocol': PROTOCOL, 'assignment': deepcopy(assignment),
         'original_request': original_request,
+        'delivery_context': _delivery_context(project_state),
         'remaining': resource_budget(remaining), 'unit_remaining': resource_budget(unit_remaining),
         'step_progress': build_step_progress(project_state, assignment=assignment),
         'action_feedback': build_action_feedback(project_state, role='executor', assignment=assignment, references=references),
@@ -74,13 +85,21 @@ def build_input(assignment, *, observations=(), feedback=None, selected_evidence
 def validate_input(value):
     fields(value, ('protocol', 'assignment', 'observations', 'feedback', 'next_decision',
                    'selected_evidence', 'evidence_updates', 'step_progress', 'action_feedback', 'references',
-                   'original_request', 'remaining', 'unit_remaining'))
+                   'original_request', 'remaining', 'unit_remaining', 'delivery_context'))
     if value['protocol'] != PROTOCOL:
         raise ValueError('unsupported executor protocol')
     build_input(value['assignment'], observations=value['observations'], feedback=value['feedback'])
     resource_budget(value['remaining']); resource_budget(value['unit_remaining'])
     if value['original_request'] is not None:
         text(value['original_request'])
+    fields(value['delivery_context'], ('prior_reports',))
+    if not isinstance(value['delivery_context']['prior_reports'], list):
+        raise ValueError('delivery reports must be an array')
+    for report in value['delivery_context']['prior_reports']:
+        fields(report, ('task_id', 'status', 'summary', 'authority'))
+        text(report['task_id']); text(report['summary'])
+        if report['authority'] != 'worker_claim' or report['status'] not in ('submitted', 'blocked'):
+            raise ValueError('prior delivery reports are worker claims, not execution authority')
     validate_action_feedback(value['action_feedback'])
     if value['action_feedback']['receiving_role'] != 'executor':
         raise ValueError('feedback receiver must be executor')
@@ -93,9 +112,9 @@ def validate_input(value):
     # Standalone mechanism inputs may include new observations without a ledger.
     allowed.update(item['action_id'] for item in value['observations'] if 'action_id' in item)
     allowed.update(value['selected_evidence'])
-    fields(value['references'], ('request_info', 'report_work', 'yield_work'))
+    fields(value['references'], ('read_receipt', 'report_work'))
     from rwkv_lh.project_contracts import strings
-    for name, field in (('request_info', 'evidence_id'), ('report_work', 'evidence_ids'), ('yield_work', 'evidence_ids')):
+    for name, field in (('read_receipt', 'evidence_id'), ('report_work', 'evidence_ids')):
         fields(value['references'][name], (field,))
         strings(value['references'][name][field])
         if set(value['references'][name][field]) - allowed:
@@ -113,9 +132,9 @@ def validate_input(value):
 
 def validate_references(payload, command):
     function, params = command['function'], command['params']
-    if function not in ('request_info', 'report_work', 'yield_work'):
+    if function not in ('read_receipt', 'report_work'):
         return
-    field = 'evidence_id' if function == 'request_info' else 'evidence_ids'
+    field = 'evidence_id' if function == 'read_receipt' else 'evidence_ids'
     values = [params[field]] if field == 'evidence_id' else params[field]
     allowed = payload['references'][function][field]
     if set(values) - set(allowed):

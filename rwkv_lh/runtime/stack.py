@@ -336,7 +336,7 @@ class RuntimeStackManager:
             capabilities = client.capabilities()
             health["capabilities"] = capabilities.to_dict()
             if client.settings.state_transport == "native_required" and not (
-                capabilities.durable_recurrent_state
+                capabilities.transactional_recurrent_state
                 and capabilities.recurrent_state_protocol
                 == NATIVE_STATE_PROTOCOL_VERSION
             ):

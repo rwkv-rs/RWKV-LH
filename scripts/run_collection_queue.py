@@ -19,7 +19,7 @@ from rwkv_lh.agent_batch import validate_agent_jobs
 from rwkv_lh.collection_execution import dispatch, service_fingerprint
 from rwkv_lh.inference.uploaded_sources import source_inventory
 from rwkv_lh.collection_acceptance import load_contract
-from rwkv_lh.coding_agent import CodingJob
+from rwkv_lh.agent_jobs import CodingJob
 from rwkv_lh.read_only_agent import ReadOnlyJob
 from rwkv_lh.runtime.settings import direct_agent_settings, get_runtime_settings
 

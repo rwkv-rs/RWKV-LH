@@ -32,6 +32,7 @@ except ImportError:  # pragma: no cover - project runtime is WSL/Linux
 from rwkv_lh.runtime.role_config import role_bool, role_env, role_float, role_int
 from rwkv_lh.runtime.settings import DEFAULT_ENV_FILE, PROJECT_ROOT, load_local_env
 from rwkv_lh.runtime import supervisor_vllm_rwkv
+from rwkv_lh import deepseek_api
 from rwkv_lh.runtime.protocol import RWKVProtocolError
 from rwkv_lh.contract_graph import (
     ContractAssertion,
@@ -71,14 +72,7 @@ from rwkv_lh.supervisor import (
 AuditHook = Callable[[Mapping[str, Any]], None]
 DEFAULT_SUPERVISOR_ENV_FILE = DEFAULT_ENV_FILE
 _RETRYABLE_STATUS = {425, 429, 500, 502, 503, 504}
-# The configured relay exposes Responses, but the exact GoalPlan v4 request
-# repeatedly returned an upstream HTTP 500 while the byte-equivalent system
-# prompt and payload passed through chat-completions.  Keep the decoder for
-# compatible future routes; production phases currently use the proven chat
-# transport and retain the same local protocol validation.
-_RESPONSES_API_PHASES: frozenset[str] = frozenset()
 _STAGE_CHECKER_PHASES = {"goal_stage_review"}
-_RESPONSES_JSON_INPUT_PREFIX = "json request payload:\n"
 _WORKSPACE_RELATIVE_ROOT_PATTERN = (
     r"^(?:\.|(?!/)(?!.*(?:^|/)\.\.(?:/|$))[^\\\u0000]+)$"
 )
@@ -207,12 +201,11 @@ class SupervisorAPISettings:
     semantic_repair_attempts: int = 1
     serialize_requests: bool = False
     request_lock_path: str = "/tmp/rwkv-lh-supervisor.lock"
-    fallback_models: tuple[str, ...] = ()
     circuit_breaker_failures: int = 2
     circuit_breaker_cooldown_seconds: float = 30.0
     plan_cache_enabled: bool = True
     plan_cache_dir: str = str(PROJECT_ROOT / "data" / "cache" / "supervisor_plans")
-    backend_profile: str = "openai-compatible"
+    backend_profile: str = deepseek_api.BACKEND_PROFILE
     stream_responses: bool = False
     planner_request_options: Mapping[str, Any] = field(default_factory=dict)
     stage_checker_request_options: Mapping[str, Any] = field(default_factory=dict)
@@ -234,6 +227,8 @@ class SupervisorAPISettings:
                 "SUPERVISOR_",
             ),
         )
+        if role_env("planner", "fallback_models", legacy="SUPERVISOR_FALLBACK_MODELS").strip():
+            raise ValueError('supervisor automatic model fallback is no longer supported')
         planner_model = role_env("planner", "model", legacy="SUPERVISOR_MODEL")
         settings = cls(
             base_url=role_env(
@@ -249,7 +244,7 @@ class SupervisorAPISettings:
                 default=planner_model,
             ),
             backend_profile=role_env(
-                "planner", "backend_profile", default="openai-compatible",
+                "planner", "backend_profile", default=deepseek_api.BACKEND_PROFILE,
             ),
             stream_responses=role_bool("planner", "stream", default=False),
             planner_request_options=_role_request_options("planner"),
@@ -332,15 +327,6 @@ class SupervisorAPISettings:
                 legacy="SUPERVISOR_REQUEST_LOCK_PATH",
                 default="/tmp/rwkv-lh-supervisor.lock",
             ),
-            fallback_models=tuple(
-                item.strip()
-                for item in role_env(
-                    "planner",
-                    "fallback_models",
-                    legacy="SUPERVISOR_FALLBACK_MODELS",
-                ).split(",")
-                if item.strip()
-            ),
             circuit_breaker_failures=role_int(
                 "planner",
                 "circuit_breaker_failures",
@@ -372,8 +358,14 @@ class SupervisorAPISettings:
     def validate(self) -> None:
         _validated_request_options(self.planner_request_options)
         _validated_request_options(self.stage_checker_request_options)
-        if self.backend_profile not in {"openai-compatible", supervisor_vllm_rwkv.BACKEND_PROFILE}:
+        if self.backend_profile not in {deepseek_api.BACKEND_PROFILE, supervisor_vllm_rwkv.BACKEND_PROFILE}:
             raise ValueError("RWKV_LH_PLANNER_BACKEND_PROFILE is unsupported")
+        if self.backend_profile == deepseek_api.BACKEND_PROFILE:
+            deepseek_api.endpoint(self.base_url)
+            deepseek_api.request_options(dict(self.planner_request_options))
+            deepseek_api.request_options(dict(self.stage_checker_request_options))
+            if not self.verify_tls:
+                raise ValueError('official DeepSeek requires TLS verification')
         parsed = urlparse(self.base_url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ValueError(
@@ -413,10 +405,6 @@ class SupervisorAPISettings:
             raise ValueError("SUPERVISOR_CIRCUIT_BREAKER_FAILURES must be between 1 and 10")
         if self.circuit_breaker_cooldown_seconds < 0:
             raise ValueError("SUPERVISOR_CIRCUIT_BREAKER_COOLDOWN must not be negative")
-        if len(set(self.fallback_models)) != len(self.fallback_models):
-            raise ValueError("SUPERVISOR_FALLBACK_MODELS contains duplicates")
-        if self.model in self.fallback_models:
-            raise ValueError("primary supervisor model cannot also be a fallback")
         if self.plan_cache_enabled and not Path(self.plan_cache_dir).is_absolute():
             raise ValueError("SUPERVISOR_PLAN_CACHE_DIR must be absolute")
 
@@ -443,7 +431,6 @@ class SupervisorAPISettings:
             "semantic_repair_attempts": self.semantic_repair_attempts,
             "serialize_requests": self.serialize_requests,
             "request_lock_path": self.request_lock_path,
-            "fallback_models": list(self.fallback_models),
             "circuit_breaker_failures": self.circuit_breaker_failures,
             "circuit_breaker_cooldown_seconds": self.circuit_breaker_cooldown_seconds,
             "plan_cache_enabled": self.plan_cache_enabled,
@@ -920,6 +907,8 @@ def _decode_chat_completion_stream(
 
     event_lines: list[str] = []
     content: list[str] = []
+    reasoning: list[str] = []
+    response_id = ""
     model = ""
     finish_reason: str | None = None
     usage: dict[str, Any] = {}
@@ -945,11 +934,14 @@ def _decode_chat_completion_stream(
             if finish_reason is None:
                 raise SupervisorProtocolError("supervisor stream ended without finish_reason")
             message = {"role": "assistant", "content": "".join(content)}
+            if reasoning:
+                message['reasoning_content'] = ''.join(reasoning)
             if tool_calls:
                 if sorted(tool_calls) != list(range(len(tool_calls))):
                     raise SupervisorProtocolError("supervisor stream has noncontiguous tool indexes")
                 message["tool_calls"] = [tool_calls[i] for i in sorted(tool_calls)]
             return {
+                **({'id': response_id} if response_id else {}),
                 "model": model,
                 "choices": [{"message": message,
                              "finish_reason": finish_reason}],
@@ -961,6 +953,10 @@ def _decode_chat_completion_stream(
             raise SupervisorProtocolError("supervisor stream contains invalid JSON event") from exc
         if not isinstance(chunk, Mapping) or chunk.get("error"):
             raise SupervisorProtocolError("supervisor stream contains an invalid/error event")
+        if chunk.get('id'):
+            if not isinstance(chunk['id'], str) or (response_id and response_id != chunk['id']):
+                raise SupervisorProtocolError('supervisor stream changed response identity')
+            response_id = chunk['id']
         chunk_model = chunk.get("model")
         if chunk_model:
             if not isinstance(chunk_model, str) or (model and model != chunk_model):
@@ -984,14 +980,15 @@ def _decode_chat_completion_stream(
         text = delta.get("content")
         if text is not None and not isinstance(text, str):
             raise SupervisorProtocolError("supervisor stream content delta must be text")
+        thought = delta.get('reasoning_content')
+        if thought is not None and not isinstance(thought, str):
+            raise SupervisorProtocolError('supervisor stream reasoning delta must be text')
         reason = choice.get("finish_reason")
         if reason is not None and (not isinstance(reason, str) or not reason):
             raise SupervisorProtocolError("supervisor stream has invalid finish_reason")
         if finish_reason is not None:
-            # OpenAI-compatible gateways commonly send one usage-only trailer
-            # chunk after the finish; only text or a changed finish_reason
-            # after the finish corrupts the assembled completion.
-            if text:
+            # A usage-only trailer cannot change the finished completion.
+            if text or thought:
                 raise SupervisorProtocolError("supervisor stream contains text after its finish")
             if delta.get('tool_calls'):
                 raise SupervisorProtocolError("supervisor stream contains tool output after its finish")
@@ -1000,6 +997,8 @@ def _decode_chat_completion_stream(
             continue
         if text:
             content.append(text)
+        if thought:
+            reasoning.append(thought)
         if delta.get('tool_calls') is not None:
             updates = delta['tool_calls']
             if not isinstance(updates, list):
@@ -1026,88 +1025,20 @@ def _decode_chat_completion_stream(
     raise SupervisorProtocolError("supervisor stream ended before [DONE]")
 
 
-def _decode_supervisor_json_content(
-    content: str,
-) -> tuple[dict[str, Any], dict[str, Any] | None]:
-    """Decode one JSON object, tolerating only a known reasoning envelope.
-
-    Some OpenAI-compatible providers serialize their private reasoning before
-    the JSON as an ``analysis`` or ``think`` XML element, or wrap JSON mode in
-    one exact Markdown ``json`` fence. Removing those provider-owned envelopes
-    is a transport normalization: it neither repairs nor synthesizes fields in
-    the supervisor object. Any other prefix, malformed envelope, trailing
-    prose, or non-object JSON stays a hard protocol error.
-    """
-
-    stripped = content.strip()
+def _decode_supervisor_json_content(content: str) -> tuple[dict[str, Any], None]:
+    """Decode official JSON Output exactly; no relay-specific text unwrapping."""
+    from .model_io import load_model_json
     try:
-        value = json.loads(stripped)
-    except json.JSONDecodeError as direct_error:
-        if stripped.startswith("```json\n") and stripped.endswith("\n```"):
-            prefix = "```json\n"
-            suffix = "\n```"
-            payload = stripped[len(prefix) : -len(suffix)].strip()
-            try:
-                value = json.loads(payload)
-            except json.JSONDecodeError as exc:
-                raise SupervisorProtocolError(
-                    "supervisor content is not one JSON object"
-                ) from exc
-            if not isinstance(value, dict):
-                raise SupervisorProtocolError(
-                    "supervisor content must be one JSON object"
-                )
-            return value, {
-                "normalization": "provider_json_fence_removed",
-                "prefix_chars": len(prefix),
-                "prefix_sha256": hashlib.sha256(
-                    prefix.encode("utf-8")
-                ).hexdigest(),
-                "suffix_chars": len(suffix),
-                "suffix_sha256": hashlib.sha256(
-                    suffix.encode("utf-8")
-                ).hexdigest(),
-                "controller_semantic_fields_generated": False,
-            }
-        for tag in ("analysis", "think"):
-            opening = f"<{tag}>"
-            closing = f"</{tag}>"
-            if not stripped.startswith(opening):
-                continue
-            closing_offset = stripped.find(closing, len(opening))
-            if closing_offset < 0:
-                break
-            prefix_end = closing_offset + len(closing)
-            prefix = stripped[:prefix_end]
-            payload = stripped[prefix_end:].strip()
-            try:
-                value = json.loads(payload)
-            except json.JSONDecodeError as exc:
-                raise SupervisorProtocolError(
-                    "supervisor content is not one JSON object"
-                ) from exc
-            if not isinstance(value, dict):
-                raise SupervisorProtocolError(
-                    "supervisor content must be one JSON object"
-                )
-            return value, {
-                "normalization": f"provider_{tag}_prefix_removed",
-                "prefix_chars": len(prefix),
-                "prefix_sha256": hashlib.sha256(prefix.encode("utf-8")).hexdigest(),
-                "controller_semantic_fields_generated": False,
-            }
-        raise SupervisorProtocolError(
-            "supervisor content is not one JSON object"
-        ) from direct_error
+        value = load_model_json(content)
+    except (TypeError, ValueError) as exc:
+        raise SupervisorProtocolError("supervisor content is not one JSON object") from exc
     if not isinstance(value, dict):
-        raise SupervisorProtocolError(
-            "supervisor content must be one JSON object"
-        )
+        raise SupervisorProtocolError("supervisor content must be one JSON object")
     return value, None
 
 
 class OpenAICompatibleSupervisorClient:
-    """Strict JSON-schema planner and completion reviewer."""
+    """Official DeepSeek planner/reviewer with an explicit legacy RWKV transport."""
 
     provider_name = "openai_compatible"
 
@@ -1119,6 +1050,7 @@ class OpenAICompatibleSupervisorClient:
         session: requests.Session | None = None,
     ) -> None:
         self.settings = settings or SupervisorAPISettings.from_env()
+        self.settings.validate()
         self.audit_hook = audit_hook
         self._main_session = session or requests.Session()
         self._main_session.trust_env = False
@@ -1145,38 +1077,14 @@ class OpenAICompatibleSupervisorClient:
         return self.settings.semantic_repair_attempts
 
     def pending_retry_delay_seconds(self, phase: str) -> float:
-        """Return the time until at least one phase route leaves its circuit."""
-
-        primary_model = (
-            self.stage_checker_model_name
-            if phase in _STAGE_CHECKER_PHASES
-            else self.model_name
-        )
-        routes = (
-            (primary_model,)
-            if phase in _STAGE_CHECKER_PHASES
-            else (primary_model, *self.settings.fallback_models)
-        )
-        now = time.monotonic()
-        remaining: list[float] = []
+        """Return the cooldown for the explicitly configured model; never reroute."""
+        model = self.stage_checker_model_name if phase in _STAGE_CHECKER_PHASES else self.model_name
         with self._route_lock:
-            for model in routes:
-                failures = self._model_failures.get(model, 0)
-                if failures < self.settings.circuit_breaker_failures:
-                    return 0.0
-                opened_at = self._model_opened_at.get(model, 0.0)
-                route_remaining = (
-                    self.settings.circuit_breaker_cooldown_seconds
-                    - (now - opened_at)
-                )
-                if route_remaining <= 0:
-                    return 0.0
-                remaining.append(route_remaining)
-        if not remaining:
-            return 0.0
-        # A small guard avoids re-entering a few scheduler ticks before the
-        # exact monotonic deadline and burning a bounded resume attempt.
-        return min(remaining) + 0.05
+            if self._model_failures.get(model, 0) < self.settings.circuit_breaker_failures:
+                return 0.0
+            remaining = self.settings.circuit_breaker_cooldown_seconds - (
+                time.monotonic() - self._model_opened_at.get(model, 0.0))
+        return max(0.0, remaining + 0.05) if remaining > 0 else 0.0
 
     def _session(self) -> requests.Session:
         session = getattr(self._thread_sessions, "session", None)
@@ -1213,6 +1121,10 @@ class OpenAICompatibleSupervisorClient:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
     def _post_completion(self, endpoint: str, body: Mapping[str, Any], *, audit_context: Mapping[str, Any]):
+        if self.settings.backend_profile == deepseek_api.BACKEND_PROFILE:
+            if endpoint not in {deepseek_api.endpoint(self.settings.base_url),
+                                deepseek_api.endpoint(self.settings.base_url, strict=True)}:
+                raise ValueError('strong requests cannot leave the official Chat endpoint')
         with self._request_slot():
             streaming = body.get("stream") is True
             deadline = time.monotonic() + self.settings.read_timeout_seconds
@@ -1225,6 +1137,7 @@ class OpenAICompatibleSupervisorClient:
                     self.settings.read_timeout_seconds,
                 ),
                 verify=self.settings.verify_tls,
+                allow_redirects=False,
                 **({"stream": True} if streaming else {}),
             )
             if not streaming:
@@ -1244,7 +1157,7 @@ class OpenAICompatibleSupervisorClient:
                 digest.update(line)
 
             try:
-                if response.status_code >= 400:
+                if response.status_code != 200:
                     getattr(response, "content", None)  # cache the error body before close
                     return response, None, None
                 data = _decode_chat_completion_stream(response, deadline=deadline, on_line=record_line)
@@ -1253,7 +1166,7 @@ class OpenAICompatibleSupervisorClient:
             except Exception as exc:
                 return response, None, exc
             finally:
-                if response.status_code < 400:
+                if response.status_code == 200:
                     self._emit({
                         "type": "supervisor_stream_received", **audit_context,
                         "http_status": response.status_code,
@@ -1271,284 +1184,72 @@ class OpenAICompatibleSupervisorClient:
         except Exception:
             return
 
-    @staticmethod
-    def _response_format(name: str, schema: Mapping[str, Any]) -> dict[str, Any]:
-        del name, schema
-        # The configured relay reliably supports JSON mode, while its
-        # json_schema path returns a one-token U+200B response with
-        # finish_reason=length for the GoalPlanPatch schema.  Keep the wire
-        # envelope minimal and enforce the full schema locally after decode.
-        return {"type": "json_object"}
-
     def _transport_for_phase(self, phase: str) -> str:
-        """Return the fixed wire protocol for each current Goal role."""
-
-        if (
-            self.settings.backend_profile == supervisor_vllm_rwkv.BACKEND_PROFILE
-            and phase in {"goal_plan", "goal_stage_review"}
-        ):
+        if self.settings.backend_profile == supervisor_vllm_rwkv.BACKEND_PROFILE:
+            supervisor_vllm_rwkv.envelope_for_phase(phase)  # reject unsupported native phases
             return supervisor_vllm_rwkv.TRANSPORT
-        if phase in _RESPONSES_API_PHASES:
-            return "responses"
-        return "chat_completions"
+        if self.settings.backend_profile != deepseek_api.BACKEND_PROFILE:
+            raise ValueError('explicit official DeepSeek backend required')
+        return deepseek_api.TRANSPORT
 
-    def _wire_request(
-        self,
-        *,
-        phase: str,
-        selected_model: str,
-        system_prompt: str,
-        payload_text: str,
-        max_tokens: int,
-        schema_revision: str,
-        schema: Mapping[str, Any],
-        tool_contract: Mapping[str, Any] | None = None,
-    ) -> tuple[str, dict[str, Any], str]:
+    def _wire_request(self, *, phase: str, selected_model: str, system_prompt: str,
+                      payload_text: str, max_tokens: int,
+                      tool_contract: Mapping[str, Any] | None = None):
+        # The original role owns semantic validation; JSON Output is only JSON,
+        # while Project tool calls use the independently sealed strict contract.
         transport = self._transport_for_phase(phase)
         options = self._request_options_for_phase(phase)
-
-        def with_options(body):
-            if options.keys() & body.keys():
-                raise ValueError("supervisor request options cannot override transport contract fields")
-            return {**body, **deepcopy(options)}
-
-        if tool_contract is not None:
-            from .strong_structured_output import strict_endpoint, build_tool_contract, PROTOCOL
-            if tool_contract.get('protocol') != PROTOCOL or transport != 'chat_completions':
-                raise ValueError('current strict chat tool contract required')
-            if build_tool_contract(tool_contract['original_definitions']) != tool_contract:
-                raise ValueError('strict tool contract differs from original role definitions')
-            options = dict(options)
-            options.setdefault('thinking', {'type': 'disabled'})
-            if options['thinking'] != {'type': 'disabled'}:
-                raise ValueError('DeepSeek required strict calls require thinking disabled')
-            return (strict_endpoint(self.settings.base_url), with_options({
-                'model': selected_model, 'messages': [
-                    {'role': 'system', 'content': system_prompt}, {'role': 'user', 'content': payload_text}],
-                'max_tokens': int(max_tokens), 'tools': deepcopy(tool_contract['tools']),
-                'tool_choice': tool_contract['tool_choice'],
-                **({'stream': True} if self.settings.stream_responses else {}),
-            }), transport)
-
         if transport == supervisor_vllm_rwkv.TRANSPORT:
-            return (
-                self.settings.base_url + "/completions",
-                with_options(supervisor_vllm_rwkv.build_completion_payload(
-                    phase=phase, model=selected_model, system_prompt=system_prompt,
-                    payload_text=payload_text, max_tokens=max_tokens,
-                )),
-                transport,
-            )
-        if transport == "responses":
-            body: dict[str, Any] = {
-                "model": selected_model,
-                "instructions": system_prompt,
-                # The relay's Responses converter rejects a JSON-looking
-                # top-level input string and typed input_text blocks, but
-                # accepts the official easy user-message envelope. Keep
-                # the serialized Planner payload byte-for-byte unchanged
-                # inside that transport-only wrapper.
-                "input": [
-                    {
-                        "role": "user",
-                        "content": _RESPONSES_JSON_INPUT_PREFIX + payload_text,
-                    }
-                ],
-                "max_output_tokens": int(max_tokens),
-                "text": {"format": {"type": "json_object"}},
-            }
-            return (
-                self.settings.base_url + "/responses",
-                with_options(body),
-                transport,
-            )
-        return (
-            self.settings.base_url + "/chat/completions",
-            with_options({
-                "model": selected_model,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": payload_text},
-                ],
-                "max_tokens": int(max_tokens),
-                "response_format": self._response_format(
-                    f"rwkv_lh_supervisor_{phase}_{schema_revision}",
-                    schema,
-                ),
-                **({"stream": True} if self.settings.stream_responses else {}),
-            }),
-            transport,
-        )
+            if tool_contract is not None or options:
+                raise ValueError('native Supervisor does not accept DeepSeek tools/options')
+            return (self.settings.base_url + "/completions",
+                    supervisor_vllm_rwkv.build_completion_payload(phase=phase, model=selected_model,
+                        system_prompt=system_prompt, payload_text=payload_text, max_tokens=max_tokens), transport)
+        return deepseek_api.chat_request(base_url=self.settings.base_url, model=selected_model,
+            system=system_prompt, user=payload_text, max_tokens=max_tokens,
+            stream=self.settings.stream_responses, options=options, tool_contract=tool_contract)
 
     def _request_options_for_phase(self, phase: str) -> dict[str, Any]:
-        return _validated_request_options(
-            self.settings.stage_checker_request_options
-            if phase in _STAGE_CHECKER_PHASES else self.settings.planner_request_options
-        )
+        return _validated_request_options(self.settings.stage_checker_request_options
+            if phase in _STAGE_CHECKER_PHASES else self.settings.planner_request_options)
 
-    @staticmethod
-    def _decode_responses_api_content(
-        data: Mapping[str, Any],
-    ) -> tuple[str, str]:
-        status = str(data.get("status") or "")
-        if status != "completed":
-            reason = ""
-            incomplete = data.get("incomplete_details")
-            if isinstance(incomplete, Mapping):
-                reason = str(incomplete.get("reason") or "")
-            suffix = f": {reason}" if reason else ""
-            raise SupervisorProtocolError(
-                f"supervisor Responses result is not completed ({status or 'missing'})"
-                f"{suffix}"
-            )
-        output = data.get("output")
-        if not isinstance(output, list):
-            raise SupervisorProtocolError(
-                "supervisor Responses result has no output array"
-            )
-        output_texts: list[str] = []
-        for item in output:
-            if not isinstance(item, Mapping) or item.get("type") != "message":
-                continue
-            content_items = item.get("content")
-            if not isinstance(content_items, list):
-                continue
-            for content_item in content_items:
-                if (
-                    isinstance(content_item, Mapping)
-                    and content_item.get("type") == "output_text"
-                    and isinstance(content_item.get("text"), str)
-                    and str(content_item["text"]).strip()
-                ):
-                    output_texts.append(str(content_item["text"]))
-        if len(output_texts) != 1:
-            raise SupervisorProtocolError(
-                "supervisor Responses result must contain exactly one non-empty "
-                f"output_text item, received {len(output_texts)}"
-            )
-        return output_texts[0], status
-
-    def _request_json(
-        self,
-        *,
-        phase: str,
-        run_id: str,
-        request_digest: str,
-        system_prompt: str,
-        request_payload: Mapping[str, Any],
-        schema: Mapping[str, Any],
-        max_tokens: int,
-        return_raw_content: bool = False,
-        tool_contract: Mapping[str, Any] | None = None,
-    ) -> dict[str, Any] | str:
-        primary_model = (
-            self.stage_checker_model_name
-            if phase in _STAGE_CHECKER_PHASES
-            else self.model_name
-        )
-        routes = (
-            (primary_model,)
-            if phase in _STAGE_CHECKER_PHASES
-            else (primary_model, *self.settings.fallback_models)
-        )
-        last_error: Exception | None = None
-        for route_index, selected_model in enumerate(routes):
-            with self._route_lock:
-                failures = self._model_failures.get(selected_model, 0)
-                opened_at = self._model_opened_at.get(selected_model, 0.0)
-            if failures >= self.settings.circuit_breaker_failures:
-                if time.monotonic() - opened_at < self.settings.circuit_breaker_cooldown_seconds:
-                    self._emit(
-                        {
-                            "type": "supervisor_route_skipped",
-                            "phase": phase,
-                            "run_id": run_id,
-                            "request_digest": request_digest,
-                            "model": selected_model,
-                            "reason": "circuit_open",
-                            "consecutive_failures": failures,
-                        }
-                    )
-                    continue
+    def _request_json(self, *, phase: str, run_id: str, request_digest: str,
+                      system_prompt: str, request_payload: Mapping[str, Any],
+                      schema: Mapping[str, Any], max_tokens: int, return_raw_content: bool = False,
+                      tool_contract: Mapping[str, Any] | None = None) -> dict[str, Any] | str:
+        selected_model = self.stage_checker_model_name if phase in _STAGE_CHECKER_PHASES else self.model_name
+        with self._route_lock:
+            failures = self._model_failures.get(selected_model, 0)
+            opened_at = self._model_opened_at.get(selected_model, 0.0)
+        if failures >= self.settings.circuit_breaker_failures:
+            if time.monotonic() - opened_at < self.settings.circuit_breaker_cooldown_seconds:
+                self._emit({'type': 'supervisor_route_skipped', 'phase': phase, 'run_id': run_id,
+                    'request_digest': request_digest, 'model': selected_model,
+                    'reason': 'circuit_open', 'consecutive_failures': failures})
+                raise SupervisorTransportError(f'configured supervisor model circuit is open during {phase}')
+            failures = 0
+            self._emit({'type': 'supervisor_route_half_open', 'phase': phase, 'run_id': run_id,
+                'request_digest': request_digest, 'model': selected_model})
+        try:
+            value = self._request_json_single(phase=phase, run_id=run_id, request_digest=request_digest,
+                system_prompt=system_prompt, request_payload=request_payload, schema=schema,
+                max_tokens=max_tokens, selected_model=selected_model, return_raw_content=return_raw_content,
+                **({'tool_contract': tool_contract} if tool_contract is not None else {}))
+        except Exception as exc:
+            known_budget = isinstance(exc, SupervisorGenerationInterrupted) and return_raw_content
+            nonretryable = isinstance(exc, SupervisorTransportError) and not exc.retryable
+            if not nonretryable:
                 with self._route_lock:
-                    self._model_failures[selected_model] = 0
-                failures = 0
-                self._emit(
-                    {
-                        "type": "supervisor_route_half_open",
-                        "phase": phase,
-                        "run_id": run_id,
-                        "request_digest": request_digest,
-                        "model": selected_model,
-                    }
-                )
-            if route_index:
-                self._emit(
-                    {
-                        "type": "supervisor_model_fallback_applied",
-                        "phase": phase,
-                        "run_id": run_id,
-                        "request_digest": request_digest,
-                        "from_model": routes[route_index - 1],
-                        "to_model": selected_model,
-                    }
-                )
-            try:
-                value = self._request_json_single(
-                    phase=phase,
-                    run_id=run_id,
-                    request_digest=request_digest,
-                    system_prompt=system_prompt,
-                    request_payload=request_payload,
-                    schema=schema,
-                    max_tokens=max_tokens,
-                    selected_model=selected_model,
-                    return_raw_content=return_raw_content,
-                    **({'tool_contract': tool_contract} if tool_contract is not None else {}),
-                )
-            except SupervisorTransportError as exc:
-                # Another model route cannot repair a bad credential,
-                # endpoint, or request. Do not multiply non-retryable failures
-                # across fallback models or open their circuits.
-                if not exc.retryable:
-                    raise
-                last_error = exc
-                with self._route_lock:
-                    self._model_failures[selected_model] = failures + 1
-                    if failures + 1 >= self.settings.circuit_breaker_failures:
-                        self._model_opened_at[selected_model] = time.monotonic()
-                continue
-            except SupervisorGenerationInterrupted as exc:
-                if return_raw_content:
-                    # Output length is a known model budget result. The raw
-                    # envelope reaches the Project role without poisoning the
-                    # provider route for its next request.
-                    with self._route_lock:
-                        self._model_failures[selected_model] = 0
+                    self._model_failures[selected_model] = 0 if known_budget else failures + 1
+                    if known_budget:
                         self._model_opened_at.pop(selected_model, None)
-                    raise
-                last_error = exc
-                with self._route_lock:
-                    self._model_failures[selected_model] = failures + 1
-                    if failures + 1 >= self.settings.circuit_breaker_failures:
+                    elif failures + 1 >= self.settings.circuit_breaker_failures:
                         self._model_opened_at[selected_model] = time.monotonic()
-                continue
-            except Exception as exc:
-                last_error = exc
-                with self._route_lock:
-                    self._model_failures[selected_model] = failures + 1
-                    if failures + 1 >= self.settings.circuit_breaker_failures:
-                        self._model_opened_at[selected_model] = time.monotonic()
-                continue
-            with self._route_lock:
-                self._model_failures[selected_model] = 0
-                self._model_opened_at.pop(selected_model, None)
-            return value
-        if last_error is not None:
-            raise last_error
-        raise SupervisorTransportError(
-            f"all supervisor model routes have open circuits during {phase}"
-        )
+            raise
+        with self._route_lock:
+            self._model_failures[selected_model] = 0
+            self._model_opened_at.pop(selected_model, None)
+        return value
 
     def _request_json_single(
         self,
@@ -1565,15 +1266,6 @@ class OpenAICompatibleSupervisorClient:
         tool_contract: Mapping[str, Any] | None = None,
     ) -> dict[str, Any] | str:
         call_id = f"SUP-{uuid.uuid4().hex[:20]}"
-        schema_revision = (
-            "v4"
-            if phase == "goal_plan"
-            else "v8"
-            if phase == "contract_plan"
-            else "v2"
-            if phase == "contract_review"
-            else "v1"
-        )
         payload_text = _render_user_payload(request_payload)
         endpoint, body, transport = self._wire_request(
             phase=phase,
@@ -1581,8 +1273,6 @@ class OpenAICompatibleSupervisorClient:
             system_prompt=system_prompt,
             payload_text=payload_text,
             max_tokens=max_tokens,
-            schema_revision=schema_revision,
-            schema=schema,
             **({'tool_contract': tool_contract} if tool_contract is not None else {}),
         )
         payload_bytes = payload_text.encode("utf-8")
@@ -1603,8 +1293,6 @@ class OpenAICompatibleSupervisorClient:
                 "input_envelope": (
                     native_envelope.input_envelope
                     if native_envelope is not None
-                    else "easy_user_message_json_prefix_v1"
-                    if transport == "responses"
                     else "chat_messages_v1"
                 ),
                 "input_sha256": hashlib.sha256(payload_bytes).hexdigest(),
@@ -1667,7 +1355,7 @@ class OpenAICompatibleSupervisorClient:
                     if delay:
                         time.sleep(delay)
                     continue
-                if response.status_code >= 400:
+                if response.status_code != 200:
                     raise _supervisor_http_error(
                         response.status_code,
                         phase,
@@ -1691,7 +1379,7 @@ class OpenAICompatibleSupervisorClient:
                     and isinstance(choices[0], Mapping) else {}
                 )
                 envelope_metadata = {
-                    "finish_reason": envelope_choice.get("finish_reason") if transport != "responses" else data.get("status"),
+                    "finish_reason": envelope_choice.get("finish_reason"),
                     "usage": deepcopy(dict(data["usage"])) if isinstance(data.get("usage"), Mapping) else {},
                     "max_tokens": int(max_tokens),
                 }
@@ -1702,11 +1390,7 @@ class OpenAICompatibleSupervisorClient:
                     "model": str(data.get("model") or selected_model),
                     "raw_response": deepcopy(dict(data)), **deepcopy(envelope_metadata),
                 })
-                incomplete = data.get("incomplete_details")
-                if envelope_metadata["finish_reason"] == "length" or (
-                    transport == "responses" and data.get("status") == "incomplete"
-                    and isinstance(incomplete, Mapping) and incomplete.get("reason") == "max_output_tokens"
-                ):
+                if envelope_metadata["finish_reason"] == "length":
                     raise SupervisorGenerationInterrupted(
                         f"supervisor {phase} generation interrupted: finish_reason="
                         f"{envelope_metadata['finish_reason']!r}; output limit={max_tokens}"
@@ -1743,8 +1427,6 @@ class OpenAICompatibleSupervisorClient:
                         "raw_token_ids_available": isinstance(decoded.metadata.get("token_ids"), list),
                         "prompt_token_ids_available": isinstance(decoded.metadata.get("prompt_token_ids"), list),
                     }
-                elif transport == "responses":
-                    content, finish_reason = self._decode_responses_api_content(data)
                 else:
                     choices = data.get("choices")
                     if (
@@ -1772,7 +1454,7 @@ class OpenAICompatibleSupervisorClient:
                         self._emit({'type': 'strong_tool_transport_normalized', 'call_id': call_id,
                             'contract_sha256': tool_contract['contract_sha256'],
                             'original_message': deepcopy(dict(message)), 'role_content': content,
-                            'argument_envelope_removed': None, 'semantic_fields_generated': False})
+                            'argument_envelope_removed': tool_contract['argument_envelope'], 'semantic_fields_generated': False})
                     else:
                         content = message.get("content")
                     # Project roles receive the exact completed response, even
@@ -1795,7 +1477,13 @@ class OpenAICompatibleSupervisorClient:
                 if return_raw_content:
                     value, content_normalization = content, None
                 else:
-                    value, content_normalization = _decode_supervisor_json_content(decoder_content)
+                    if native_envelope is not None:
+                        try:
+                            value, content_normalization = supervisor_vllm_rwkv.decode_json_content(decoder_content)
+                        except (ValueError, RWKVProtocolError) as exc:
+                            raise SupervisorProtocolError(str(exc)) from exc
+                    else:
+                        value, content_normalization = _decode_supervisor_json_content(decoder_content)
                 if content_normalization is not None:
                     self._emit(
                         {
@@ -2664,7 +2352,6 @@ class OpenAICompatibleSupervisorClient:
                 selected_model=self.stage_checker_model_name if phase == "goal_stage_review" else self.model_name,
                 system_prompt=system_prompt, payload_text=_render_user_payload(payload),
                 max_tokens=self.settings.max_contract_review_tokens if phase == "goal_stage_review" else self.settings.max_plan_tokens,
-                schema_revision=cache_schema, schema=schema,
             )
             wire_identity.update(endpoint=endpoint, transport=transport, body=wire_body)
         cache_key = hashlib.sha256(
@@ -2675,7 +2362,7 @@ class OpenAICompatibleSupervisorClient:
                     "models": (
                         [self.stage_checker_model_name]
                         if phase == "goal_stage_review"
-                        else [self.model_name, *self.settings.fallback_models]
+                        else [self.model_name]
                     ),
                     "system_prompt": system_prompt,
                     "request": payload,
@@ -3987,7 +3674,7 @@ class OpenAICompatibleSupervisorClient:
             "and may be inaccurate. Never demand correction based only on summary wording "
             "when direct action results and current workspace evidence support the request. "
             "Mark an atom exclusive and dispatch it alone when it needs workspace-wide "
-            "mutation, run_command, or an external side effect. Each request_clauses entry "
+            "mutation, run_shell, or an external side effect. Each request_clauses entry "
             "must be copied verbatim from the immutable request; the atom objective may split "
             "the work but must never rewrite an exact path, byte, schema, count, or value. "
             "Every path-like literal in an atom objective/check must already occur verbatim in "
@@ -4009,7 +3696,7 @@ class OpenAICompatibleSupervisorClient:
             "operation arguments; RWKV alone generates parameters and executes. Prefer "
             "copy_file for byte-preserving copies and write_json for JSON artifacts. Use "
             "read_file/read_json/list_directory for workspace inspection; use "
-            "check_command only to validate argv immediately before an exclusive run_command "
+            "check_command only for explicit argv validation before an exclusive run_shell script "
             "atom, never as a generic file verifier. When the user wording implies an object "
             "shape, use the shortest canonical nouns directly implied by the request as exact "
             "keys and state its array-vs-mapping structure in the writer objective. When prose "
@@ -4103,15 +3790,20 @@ class OpenAICompatibleSupervisorClient:
         started = time.perf_counter()
         try:
             response = self._session().get(
-                self.settings.base_url + "/models",
+                (deepseek_api.endpoint(self.settings.base_url, models=True)
+                 if self.settings.backend_profile == deepseek_api.BACKEND_PROFILE
+                 else self.settings.base_url + "/models"),
                 headers=self._headers(),
                 timeout=(
                     self.settings.connect_timeout_seconds,
                     self.settings.read_timeout_seconds,
                 ),
                 verify=self.settings.verify_tls,
+                allow_redirects=False,
             )
             response.raise_for_status()
+            if response.status_code != 200:
+                raise SupervisorTransportError(f"supervisor health HTTP status {response.status_code}")
             data = response.json()
             models = tuple(
                 str(item.get("id"))

@@ -118,7 +118,7 @@ _CONTENT_OBSERVATION_OPERATIONS = frozenset(
     {"read_file", "read_json", "bind_evidence", "mock_api"}
 )
 _COMMAND_OBSERVATION_OPERATIONS = frozenset(
-    {"run_command", "check_command", "mock_api"}
+    {"run_shell", "check_command", "mock_api"}
 )
 CONTRACT_GRAPH_ARCHITECTURE = "strong-planner-reviewer-rwkv-contract-graph.v2"
 CONTRACT_GRAPH_ARCHITECTURE_VERSIONS = frozenset(
@@ -2085,7 +2085,7 @@ class LongHorizonController:
                 if (
                     item.operation == expected_operation
                     if expected_operation
-                    else item.operation in {"run_command", "check_command", "mock_api"}
+                    else item.operation in {"run_shell", "check_command", "mock_api"}
                     or item.result.get("exit_code") is not None
                 )
             ]
@@ -5057,7 +5057,7 @@ class LongHorizonController:
         finished = ActionRecord.from_dict(authoritative.to_dict())
         after = self.harness.workspace_observation_snapshot(state.goal)
         if (
-            authoritative.action_type == "run_command"
+            authoritative.action_type == "run_shell"
             and workspace_snapshot_before is not None
         ):
             result.metadata = {
@@ -5240,7 +5240,7 @@ class LongHorizonController:
 
         target = {
             key: action.arguments[key]
-            for key in ("path", "destination", "argv", "cwd")
+            for key in ("path", "destination", "argv", "command", "cwd")
             if key in action.arguments
         }
         external = result.metadata.get("external_evidence")

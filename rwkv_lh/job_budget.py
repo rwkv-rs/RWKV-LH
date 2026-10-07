@@ -3,6 +3,7 @@
 Signals bound Python work and interrupt blocking calls on the process main
 thread. Cleanup and evidence persistence may overrun; this is not a hard OS cap.
 """
+from .generation_accounting import count_generation_traces, execution_model_traces
 from functools import wraps
 import json
 import math
@@ -17,8 +18,6 @@ class WallDeadlineExpired(BaseException):
 
 
 def unresolved_assistance(job):
-    if hasattr(job, 'rwkv_max_calls'):
-        return 'unknown'  # A failed GoalJob may already have entered takeover.
     return ('strong_takeover' if getattr(job, 'mode', '') == 'takeover' else
             'strong_advised' if getattr(job, 'mode', '') == 'advice' else 'rwkv_independent')
 
@@ -46,20 +45,14 @@ def task_deadline(function):
             result = function(job, *args, **kwargs)
         except WallDeadlineExpired:
             # No invented answer or usage. Recover only already-persisted events.
-            traces = list(output.glob('**/model_trace.jsonl')) if output.exists() else []
-            calls = 0
-            complete = True
-            for path in traces:
-                try:
-                    events = [json.loads(line) for line in path.read_text().splitlines()]
-                    calls += sum(e.get('type') == 'model_session_generation_started' for e in events)
-                except (OSError, ValueError):
-                    complete = False
+            counts = count_generation_traces(execution_model_traces(output))
+            calls = counts.started
+            returned = counts.returned
             if getattr(job, 'mode', '') == 'advice':
-                calls = None  # Advice provider usage is separate; not guessed here.
+                calls = returned = None  # Advice provider usage is separate; not guessed here.
             result = {'id': job.task_id, 'final': None, 'termination': 'budget',
                 'termination_reason': 'wall_budget_exhausted', 'acceptance': 'unreviewable',
-                'generation_started': calls if complete else None, 'trace_complete': False,
+                'generation_started': calls, 'generation_returned': returned, 'trace_complete': False,
                 'assistance': unresolved_assistance(job)}
         finally:
             signal.setitimer(signal.ITIMER_REAL, 0)

@@ -982,7 +982,7 @@ class ThreadedRWKVAtomPool:
     ) -> None:
         """Replace the authoritative workspace only after an exclusive success.
 
-        Exclusive operations such as ``run_command`` can mutate undeclared paths.
+        Exclusive operations such as ``run_shell`` can mutate undeclared paths.
         They therefore run in a complete snapshot.  A successful snapshot is
         staged beside the parent and swapped in with a recoverable backup; failed
         or interrupted snapshots never reach this method.

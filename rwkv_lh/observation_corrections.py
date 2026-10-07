@@ -12,7 +12,7 @@ from .schema import GoalState, RunState, TaskAction
 from .statetune_core import require, read_sealed_json
 from .workspace_snapshot import copy_verified_workspace, tree_identity
 
-READ_FUNCTIONS = {'read_file', 'search_text', 'list_directory'}
+READ_FUNCTIONS = {'read_file', 'search_files', 'list_directory'}
 
 
 def validate_observation_correction(*, run_root, checkpoint_id, target_text, model_sha256,

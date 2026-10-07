@@ -19,6 +19,22 @@ STATE_PROFILE_ID = "zero"
 STATE_PROFILE_SHA256 = "0" * 64
 
 
+def decode_json_content(content):
+    """Remove only the native tokenizer's known thinking prefix, never a provider fence."""
+    import hashlib
+    from rwkv_lh.model_io import load_model_json
+    if not content.startswith('<think>') or '</think>' not in content:
+        raise RWKVProtocolError('native Supervisor requires its exact thinking envelope')
+    thinking, _, payload = content.partition('</think>')
+    value = load_model_json(payload)
+    if not isinstance(value, dict):
+        raise RWKVProtocolError('native Supervisor content must be one JSON object')
+    prefix = thinking + '</think>'
+    return value, {'normalization': 'native_think_prefix_removed',
+        'prefix_chars': len(prefix), 'prefix_sha256': hashlib.sha256(prefix.encode()).hexdigest(),
+        'controller_semantic_fields_generated': False}
+
+
 @dataclass(frozen=True)
 class NativeSupervisorEnvelope:
     input_envelope: str

@@ -31,13 +31,10 @@ def generate_packets(source, registration, output):
 
 def _generate_locked(ledger, registration, registration_sha, provenance, output):
     source = ledger.root
-    before = ledger.verified_events()[-1]['digest']
+    before = ledger.scan_verified_events()['digest']
     rows = list(role_boundaries(source))
-    events = ledger.verified_events()
-    if before != events[-1]['digest']:
-        raise ValueError('source changed during extraction')
     outcomes = {}
-    for event in events:
+    def collect(event):
         feedback = event['state'].get('feedback') or {}
         if event['kind'].endswith('_rejected'):
             # Find the last returned operation, without inventing a correction label.
@@ -45,6 +42,8 @@ def _generate_locked(ledger, registration, registration_sha, provenance, output)
             identifier = next((key for key in reversed(receipts) if receipts[key]['kind'] == 'model'), None)
             if identifier:
                 outcomes[identifier] = feedback
+    if before != ledger.scan_verified_events(collect)['digest']:
+        raise ValueError('source changed during extraction')
     for row in rows:
         row['observed_rejection'] = outcomes.get(row['operation_id'])
         row['candidate_id'] = digest([row['source_event_digest'], row['result_event_digest'], row['operation_id']])

@@ -1,14 +1,78 @@
-"""Derive the entire role output grammar from its existing tool definitions."""
+"""Constrain current role choices without choosing an action or resetting State."""
+from copy import deepcopy
 from .runtime.structured_output import build_decoder_contract
+from .project_protocols import decision, executor
 
 INPUT_FRAMING = 'project-decoder-json-fence.v1'
+BOUNDARY_POLICY = 'project-boundary-decoder.v1'
 
 
-def build_role_decoder(definitions):
+def _reference(schema, field, values):
+    """Project the builder's exact ID catalog, including empty evidence arrays."""
+    parent = schema
+    *parents, name = field.split('.')
+    for key in parents:
+        child = deepcopy(parent['properties'][key])
+        parent['properties'][key] = child
+        parent = child
+    # Definitions deliberately share STRING/schema objects. deepcopy preserves
+    # those aliases: detach this field before narrowing it, so a task enum can
+    # never overwrite the verification/advice enum of another property.
+    target = deepcopy(parent['properties'][name])
+    parent['properties'][name] = target
+    if target.get('type') == 'array':
+        if values:
+            target['items']['enum'] = list(values)
+        else:
+            target['maxItems'] = 0
+    elif values:
+        target['enum'] = list(values)
+    elif name not in parent.get('required', ()):
+        del parent['properties'][name]
+    else:
+        raise ValueError('required scalar reference has no permitted values')
+
+
+def _boundary_parameters(role, payload, item):
+    name, schema = item['name'], item['parameters']
+    if role == 'decision':
+        if not payload['boundary']['options'][name]:
+            return []
+        refs = payload['references'][name]
+        scoped = {key.removesuffix('_by_task'): value for key, value in refs.items() if key.endswith('_by_task')}
+        targets = refs['task_id'] if scoped else [None]
+    else:
+        refs = payload['references'].get(name, {})
+        if name == 'read_receipt' and not refs['evidence_id']:
+            return []
+        scoped, targets = {}, [None]
+    variants = []
+    for target in targets:
+        current = deepcopy(schema)
+        for field, values in refs.items():
+            if not field.endswith('_by_task'):
+                _reference(current, field, [target] if field == 'task_id' and scoped else values)
+        for field, by_task in scoped.items():
+            _reference(current, field, by_task[target])
+        variants.append(current)
+    return variants
+
+
+def build_role_decoder(definitions, *, role=None, payload=None):
+    """Static catalog identity, or the exact grammar for a production boundary.
+
+    Catalog/policy identities stay bound to the lane. Per-call constraints come
+    solely from the canonical role input and are attested by the generation.
+    """
     if not definitions or len({item['name'] for item in definitions}) != len(definitions):
         raise ValueError('decoder requires unique role tools')
+    if role is not None or payload is not None:
+        if role not in ('decision', 'executor') or payload is None:
+            raise ValueError('boundary decoder requires a Native role and its input')
+        {'decision': decision, 'executor': executor}[role].validate_input(payload)
     return build_decoder_contract({'anyOf': [
         {'type': 'object', 'properties': {
-            'function': {'const': item['name']}, 'params': item['parameters']},
+            'function': {'const': item['name']}, 'params': params},
          'required': ['function', 'params'], 'additionalProperties': False}
-        for item in definitions]})
+        for item in definitions
+        for params in (_boundary_parameters(role, payload, item) if role else [item['parameters']])]})

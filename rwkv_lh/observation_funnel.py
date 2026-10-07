@@ -24,8 +24,8 @@ OBSERVATION_PACKET_SCHEMA_VERSION = "rwkv-lh.observation-packet.v1"
 OBSERVATION_PROJECTION_VERSION = "typed-lineage-observation-funnel.v1"
 
 LOCAL_EXACT_TEXT_OPERATIONS = frozenset({"read_file", "read_json", "bind_evidence"})
-STRUCTURED_PAGE_OPERATIONS = frozenset({"list_directory", "search_text"})
-COMMAND_OPERATIONS = frozenset({"check_command", "run_command"})
+STRUCTURED_PAGE_OPERATIONS = frozenset({"list_directory", "search_files"})
+COMMAND_OPERATIONS = frozenset({"check_command", "run_shell"})
 EXTERNAL_EVIDENCE_OPERATIONS = frozenset({"web_search", "connector_lookup"})
 SCALAR_OPERATIONS = frozenset(
     {"file_digest", "calculator", "date_diff", "current_time"}
@@ -645,14 +645,14 @@ def _search_cursor_after(contract_digest: str, match: Mapping[str, Any]) -> str:
         separators=(",", ":"),
     ).encode("utf-8")
     encoded = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
-    return f"search-v1.{encoded}"
+    return f"search-files-v1.{encoded}"
 
 
 def _search_match_with_lineage(
     match: Mapping[str, Any],
     source_snapshots: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Validate and identify one exact source line emitted by ``search_text``."""
+    """Validate and identify one exact source line emitted by ``search_files``."""
 
     selected = dict(match)
     path = str(selected.get("path") or "")
@@ -664,7 +664,7 @@ def _search_match_with_lineage(
         end_byte = int(selected.get("line_text_end_byte"))
     except (TypeError, ValueError) as exc:
         raise ObservationProjectionError(
-            "search_text match lacks an exact UTF-8 byte range"
+            "search_files match lacks an exact UTF-8 byte range"
         ) from exc
     if (
         not path
@@ -675,7 +675,7 @@ def _search_match_with_lineage(
         or end_byte < start_byte
     ):
         raise ObservationProjectionError(
-            "search_text match has invalid source-line lineage"
+            "search_files match has invalid source-line lineage"
         )
     content_bytes = content.encode("utf-8")
     if (
@@ -683,7 +683,7 @@ def _search_match_with_lineage(
         or _sha256_bytes(content_bytes) != expected_content_sha256
     ):
         raise ObservationProjectionError(
-            "search_text match bytes do not match its exact line identity"
+            "search_files match bytes do not match its exact line identity"
         )
     identity = {
         "source_ref": path,
@@ -732,7 +732,7 @@ def _project_structured_page(
 
     raw_source_snapshots = (
         dict(payload.get("source_snapshots") or {})
-        if operation == "search_text"
+        if operation == "search_files"
         and isinstance(payload.get("source_snapshots"), Mapping)
         else {}
     )
@@ -752,7 +752,7 @@ def _project_structured_page(
             diagnostic_arrays_projected = False
     typed_items = [
         _search_match_with_lineage(item, raw_source_snapshots)
-        if operation == "search_text"
+        if operation == "search_files"
         else dict(item)
         for item in raw_items
     ]
@@ -760,7 +760,7 @@ def _project_structured_page(
     for item in typed_items:
         candidate_items = [*retained, item]
         candidate = {**base, item_key: candidate_items}
-        if operation == "search_text":
+        if operation == "search_files":
             candidate_paths = {
                 str(candidate_item.get("path") or "")
                 for candidate_item in candidate_items
@@ -779,7 +779,7 @@ def _project_structured_page(
     model_payload["entry_count" if operation == "list_directory" else "match_count"] = len(
         retained
     )
-    if operation == "search_text":
+    if operation == "search_files":
         retained_paths = {
             str(item.get("path") or "") for item in retained if item.get("path")
         }
@@ -800,13 +800,13 @@ def _project_structured_page(
                 "recursive": bool(arguments.get("recursive", payload.get("recursive", False))),
                 "start_after": projection_cursor,
             }
-        elif operation == "search_text" and retained:
+        elif operation == "search_files" and retained:
             projection_cursor = _search_cursor_after(
                 str(source_metadata.get("contract_digest") or ""), retained[-1]
             )
             if not projection_cursor:
                 raise ObservationProjectionError(
-                    "search_text projection cannot produce a lossless continuation cursor"
+                    "search_files projection cannot produce a lossless continuation cursor"
                 )
             model_payload["next_cursor"] = projection_cursor
             resume_arguments = {

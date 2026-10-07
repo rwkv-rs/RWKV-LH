@@ -1,6 +1,5 @@
-"""Coding tasks in a copied workspace, using the production execution loop."""
+"""Offline Direct trace collection in a copied workspace; not the Project entrypoint."""
 from .job_budget import task_deadline
-from dataclasses import dataclass, field
 from pathlib import Path
 import shutil
 
@@ -9,21 +8,6 @@ from .controller import LongHorizonController
 from .harness import ActionHarness
 from .model_session import create_model_session
 from .read_only_agent import ReadOnlyJob, _run_job, _save
-
-
-@dataclass(frozen=True)
-class CodingJob:
-    task_id: str
-    request: str
-    source_workspace: str
-    output_dir: str
-    max_calls: int = 12
-    max_seconds: float = 600
-    record_generation_snapshots: bool = field(default=False, kw_only=True)
-    protected_paths: tuple[str, ...] = field(default=(), kw_only=True)
-    unit_calls: int | None = field(default=None, kw_only=True)
-    unit_seconds: float | None = field(default=None, kw_only=True)
-    require_initial_plan: bool = field(default=False, kw_only=True)
 
 
 def _inventory(root):
