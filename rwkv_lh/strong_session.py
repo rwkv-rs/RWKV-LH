@@ -53,14 +53,18 @@ class StrongCompletion:
             contract = build_tool_contract(self.tools_builder())
         return system_prompt, request_payload, contract
 
-    def wire_input_tokens(self, prompt, max_tokens):
-        """Conservative local estimate; provider tokenizer/template remain distinct."""
+    def wire_request(self, prompt, max_tokens):
+        """Build the actual request shape without sending or reserving a call."""
         from .supervisor_openai import _render_user_payload
         system, payload, contract = self._input(prompt)
-        _, body, _ = self.client._wire_request(phase=self.phase, selected_model=self.model_name,
+        endpoint, body, _ = self.client._wire_request(phase=self.phase, selected_model=self.model_name,
             system_prompt=system, payload_text=_render_user_payload(payload),
             max_tokens=max_tokens, tool_contract=contract)
-        return get_token_count(canonical_json(body))
+        return {'endpoint': endpoint, 'body': body}
+
+    def wire_input_tokens(self, prompt, max_tokens):
+        """Conservative local estimate; provider tokenizer/template remain distinct."""
+        return get_token_count(canonical_json(self.wire_request(prompt, max_tokens)['body']))
 
     def text_completion(self, prompt, max_tokens=1800, stop=None):
         if self.calls >= self.max_calls:

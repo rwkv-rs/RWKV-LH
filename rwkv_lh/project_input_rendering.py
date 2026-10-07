@@ -16,41 +16,59 @@ from .project_step_progress import render_step_progress
 _HOST_FIELDS = {'protocol', 'task_status', 'selected_evidence', 'information_complete', 'evidence_ids'}
 _SPECIAL_FIELDS = {'instruction', 'next_decision', 'step_progress', 'action_feedback', 'references',
                    'observations', 'evidence_updates', 'latest_feedback', 'protocol_feedback', 'feedback'}
+VERBATIM_ENCODING = 'verbatim-json-values.v2'
 
 
 def share_verbatim_json(payload):
-    """Encode repeated complete strings once, with explicit self-contained paths.
+    """Share exact values with visible references, never null placeholders.
 
-    No source facts or occurrence identities change. Null placeholders are only
-    aliases at the listed paths, so arbitrary tool text cannot forge references.
-    The original semantic snapshot remains the ledger and trace authority.
+    The reserved reference key is absent from all source data. Each operation
+    stays in its original position; only identical complete values share a
+    definition. Repeated observation/result structures are covered as well as
+    text, and every definition is in this same input. No summarization occurs.
     """
-    occurrences = {}
-    def visit(value, path):
-        if isinstance(value, str) and len(value) >= 128:
-            occurrences.setdefault(value, []).append(path)
-        elif isinstance(value, dict):
-            for key, item in value.items():
-                visit(item, [*path, key])
+    original = canonical_json(payload)
+    marker = 'verbatim_ref'
+    while marker in original:
+        marker += '_'
+    occurrences = Counter()
+    def visit(value):
+        if isinstance(value, (str, dict, list)):
+            encoded = canonical_json(value)
+            if len(encoded) >= 128:
+                occurrences[encoded] += 1
+        if isinstance(value, dict):
+            for item in value.values():
+                visit(item)
         elif isinstance(value, list):
-            for index, item in enumerate(value):
-                visit(item, [*path, index])
-    visit(payload, [])
-    shared = [{'text': text, 'paths': paths} for text, paths in occurrences.items()
-              if len(paths) > 1 and len(canonical_json({'text': text, 'paths': paths}))
-                 < (len(canonical_json(text)) - 4) * len(paths)]
-    if not shared:
+            for item in value:
+                visit(item)
+    visit(payload)
+    candidates = {encoded for encoded, count in occurrences.items()
+                  if count > 1 and len(encoded) * (count - 1) > count * (len(marker) + 24) + 32}
+    if not candidates:
         return deepcopy(payload)
-    body = deepcopy(payload)
-    for block in shared:
-        for path in block['paths']:
-            node = body
-            for key in path[:-1]:
-                node = node[key]
-            node[path[-1]] = None
-    wire = {'encoding': 'verbatim-json-strings.v1', 'payload': body, 'shared_strings': shared}
+    names, shared = {}, {}
+    def children(value):
+        if isinstance(value, dict):
+            return {key: encode(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [encode(item) for item in value]
+        return value
+    def encode(value):
+        encoded = canonical_json(value) if isinstance(value, (str, dict, list)) else None
+        if encoded not in candidates:
+            return children(value)
+        if encoded not in names:
+            name = 'V' + str(len(names) + 1)
+            names[encoded] = name
+            shared[name] = children(value)
+        return {marker: names[encoded]}
+    body = encode(payload)
+    wire = {'encoding': VERBATIM_ENCODING, 'reference_key': marker,
+            'payload': body, 'shared_values': shared}
     from .token_budget import get_token_count
-    return wire if get_token_count(canonical_json(wire)) < get_token_count(canonical_json(payload)) else deepcopy(payload)
+    return wire if get_token_count(canonical_json(wire)) < get_token_count(original) else deepcopy(payload)
 
 
 def _join_shared_blocks(lines):

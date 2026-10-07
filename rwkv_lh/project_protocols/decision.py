@@ -48,7 +48,8 @@ def _delivery_reports(state, accepting=None):
     return [key for key, report in state['reports'].items() if report['status'] == 'submitted']
 
 
-def _references(state, options):
+def parameter_references(state, options):
+    """Current parameter values shared with read-only Planner advice."""
     result = {}
     for function, identifiers in options.items():
         if not identifiers:
@@ -166,7 +167,7 @@ def build_input(state, *, remaining):
     non_model = {key for key, item in state['evidence'].items() if item['kind'] != 'model'}
     tool_ids = {key for key, item in state['evidence'].items() if item['kind'] == 'tool'}
     selected_details = state['selected_evidence'].get(LANE, {})
-    references = _references(state, options)
+    references = parameter_references(state, options)
     from rwkv_lh.project_receipt_refs import build_bindings
     return {'protocol': PROTOCOL, 'request': state['request'], 'plan_version': state['plan_version'],
         'goal': deepcopy(state['goal']), 'goal_checks': deepcopy(state['goal_checks']),

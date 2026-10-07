@@ -218,7 +218,17 @@ class ProjectRuntime:
         definitions = role_definitions(role, self.harness)
         preflight = getattr(self.roles, 'preflight', None)
         if preflight is not None:
-            preflight(role, lane, payload, definitions, s['sessions'].get(lane))
+            try:
+                preflight(role, lane, payload, definitions, s['sessions'].get(lane))
+            except InputBudgetError as exc:
+                rejection = {'role': role, 'lane': lane, 'input': payload,
+                    'input_digest': digest(payload), 'definitions': definitions,
+                    'checkpoint': s['sessions'].get(lane), 'error': str(exc),
+                    'measurement': getattr(exc, 'input_budget_evidence', None),
+                    'call_reserved': False, 'generation_started': False}
+                self.db.update('model_input_rejected', lambda state:
+                    state.setdefault('input_rejections', []).append(deepcopy(rejection)))
+                raise
         def reserve(state):
             state['calls'] += 1
             if role == 'executor':

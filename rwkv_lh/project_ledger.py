@@ -12,8 +12,9 @@ from .project_contracts import (digest, make_assignment, task_map, validate_plan
     selected_task_advice, require_current_verification, make_goal, validate_goal,
     work_items, work_map, work_requirements, protected_paths, GOAL_ID, work_check_context, validate_check, affected_work)
 from .workspace_snapshot import tree_identity
+from .project_record_store import RecordStore
 
-PROTOCOL = 'rwkv-lh.project-ledger.v14'
+PROTOCOL = 'rwkv-lh.project-ledger.v15'
 
 
 class UncertainOperation(RuntimeError):
@@ -74,9 +75,11 @@ class ProjectLedger:
             connection.execute('PRAGMA journal_mode=WAL')
             connection.execute('CREATE TABLE current (id INTEGER PRIMARY KEY CHECK(id=1), body TEXT NOT NULL)')
             connection.execute('CREATE TABLE events (seq INTEGER PRIMARY KEY, kind TEXT NOT NULL, body TEXT NOT NULL, digest TEXT NOT NULL)')
-            body = json.dumps(state, ensure_ascii=False)
+            RecordStore.create(connection)
+            reference = RecordStore(connection).write(state)
+            body = json.dumps(reference, ensure_ascii=False)
             connection.execute('INSERT INTO current VALUES (1,?)', (body,))
-            connection.execute('INSERT INTO events VALUES (1,?,?,?)', ('created', body, digest(state)))
+            connection.execute('INSERT INTO events VALUES (1,?,?,?)', ('created', body, digest(reference)))
         return cls(root)
 
     @contextmanager
@@ -122,7 +125,9 @@ class ProjectLedger:
 
     def state(self):
         with self._connection() as connection:
-            return json.loads(connection.execute('SELECT body FROM current WHERE id=1').fetchone()[0])
+            connection.execute('BEGIN')
+            reference = json.loads(connection.execute('SELECT body FROM current WHERE id=1').fetchone()[0])
+            return RecordStore(connection).read(reference)
 
     def verified_events(self):
         """Materialize verified events only when the caller needs every state."""
@@ -140,20 +145,23 @@ class ProjectLedger:
         """
         with self._connection() as connection:
             connection.execute('BEGIN')
-            previous, count, tip = None, 0, None
+            previous, count, tip, reference = None, 0, None, None
+            store, verified = RecordStore(connection), set()
             rows = connection.execute('SELECT seq,kind,body,digest FROM events ORDER BY seq')
             for seq, kind, body, checksum in rows:
-                state = json.loads(body)
-                expected = digest(state) if previous is None else digest([previous, kind, state])
+                reference = json.loads(body)
+                expected = digest(reference) if previous is None else digest([previous, kind, reference])
                 if checksum != expected or seq != count + 1 or (seq == 1 and kind != 'created'):
                     raise ValueError('project event digest chain mismatch')
-                tip = {'seq': seq, 'kind': kind, 'state': state, 'digest': checksum}
+                store.verify(reference, verified)
+                tip = {'seq': seq, 'kind': kind, 'digest': checksum}
                 if visit is not None:
-                    visit(tip)
+                    visit({**tip, 'state': store.read(reference)})
                 previous, count = checksum, seq
             current = json.loads(connection.execute('SELECT body FROM current WHERE id=1').fetchone()[0])
-            if tip is None or tip['state'] != current:
+            if tip is None or reference != current:
                 raise ValueError('project current state differs from event digest chain')
+            tip['state'] = store.read(reference)
         return tip
 
     def update(self, kind, mutate):
@@ -161,11 +169,16 @@ class ProjectLedger:
             raise ValueError('read-only ledger cannot be updated')
         with self._connection() as connection:
             connection.execute('BEGIN IMMEDIATE')
-            state = json.loads(connection.execute('SELECT body FROM current WHERE id=1').fetchone()[0])
+            reference = json.loads(connection.execute('SELECT body FROM current WHERE id=1').fetchone()[0])
+            previous, previous_body = connection.execute('SELECT digest,body FROM events ORDER BY seq DESC LIMIT 1').fetchone()
+            if reference != json.loads(previous_body):
+                raise ValueError('project current state differs from event digest chain')
+            store = RecordStore(connection)
+            state = store.read(reference)
             mutate(state)
-            body = json.dumps(state, ensure_ascii=False, allow_nan=False)
-            previous = connection.execute('SELECT digest FROM events ORDER BY seq DESC LIMIT 1').fetchone()[0]
-            connection.execute('INSERT INTO events(kind,body,digest) VALUES (?,?,?)', (kind, body, digest([previous, kind, state])))
+            reference = store.write(state)
+            body = json.dumps(reference, ensure_ascii=False, allow_nan=False)
+            connection.execute('INSERT INTO events(kind,body,digest) VALUES (?,?,?)', (kind, body, digest([previous, kind, reference])))
             connection.execute('UPDATE current SET body=? WHERE id=1', (body,))
         return deepcopy(state)
 

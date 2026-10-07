@@ -18,7 +18,7 @@
 |Trace|`project_trace.py::role_boundaries`|全链验真后使用生产 builder 重建边界；不自动授予训练资格|
 |工具合同|`harness.py::ActionDefinition`|菜单、schema、权限、回执和 decoder 共用注册定义；Project 检查工具由 `project_launch.PROJECT_CHECK` 注册|
 
-当前版本：Goal v1、Plan v5、Assignment v6、Ledger v14、Decision v22、Executor v18、Planner v17、prompt v9、Planner chat v4、输入传输 v2、边界解码策略 v2。每角色只有一个协议模块和一个 `build_input`，生产、数据与评测共用；运行时标签引用模块常量。旧／未知协议和不兼容 State 拒绝恢复。模型升级通过模型、tokenizer、State、容量和传输适配处理，不自动重写角色协议。
+当前版本：Goal v1、Plan v5、Assignment v6、Ledger v15、Decision v22、Executor v18、Planner v18、prompt v9、Planner chat v5、输入传输 v2、边界解码策略 v2。每角色只有一个协议模块和一个 `build_input`，生产、数据与评测共用；运行时标签引用模块常量。旧／未知协议和不兼容 State 拒绝恢复。模型升级通过模型、tokenizer、State、容量和传输适配处理，不自动重写角色协议。
 
 ## 从原目标到交付
 
@@ -65,11 +65,13 @@ Planner 的 requirements 是对原始需求的解释，interfaces 是实现选�
 
 Planner 每次输入包含当前工作状态、活动／可恢复委派、worker 声明、实际验证与接受、已有建议及审查意见；Decision 的可选方向使用同一守卫计算，仅供诊断，不授予 Planner 执行权限。求助／重规划／检查编写的原始问题独立持久化，文件读取、读取失败和协议拒绝只更新最新反馈；完成该请求才清除问题，新请求建立新身份。计划或检查被拒后，后续读取仍携带原候选与审查意见。已被合法调用修复的格式拒绝按既有恢复规则清除，不能冒充仍未解决的问题。
 
-唯一 builder 生成完整语义快照，首次渲染完整输入，随后以 set/remove 无损表达变化。规则只在首次事实前提供，每次更新后仍有明确续写问题。内部枚举、投递哈希和审计 token 不冒充额外模型合同。相同文字仅在逐字一致且可逆时共享；引用在同次输入内闭合，保留每条回执身份／顺序，计入引用成本后 token 不减少则保留原展示。原目标、义务、检查、错误和实际参数不作静默摘要或裁剪。
+唯一 builder 生成完整语义快照。RWKV 首次渲染完整输入，持续 State 后以 set/remove 无损表达变化；规则只在首次事实前提供，每次更新后仍有明确续写问题。Planner 当前每次发送独立、完整的 Chat 请求，checkpoint 用于身份与记账，不代表提供方保留上一请求的对话；不得给它发送无法独立解释的差分。内部枚举、投递哈希和审计 token 不冒充额外模型合同。
+
+Planner 用 `verbatim-json-values.v2` 共享相同完整文字和 JSON 结构：位置处显示显式引用对象，同次输入的 `shared_values` 保留对应原值；reference_key 选择不存在于源数据的名称。真实 null 仍是 null，不作为共享占位。嵌套引用在同次输入闭合，原操作身份、顺序、错误和不同版本分别保留，计入引用成本后实际 token 不减少则保留原展示。原目标、义务、检查和实际参数不作静默摘要或裁剪。
 
 工具、Planner 读取及验证的实际意图和原始结果自动送入 Decision；Executor 收到新工具观察。`read_receipt` 只补取已授权原始回执，不需要再次读取刚投递的返回。Decision 的 handoff 绑定原操作和当前合同，标为 suggestion，不能变成执行事实；引用限于当前工作、已声明依赖及工作区只读证据。省略新 handoff 不撤销既有授权，但旧建议正文不自动续用。delivery_context 中其他 worker 报告也是声明，不扩大权限。
 
-RWKV 的回执参数使用 `receipt:N` 短引用，按账本已确认的非模型回执顺序编号；角色作用域过滤不重新编号。唯一输入 builder 保存当前授权短引用到原始 OP 身份的一对一绑定，renderer 只转换宿主定义的引用位置并隐藏委派 UUID，原始工具参数、输出、用户文字和报告正文逐字保留。解码、菜单和可选引用共用这一绑定；生产 parser 只解析模型明确选择的引用，无匹配或越过动作／任务范围时拒绝，不自动选证据。账本继续保存完整 OP／W 身份；原始生成、映射记录及规范调用分别留证。State 恢复核对引用身份，精确 token 重放与训练目标校验共用当前接口；旧协议 State 不兼容。Planner 保留原始审计引用。
+RWKV 的回执参数使用 `receipt:N` 短引用，按账本已确认的非模型回执顺序编号；角色作用域过滤不重新编号。唯一输入 builder 保存当前授权短引用到原始 OP 身份的一对一绑定，renderer 只转换宿主定义的引用位置并隐藏委派 UUID，原始工具参数、输出、用户文字和报告正文逐字保留。解码、菜单和可选引用共用这一绑定；生产 parser 只解析模型明确选择的引用，无匹配或越过动作／任务范围时拒绝，不自动选证据。账本继续保存完整 OP／W 身份；原始生成、映射记录及规范调用分别留证。State 恢复核对引用身份，精确 token 重放与训练目标校验共用当前接口；旧协议 State 不兼容。Planner 的 `decision_reference_context` 复用 Decision 参数范围并给出短引用绑定，诊断时能看见任务对应的 advice 候选；这不授予 Planner Decision 权限。Planner 自己的 `advise.evidence_ids` 仍用原始 OP 身份。
 
 步骤只有“已做／未做”：当前合同存在已确认工具返回即做过，失败也算做过，unknown 不算。真实发布路径和 OP 证据随之展示，不替代验证或接受。连续拒绝及重复数从同 lane／合同的已确认回执和相邻输入重建，不持久化第二套计数；新工具事实、成功模型调用或合同变化结束原序列，拒绝本身没有执行权威。
 
@@ -116,6 +118,10 @@ Planner checkpoint 绑定完整静态工具目录、模型、协议和所有模�
 ## 持久化、离线读取与能力门
 
 模型／工具先记意图，再原子记已知回执与 State。`generation_accounting` 为文件流和内存事件共用身份、顺序和重复检测；预留、开始、返回、发布及 pending 分开核对，未知计数不填零。所有角色和审查消耗同一项目调用／墙钟预算，恢复累计已持久化耗时；耗尽只能中断。SIGALRM 是协作期限，清理和持久化可能略超时。
+
+Ledger 事件只保存内容根引用，`project_record_store.py` 将完整输入、输出及状态结构按内容 SHA 存储一次；长文字和 token 列表分块复用未变前缀。每步状态仍可精确还原，映射顺序保留，不内嵌整段历史的另一份副本，不做有损摘要。新节点、事件和 current 在同一 SQLite 事务提交；内容引用只属于磁盘编码，不发送给模型。写入仍遍历当前语义状态，完整审计仍核验全部可达节点，不承诺恒定时间或无限上下文。
+
+输入容量拒绝在预留模型操作前保存角色、lane、完整语义输入、工具定义、checkpoint、实际 wire／Native delta、估算器和 tokenizer 身份、输入上限及输出预留。事件明确标记未预留、未开始生成；未知网络结果仍走 pending，不能混为容量拒绝。
 
 离线读取统一用 `ProjectLedger.read_snapshot`：先取既有共享锁，再打开 immutable SQLite；活动写者、缺锁、未 checkpoint WAL 均拒绝，不创建旁文件。`scan_verified_events` 在同一事务内逐条验完整链及 current，只保留所需投影。角色边界必须全链验证后才返回，快照与来源提取保持锁及相邻原事件核验，不信任调用者缓存；登记字节和 SHA 同时固定，发布前变更拒绝。写入仍用独占租约。
 

@@ -25,6 +25,21 @@ from .project_input_delta import INPUT_HANDOFF_VERSION, input_update, seal_input
 from .project_decoder import build_role_decoder, available_definitions, tool_menu_update, INPUT_FRAMING, BOUNDARY_POLICY
 
 
+class ProjectInputBudgetError(InputBudgetError):
+    def __init__(self, message, *, input_tokens, input_limit, capacity, output_reserved,
+                 configured_output, transport, **original_input):
+        super().__init__(message)
+        import hashlib
+        from .token_budget import VOCAB_PATH
+        self.input_budget_evidence = {
+            'input_tokens': input_tokens, 'input_limit': input_limit,
+            'capacity': capacity, 'output_reserved': output_reserved,
+            'configured_output': configured_output, 'transport': transport,
+            'estimator': 'rwkv_lh.token_budget.get_token_count',
+            'tokenizer_sha256': hashlib.sha256(VOCAB_PATH.read_bytes()).hexdigest(),
+            **original_input}
+
+
 class ProjectSessions:
     def __init__(self, settings, directory, *, session_factory=create_model_session,
                  strong_settings=None, max_calls=128, decision_settings=None,
@@ -92,10 +107,17 @@ class ProjectSessions:
                 session.client.input_builder = lambda: planner.chat_input(payload, definitions)
                 session.client.tools_builder = lambda: planner.available_definitions(payload, definitions)
             rendered = render_bootstrap(definitions, canonical_json(payload))
-            count = session.generation_input_tokens(rendered, session.settings.action_max_output_tokens)
+            wire = (session.client.wire_request(rendered, session.settings.action_max_output_tokens)
+                    if isinstance(session.client, StrongCompletion) else None)
+            count = (get_token_count(canonical_json(wire['body'])) if wire is not None
+                     else session.generation_input_tokens(rendered, session.settings.action_max_output_tokens))
             if count > limit:
-                raise InputBudgetError(f'planner visible wire input estimate requires {count} tokens; limit is {limit}; '
-                    f'max_model_len={session.settings.max_model_len}, output_tokens={session.settings.action_max_output_tokens}')
+                raise ProjectInputBudgetError(f'planner visible wire input estimate requires {count} tokens; limit is {limit}; '
+                    f'max_model_len={session.settings.max_model_len}, output_tokens={session.settings.action_max_output_tokens}',
+                    input_tokens=count, input_limit=limit, capacity=session.settings.max_model_len,
+                    output_reserved=session.settings.action_max_output_tokens,
+                    configured_output=session.settings.action_max_output_tokens,
+                    transport='planner_chat', wire_request=wire)
             return
         selected = self.decision_settings if role == 'decision' else self.settings
         if checkpoint:
@@ -108,7 +130,10 @@ class ProjectSessions:
         count = get_token_count(delta)
         limit = selected.max_prompt_tokens(1)
         if count > limit:
-            raise InputBudgetError(f'{role} Native input delta requires {count} tokens; limit is {limit}')
+            raise ProjectInputBudgetError(f'{role} Native input delta requires {count} tokens; limit is {limit}',
+                input_tokens=count, input_limit=limit, capacity=selected.max_model_len, output_reserved=1,
+                configured_output=selected.action_max_output_tokens,
+                transport='native_delta' if checkpoint else 'native_bootstrap', input_text=delta)
         self._session(role, lane)
 
     def request(self, role, lane, payload, definitions, checkpoint):

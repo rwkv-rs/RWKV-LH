@@ -422,8 +422,11 @@ class ManualRunRepository:
                 with sqlite3.connect(f'file:{project}?mode=ro', uri=True) as source, sqlite3.connect(':memory:') as snapshot:
                     source.backup(snapshot)
                     archive.writestr(f'{run_id}/{project.relative_to(run_root).as_posix()}', snapshot.serialize())
-                    body = snapshot.execute('SELECT body FROM current WHERE id=1').fetchone()[0]
-                    archive.writestr(f'{run_id}/state-export.json', body + '\n')
+                    from .project_record_store import RecordStore
+                    reference = json.loads(snapshot.execute('SELECT body FROM current WHERE id=1').fetchone()[0])
+                    state = RecordStore(snapshot).read(reference)
+                    archive.writestr(f'{run_id}/state-export.json',
+                        json.dumps(state, ensure_ascii=False, indent=2) + '\n')
             database = self.state_root(run_id) / "long_horizon.db"
             if database.is_file():
                 source = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
