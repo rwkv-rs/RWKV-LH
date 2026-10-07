@@ -13,7 +13,7 @@ from .project_contracts import (digest, make_assignment, task_map, validate_plan
     work_items, work_map, work_requirements, protected_paths, GOAL_ID, work_check_context, validate_check, affected_work)
 from .workspace_snapshot import tree_identity
 
-PROTOCOL = 'rwkv-lh.project-ledger.v13'
+PROTOCOL = 'rwkv-lh.project-ledger.v14'
 
 
 class UncertainOperation(RuntimeError):
@@ -61,6 +61,7 @@ class ProjectLedger:
             'workspace_digest': digest(tree_identity(workspace)), 'plan': None, 'plan_version': 0,
             'goal': make_goal(request, protected_paths), 'goal_checks': [], 'pending_checks': None, 'check_reviews': [],
             'planner_request': 'plan' if require_initial_plan else None,
+            'planner_request_context': None,
             'task_status': {GOAL_ID: 'pending'}, 'reports': {}, 'verification': {}, 'active': None,
             'pending': None, 'evidence': {}, 'feedback': None, 'sessions': {},
             'calls': 0, 'elapsed': 0.0, 'max_calls': max_calls, 'max_seconds': max_seconds,
@@ -320,6 +321,7 @@ class ProjectLedger:
         state['feedback'] = {'kind': 'plan_installed', 'rationale': plan['rationale']}
         state['inbox'] = None
         state['planner_request'] = None
+        state['planner_request_context'] = None
 
     def install_plan(self, plan, *, expected_version, replacements=(), review=None):
         plan = validate_plan(plan)
@@ -398,6 +400,7 @@ class ProjectLedger:
                 'mode': inbox['planning'], 'candidate': deepcopy(candidate), **advice}
             s['pending_checks'] = None
             s['planner_request'] = None
+            s['planner_request_context'] = None
             s['inbox'] = None
         return self.update('work_check_advised', advised)
 
@@ -460,6 +463,7 @@ class ProjectLedger:
                 s['task_status'][key] = ('awaiting_verification'
                     if s['reports'].get(key, {}).get('status') == 'submitted' else 'pending')
             s['planner_request'] = None
+            s['planner_request_context'] = None
             s['feedback'] = {'kind': 'work_checks_bound', 'review_operation_id': inbox['operation_id']}
         return self.update('work_check_reviewed', resolve)
 

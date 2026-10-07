@@ -136,8 +136,10 @@ class ProjectSessions:
             'tools_digest': digest(definitions), 'sampling_seed': session.settings.sampling_seed}
         if role == 'planner':
             from .strong_structured_output import build_tool_contract
-            binding['strong_decoder_contract_sha256'] = build_tool_contract(
-                planner.available_definitions(payload, definitions))['contract_sha256']
+            # Mode and installed-plan changes select a different per-call menu,
+            # not a different role identity. StrongCompletion audits the actual
+            # request contract separately; checkpoint restoration binds the catalog.
+            binding['strong_decoder_catalog_sha256'] = build_tool_contract(definitions)['contract_sha256']
             binding['prompt_identity'] = digest({'layout': planner.CHAT_LAYOUT_VERSION,
                 'plan_rules': planner.INSTRUCTION, 'review_rules': planner.REVIEW_INSTRUCTION,
                 'check_rules': planner.CHECK_AUTHOR_RULES, 'check_review_rules': planner.CHECK_REVIEW_RULES})

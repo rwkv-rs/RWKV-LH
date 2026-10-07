@@ -2,7 +2,7 @@
 from copy import deepcopy
 from rwkv_lh.project_contracts import PLAN_PROTOCOL, fields, text, strings, digest, resource_budget, validate_goal
 
-PROTOCOL = 'rwkv-lh.project-planner-input.v16'
+PROTOCOL = 'rwkv-lh.project-planner-input.v17'
 CHAT_LAYOUT_VERSION = 'project-planner-chat.v4'
 DESIGN_REVIEW_RULES = (
     'The immutable user request is the goal authority. Requirements are revisable interpretations; '
@@ -15,6 +15,13 @@ DESIGN_REVIEW_RULES = (
     'verification, acceptance or completion. Bound checks must distinguish the presence and absence '
     'of each material promised behavior without adding unsupported requirements or ordering '
     'assumptions. '
+    'execution_context records current work, active and suspended assignments, worker claims, '
+    'verification, acceptance and prior advice. A null plan does not mean no executable goal or '
+    'assignment exists. available_directions are Decision options under these recorded contracts, '
+    'not Planner functions or authority to execute. assistance_request retains the initiating '
+    'Decision question across reads and rejected calls; feedback is the latest observation, not '
+    'a replacement question. Reports and advice remain claims; only actual receipts establish '
+    'execution results. '
 )
 INSTRUCTION = DESIGN_REVIEW_RULES + (
     'Plan result-oriented work from observed evidence. Preserve requirement IDs on revision; justify '
@@ -64,7 +71,7 @@ def object_schema(properties):
     return {'type': 'object', 'properties': properties, 'required': list(properties), 'additionalProperties': False}
 
 
-CHECK_AUTHOR_RULES = (
+CHECK_AUTHOR_RULES = DESIGN_REVIEW_RULES + (
     'Bind independent executable checks to the selected unchanged work contract after submitted work. '
     'work_context provides the original goal, selected task with current checks, its requirements '
     'and worker claim; claims '
@@ -83,7 +90,7 @@ CHECK_AUTHOR_RULES = (
     'prevents sound proof work, return advise with the gap and actual receipt IDs; Decision chooses '
     'further action. Reserve budget for verification and repair.'
 )
-CHECK_REVIEW_RULES = (
+CHECK_REVIEW_RULES = DESIGN_REVIEW_RULES + (
     'Independently review work_context.candidate against the unchanged selected task, its requirements, '
     'the complete original request and observed interfaces. Worker reports and author rationale are claims. Use '
     'read_file/read_files for source assumptions, without running candidate code or changing files. '
@@ -222,12 +229,30 @@ def chat_input(payload, definitions):
     return system, wire
 
 
+def _execution_context(state):
+    if state is None:
+        return None
+    from .decision import permitted_directions
+    context = {key: deepcopy(state[key]) for key in (
+        'goal', 'plan_version', 'workspace_digest', 'task_status', 'active', 'suspended',
+        'reports', 'verification', 'acceptance', 'advice', 'role_rejections', 'check_reviews')} | {
+        'available_directions': permitted_directions(state)}
+    # Source inspection must not erase why the candidate was rejected.
+    # Include the exact reviewed plan from its recorded model input.
+    context['plan_reviews'] = [{**deepcopy(review), 'candidate_plan': deepcopy(
+        state['evidence'][review['review_operation_id']]['intent']['input']['plan'])}
+        for review in state['plan_reviews']]
+    return context
+
+
 def build_input(request, *, plan=None, feedback=None, evidence=(), workspace=None, mode='plan', protected_paths=(),
-                review_context=None, target_contracts=None, remaining=None, work_context=None):
+                review_context=None, target_contracts=None, remaining=None, work_context=None, project_state=None):
     _validate_mode_context(mode, request, work_context)
     from rwkv_lh.project_check_contract import CHECK_EXECUTION
     return {'protocol': PROTOCOL, 'plan_protocol': PLAN_PROTOCOL, 'request': text(request),
         'mode': mode, 'plan': deepcopy(plan), 'feedback': _diagnostic_feedback(feedback),
+        'assistance_request': _diagnostic_feedback(project_state['planner_request_context']) if project_state is not None else None,
+        'execution_context': _execution_context(project_state),
         'target_contracts': deepcopy(target_contracts if target_contracts is not None else diagnostic_contracts()) if mode == 'diagnose' else {},
         'check_execution': deepcopy(CHECK_EXECUTION),
         'remaining': resource_budget(remaining),
@@ -272,4 +297,35 @@ def validate_input(value):
     fields(value, build_input('validation').keys())
     resource_budget(value['remaining'])
     _validate_mode_context(value['mode'], value['request'], value['work_context'])
+    context = value['execution_context']
+    if context is not None:
+        from .decision import OPERATIONS
+        fields(context, ('goal', 'plan_version', 'workspace_digest', 'task_status', 'active', 'suspended',
+                         'reports', 'verification', 'acceptance', 'advice', 'available_directions',
+                         'role_rejections', 'plan_reviews', 'check_reviews'))
+        validate_goal(context['goal'])
+        if context['goal']['request'] != value['request']:
+            raise ValueError('execution context differs from original request')
+        if type(context['plan_version']) is not int or context['plan_version'] < 0:
+            raise ValueError('invalid execution plan version')
+        for key in ('task_status', 'suspended', 'reports', 'verification', 'acceptance', 'advice', 'role_rejections'):
+            if not isinstance(context[key], dict):
+                raise ValueError('invalid execution context mapping: ' + key)
+        for key in ('plan_reviews', 'check_reviews'):
+            if not isinstance(context[key], list):
+                raise ValueError('invalid review history: ' + key)
+        if context['active'] is not None and not isinstance(context['active'], dict):
+            raise ValueError('invalid active assignment')
+        fields(context['available_directions'], OPERATIONS)
+        for items in context['available_directions'].values():
+            strings(items)
+    request = value['assistance_request']
+    if request is not None:
+        fields(request, ('operation_id', 'kind', 'subject_id', 'reason', 'model_failures'))
+        for key in ('operation_id', 'subject_id', 'reason'):
+            text(request[key])
+        if request['kind'] not in ('help', 'replan', 'bind_checks') or not isinstance(request['model_failures'], list):
+            raise ValueError('invalid assistance request')
+        if context is None:
+            raise ValueError('assistance request requires current execution context')
     return value

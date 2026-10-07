@@ -18,7 +18,7 @@
 |Trace|`project_trace.py::role_boundaries`|全链验真后使用生产 builder 重建边界；不自动授予训练资格|
 |工具合同|`harness.py::ActionDefinition`|菜单、schema、权限、回执和 decoder 共用注册定义；Project 检查工具由 `project_launch.PROJECT_CHECK` 注册|
 
-当前版本：Goal v1、Plan v5、Assignment v6、Ledger v13、Decision v22、Executor v18、Planner v16、prompt v9、Planner chat v4、输入传输 v2、边界解码策略 v2。每角色只有一个协议模块和一个 `build_input`，生产、数据与评测共用；运行时标签引用模块常量。旧／未知协议和不兼容 State 拒绝恢复。模型升级通过模型、tokenizer、State、容量和传输适配处理，不自动重写角色协议。
+当前版本：Goal v1、Plan v5、Assignment v6、Ledger v14、Decision v22、Executor v18、Planner v17、prompt v9、Planner chat v4、输入传输 v2、边界解码策略 v2。每角色只有一个协议模块和一个 `build_input`，生产、数据与评测共用；运行时标签引用模块常量。旧／未知协议和不兼容 State 拒绝恢复。模型升级通过模型、tokenizer、State、容量和传输适配处理，不自动重写角色协议。
 
 ## 从原目标到交付
 
@@ -63,6 +63,8 @@ Planner 的 requirements 是对原始需求的解释，interfaces 是实现选�
 
 项目事实、模型可见视图与 RWKV 隐状态分别保存。Decision 在项目内持续一个 lane，并逐边界核对判断身份；Executor 在兼容委派内持续。两个角色不互相复制 WKV 张量。未显式配置角色 State 时从 zero 开始，不继承旧直接执行器 State。
 
+Planner 每次输入包含当前工作状态、活动／可恢复委派、worker 声明、实际验证与接受、已有建议及审查意见；Decision 的可选方向使用同一守卫计算，仅供诊断，不授予 Planner 执行权限。求助／重规划／检查编写的原始问题独立持久化，文件读取、读取失败和协议拒绝只更新最新反馈；完成该请求才清除问题，新请求建立新身份。计划或检查被拒后，后续读取仍携带原候选与审查意见。已被合法调用修复的格式拒绝按既有恢复规则清除，不能冒充仍未解决的问题。
+
 唯一 builder 生成完整语义快照，首次渲染完整输入，随后以 set/remove 无损表达变化。规则只在首次事实前提供，每次更新后仍有明确续写问题。内部枚举、投递哈希和审计 token 不冒充额外模型合同。相同文字仅在逐字一致且可逆时共享；引用在同次输入内闭合，保留每条回执身份／顺序，计入引用成本后 token 不减少则保留原展示。原目标、义务、检查、错误和实际参数不作静默摘要或裁剪。
 
 工具、Planner 读取及验证的实际意图和原始结果自动送入 Decision；Executor 收到新工具观察。`read_receipt` 只补取已授权原始回执，不需要再次读取刚投递的返回。Decision 的 handoff 绑定原操作和当前合同，标为 suggestion，不能变成执行事实；引用限于当前工作、已声明依赖及工作区只读证据。省略新 handoff 不撤销既有授权，但旧建议正文不自动续用。delivery_context 中其他 worker 报告也是声明，不扩大权限。
@@ -106,6 +108,8 @@ Native 实例的 request_lock 串行执行实际 State 操作，generate 另持 
 当前 Strong 请求共用 `deepseek_api.chat_request`，只接受官方 HTTPS 根／v1／beta 并规范化端点，关闭重定向和自动 fallback。Planner 使用 beta strict tools，tool_choice=required、thinking disabled；非工具纠错／审查走 JSON Output。退役 backend、私有 tokenize／token 字段和未支持扩展参数在联网前拒绝；旧 Native 只读 Goal 的独立 phase 不回落 Chat。
 
 `planner.chat_input` 将规则与当前 mode 的工具名放 system，将 build_input 的完整需求和证据放 user；参数 schema 仅在 tools 中发送。诊断保留当时实际工具合同、原输出和确切错误，不灌原始 token 数组。实际 wire 与语义输入分别留痕；容量预检和发送共用 wire 构造，完整审计 checkpoint 容量另记，本地 tokenizer 估算不是供应商容量上界。
+
+Planner checkpoint 绑定完整静态工具目录、模型、协议和所有模式的规则；每次请求另行记录当前模式实际发送的 strict 工具合同。合法模式切换、初次计划安装和当前菜单变化不构成角色身份变化；模型、协议、规则或目录不兼容仍拒绝恢复。
 
 `strong_structured_output` 从同一角色定义投影 strict schema：对象明确 properties／required／additionalProperties=false，params 封套中的 anyOf 保留原参数省略，不补 null/default。不支持的数组／字符串约束明确登记交原 validator 执行，未知关键词拒绝。SSE 按 index 拼接 name/arguments，保存原 stream/envelope/归一化；混合正文、refusal、冲突或尾部损坏拒绝。reasoning_content 与 content 分开，不自行拆正文标签。API 接受 strict 不证明服务强制，角色、权限和完成门仍独立校验。
 

@@ -103,18 +103,15 @@ def _evidence_index(identifier, evidence):
     return entry
 
 
-def build_input(state, *, remaining):
-    feedback = deepcopy(state.get('feedback'))
-    rejection = feedback if (feedback or {}).get('kind') == 'decision_rejected' else None
-    if rejection:
-        feedback = rejection.get('previous_feedback')
+def permitted_directions(state):
+    """The same execution guards inform Decision and read-only Planner diagnosis."""
     active = state['active']
     status = state['task_status']
     tasks = work_items(state)
     resumable = dict(state.get('suspended', {}))
     if active:
         resumable[active['task']['id']] = active
-    options = {
+    return {
         'delegate': [t['id'] for t in tasks if not active and status[t['id']] != 'verified'
             and t['id'] not in resumable
             and all(status[d] == 'verified' for d in t['dependencies'])],
@@ -131,6 +128,15 @@ def build_input(state, *, remaining):
             and state['reports'].get(t['id'], {}).get('status') == 'submitted'],
         'deliver_report': list(state['reports']) if tasks and not active and all(v == 'verified' for v in status.values()) else [],
         'blocked': ['project']}
+
+
+def build_input(state, *, remaining):
+    feedback = deepcopy(state.get('feedback'))
+    rejection = feedback if (feedback or {}).get('kind') == 'decision_rejected' else None
+    if rejection:
+        feedback = rejection.get('previous_feedback')
+    active, status = state['active'], state['task_status']
+    options = permitted_directions(state)
     feedback_kind = (feedback or {}).get('kind')
     kind = ('execution_failure' if feedback_kind == 'execution_failed'
             else 'execution_progress' if feedback_kind == 'execution_progress'

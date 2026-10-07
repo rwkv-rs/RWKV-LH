@@ -187,7 +187,7 @@ class ProjectRuntime:
                 protected_paths=protected_paths(s), evidence=[{'id': key, **value}
                     for key, value in s['evidence'].items() if value['kind'] != 'model'],
                 workspace=tree_identity(s['workspace']), mode=planning, remaining=self.remaining(),
-                work_context=work_check_context(s))
+                work_context=work_check_context(s), project_state=s)
         elif candidate:
             role, lane, planning = 'planner', candidate['lane'], 'review'
             payload = planner.build_input(s['request'], plan=candidate['plan'],
@@ -195,14 +195,14 @@ class ProjectRuntime:
                 evidence=[{'id': key, **value} for key, value in s['evidence'].items() if value['kind'] != 'model'],
                 workspace=tree_identity(s['workspace']), mode='review', remaining=self.remaining(),
                 review_context={key: value for key, value in candidate.items() if key != 'plan'}
-                    | {'previous_plan': s['plan']})
+                    | {'previous_plan': s['plan']}, project_state=s)
         elif planning:
             role, lane = 'planner', 'planner'
             payload = planner.build_input(s['request'], plan=s['plan'], feedback=s['feedback'],
                 protected_paths=s['protected_paths'],
                 evidence=[{'id': key, **value} for key, value in s['evidence'].items() if value['kind'] != 'model'],
                 workspace=tree_identity(s['workspace']), mode='diagnose' if planning == 'diagnose' else 'plan',
-                target_contracts=s.get('planner_target_contracts'), remaining=self.remaining())
+                target_contracts=s.get('planner_target_contracts'), remaining=self.remaining(), project_state=s)
         elif s['active'] and s['control'] == 'executor':
             role, lane = 'executor', s['active']['id']
             selected, updates = evidence_stream(s, lane)
@@ -299,6 +299,7 @@ class ProjectRuntime:
                     state['advice'][inbox['operation_id']] = advice
                     state['feedback'] = {'kind': 'strong_advice', 'advice_id': inbox['operation_id'], **advice}
                     state['planner_request'] = None
+                    state['planner_request_context'] = None
                     state['inbox'] = None
                 self.db.update('advised', advised)
             else:
@@ -349,6 +350,8 @@ class ProjectRuntime:
         elif name == 'bind_checks':
             self.db.update('work_check_binding_requested', lambda state: state.update(
                 planner_request='checks', planner_subject_id=params['task_id'], inbox=None,
+                planner_request_context={'operation_id': inbox['operation_id'], 'kind': 'bind_checks',
+                    'subject_id': params['task_id'], 'reason': params['reason'], 'model_failures': []},
                 feedback={'kind': 'work_check_binding_requested', 'reason': params['reason']}))
         elif name == 'read_receipt':
             self.expand_evidence(params['evidence_id'])
@@ -373,6 +376,8 @@ class ProjectRuntime:
                 state['planner_target_contracts'] = planner.diagnostic_contracts(self.harness)
                 state['feedback'] = {'kind': name, 'subject_id': params['subject_id'],
                     'reason': params['reason'], 'model_failures': failures}
+                state['planner_request_context'] = {'operation_id': inbox['operation_id'],
+                    **deepcopy(state['feedback'])}
                 if name == 'replan' and state['active']:
                     assignment = state['active']
                     state['suspended'][assignment['task']['id']] = assignment
