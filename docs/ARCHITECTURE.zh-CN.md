@@ -1,6 +1,6 @@
 # 当前编码项目架构
 
-项目使用 Decision RWKV 选择方向、Executor RWKV 连续执行、强 Planner 按需规划与审查。Controller 负责身份、权限、事务、预算和完成门，不选择业务方案、不补模型参数、不改写 Final。实际成绩、服务状态和未解决问题只见[当前交接](HANDOFF.zh-CN.md)；具体额度见[预算合同](PROJECT_BUDGETS.zh-CN.md)。
+项目使用 Decision RWKV 选择方向、Executor RWKV 连续执行、强 Planner 按需规划与审查。Controller 负责身份、权限、事务、预算和完成门，不选择业务方案、不补模型参数、不改写 Final。本文描述当前实现边界；实验成绩、服务状态和维护记录仅在本地管理。
 
 ## 唯一入口与职责
 
@@ -97,7 +97,7 @@ Native 实例的 request_lock 串行执行实际 State 操作，generate 另持 
 
 `project_decoder.build_role_decoder` 从同一工具 schema 和生产输入生成本次约束：Decision 只允许 boundary 的当前方向，ID 必须来自 references；建议、交接及验证引用按任务绑定。Executor 无授权回执时不提供 `read_receipt`，报告证据为空时只允许空数组。静态工具目录及策略身份绑定 lane，每次实际 grammar 摘要绑定原始生成回执；合法边界推进可改变 grammar，不能改变目录／策略或重置 State。bootstrap 仍保留完整静态工具合同，逐次约束不宣称减少每次输入 token。运行、精确 token 重放和正式角色评测共用当前生成函数。
 
-原始采样 token 完整保存，State 消费只排除一个合法终止 EOS；服务、客户端及 trace 核对 state_token_ids。下一 User 前关闭前一 Assistant JSON 围栏，提交与拒绝共用 framing，身份变化不能静默续用旧 checkpoint。正式 exact-token 角色评测及 rollback/release 规则统一见[数据与评测管线](PROJECT_ROLE_DATA_PIPELINE.zh-CN.md)。
+原始采样 token 完整保存，State 消费只排除一个合法终止 EOS；服务、客户端及 trace 核对 state_token_ids。下一 User 前关闭前一 Assistant JSON 围栏，提交与拒绝共用 framing，身份变化不能静默续用旧 checkpoint。正式角色评测必须使用精确 token 重放，记录 State 回滚与释放回执。
 
 格式适配只拆解单个无歧义的 tool_call/tool_calls/function/response 外壳和一次严格解析的 arguments 字符串；函数、参数、原返回和转换记录保留，不生成缺参或把 reject 改 accept。重复键、冲突、多义或未知外层字段拒绝。Planner 明确的 read_file/read_files 多调用可完整归并为有序 read_files：首条执行前校验整个批次，每项独立只读回执绑定原 OP、index/count，完成前保留 inbox，恢复仅消费未记账部分。其他角色、多调用混入写入或无效项均拒绝，没有固定批次数量上限。
 
@@ -113,6 +113,6 @@ Native 实例的 request_lock 串行执行实际 State 操作，generate 另持 
 
 离线读取统一用 `ProjectLedger.read_snapshot`：先取既有共享锁，再打开 immutable SQLite；活动写者、缺锁、未 checkpoint WAL 均拒绝，不创建旁文件。`scan_verified_events` 在同一事务内逐条验完整链及 current，只保留所需投影。角色边界必须全链验证后才返回，快照与来源提取保持锁及相邻原事件核验，不信任调用者缓存；登记字节和 SHA 同时固定，发布前变更拒绝。写入仍用独占租约。
 
-生产 trace、完整 Native token、来源授权、独立纠错、覆盖与固定回归按[角色数据管线](PROJECT_ROLE_DATA_PIPELINE.zh-CN.md)分别核验。合法单行、原始轨迹或工程回归不自动授予训练资格；旧角色数据不得改标签复用。
+训练准入分别核验生产 trace、完整 Native token、来源授权、独立纠错、覆盖与固定回归。合法单行、原始轨迹或工程回归不自动授予训练资格；旧角色数据不得改标签复用。
 
-更早进入 Executor、减少 Planner 调用、合法输出或 worker 提交不能单独证明完成率、成本或训练收益。持续 State、工作单元及多任务验证成本仍需冻结源码、固定预算和独立验收的 Agent 对照；长期上下文选择、存储回收、任务删除／替代和强模型接管执行尚未实现。具体运行和下一步只维护在 HANDOFF，不在本规范追加实验日志。
+更早进入 Executor、减少 Planner 调用、合法输出或 worker 提交不能单独证明完成率、成本或训练收益。持续 State、工作单元及多任务验证成本仍需冻结源码、固定预算和独立验收的 Agent 对照；长期上下文选择、存储回收、任务删除／替代和强模型接管执行尚未实现。运行状态、实验记录和下一步仅在本地维护。

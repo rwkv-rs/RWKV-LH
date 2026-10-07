@@ -13,10 +13,10 @@ import tempfile
 
 _SOURCE_PACKAGES = ('rwkv_lh', 'scripts')
 _OPTIONAL_SOURCE_PACKAGES = ('tests',)
-_REQUIRED_FILES = ('AGENTS.md', 'pyproject.toml', 'uv.lock',
-                   'docs/ARCHITECTURE.zh-CN.md', 'docs/HANDOFF.zh-CN.md',
-                   'docs/PROJECT_ROLE_DATA_PIPELINE.zh-CN.md',
+_REQUIRED_FILES = ('pyproject.toml', 'uv.lock', 'docs/ARCHITECTURE.zh-CN.md',
                    'rwkv_lh/__init__.py', 'scripts/__init__.py')
+_OPTIONAL_FILES = ('AGENTS.md', 'docs/HANDOFF.zh-CN.md',
+                   'docs/PROJECT_ROLE_DATA_PIPELINE.zh-CN.md')
 _EXCLUDED_DIRS = {'__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache'}
 
 
@@ -32,6 +32,12 @@ def _source_files(root: Path) -> list[Path]:
     if (root / 'docs').is_symlink() or not (root / 'docs').is_dir():
         raise ValueError('Project source requires regular directory docs')
     files = [root / name for name in _REQUIRED_FILES if not name.startswith(_SOURCE_PACKAGES)]
+    for name in _OPTIONAL_FILES:
+        path = root / name
+        if path.is_symlink() or path.exists():
+            if path.is_symlink() or not path.is_file():
+                raise ValueError(f'Project source requires regular {name}')
+            files.append(path)
     optional = []
     for dirname in _OPTIONAL_SOURCE_PACKAGES:
         parent = root / dirname
@@ -67,7 +73,7 @@ def snapshot_project_source(root: str | Path, output: str | Path) -> dict[str, s
     """Publish an exact source snapshot or nothing; never traverse data/ or benchmarks/.
 
     Public checkouts contain runtime sources. Include local regression sources
-    when installed, without making private tests a public runtime dependency.
+    and maintenance instructions when installed, without requiring them publicly.
 
     Caller separately seals the returned mapping, origin request and model
     identity. The copied workspace is still *unreviewed* training provenance.

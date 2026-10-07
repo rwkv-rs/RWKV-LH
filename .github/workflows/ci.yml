@@ -21,6 +21,8 @@ jobs:
           paths = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
           private = ('data/', 'tests/', 'benchmarks/', 'acceptance_tests/', 'temp/', 'outputs/')
           forbidden = [path for path in paths if path.startswith(private)]
+          forbidden += [path for path in paths if path == 'AGENTS.md'
+                        or (path.startswith('docs/') and path != 'docs/ARCHITECTURE.zh-CN.md')]
           if forbidden:
               raise SystemExit('Local-only files were committed: ' + ', '.join(forbidden))
           PY
