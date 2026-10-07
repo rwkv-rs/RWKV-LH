@@ -4,7 +4,7 @@ from rwkv_lh.project_contracts import ASSIGNMENT_PROTOCOL, GOAL_ID, digest, fiel
 from rwkv_lh.project_step_progress import build_step_progress, validate_step_progress
 from rwkv_lh.project_action_feedback import build_action_feedback, validate_action_feedback
 
-PROTOCOL = 'rwkv-lh.project-executor-input.v17'
+PROTOCOL = 'rwkv-lh.project-executor-input.v18'
 INSTRUCTION = (
     'Next action, finish current work, or seek help? '
     'Choose from current evidence. Return one function/params JSON call.')
@@ -23,7 +23,9 @@ RULES = (
     'for direction while preserving the active assignment. No status completes the project. Report actual changes, checks run '
     'and observed results, and remaining limits; mark unrun checks as not run. Writing a file proves '
     'only its supplied contents were written, not that tests passed or the requested behavior exists.'
-    ' Cite exact authorized receipt IDs; unverified work may be submitted honestly. Correct rejected '
+    ' Tool schemas describe parameter shapes; current parameter references give permitted values. '
+    'Cite only listed receipt:N handles; these refer to existing receipts, never task IDs. '
+    'Unverified work may be submitted honestly. Correct rejected '
     'parameters from feedback. delivery_context contains prior worker claims for a comprehensive '
     'delivery report, not execution proof or authority to change another task. When the current '
     'work completes the original request, report across those prior parts and this assignment: '
@@ -71,6 +73,7 @@ def build_input(assignment, *, observations=(), feedback=None, selected_evidence
     allowed = sorted(allowed)
     references = {name: {field: allowed} for name, field in (
         ('read_receipt', 'evidence_id'), ('report_work', 'evidence_ids'))}
+    from rwkv_lh.project_receipt_refs import build_bindings
     return {'protocol': PROTOCOL, 'assignment': deepcopy(assignment),
         'original_request': original_request,
         'delivery_context': _delivery_context(project_state),
@@ -78,6 +81,7 @@ def build_input(assignment, *, observations=(), feedback=None, selected_evidence
         'step_progress': build_step_progress(project_state, assignment=assignment),
         'action_feedback': build_action_feedback(project_state, role='executor', assignment=assignment, references=references),
         'references': references,
+        'receipt_bindings': build_bindings(project_state, allowed),
         'selected_evidence': deepcopy(selected_evidence or {}), 'evidence_updates': deepcopy(evidence_updates or {}),
         'observations': deepcopy(list(observations)), 'feedback': deepcopy(feedback), 'next_decision': INSTRUCTION}
 
@@ -85,7 +89,7 @@ def build_input(assignment, *, observations=(), feedback=None, selected_evidence
 def validate_input(value):
     fields(value, ('protocol', 'assignment', 'observations', 'feedback', 'next_decision',
                    'selected_evidence', 'evidence_updates', 'step_progress', 'action_feedback', 'references',
-                   'original_request', 'remaining', 'unit_remaining', 'delivery_context'))
+                   'original_request', 'remaining', 'unit_remaining', 'delivery_context', 'receipt_bindings'))
     if value['protocol'] != PROTOCOL:
         raise ValueError('unsupported executor protocol')
     build_input(value['assignment'], observations=value['observations'], feedback=value['feedback'])
@@ -119,6 +123,10 @@ def validate_input(value):
         strings(value['references'][name][field])
         if set(value['references'][name][field]) - allowed:
             raise ValueError('executor parameter references exceed its declared evidence scope')
+    from rwkv_lh.project_receipt_refs import validate_bindings
+    validate_bindings(value['receipt_bindings'], value['references']['read_receipt']['evidence_id'])
+    if value['references']['report_work']['evidence_ids'] != value['references']['read_receipt']['evidence_id']:
+        raise ValueError('executor receipt reference scopes differ')
     handoff = value['assignment'].get('local_context', {}).get('decision_handoff')
     if handoff is not None:
         fields(handoff, ('text', 'evidence_ids', 'authority', 'task_id', 'contract_digest', 'source_operation_id'))

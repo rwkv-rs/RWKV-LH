@@ -138,6 +138,8 @@ def _shared_goal_text(fields):
 def render_fields(fields):
     """Render a whole semantic snapshot or set-fields of an exact input delta."""
     lines = []
+    from .project_receipt_refs import render_view
+    fields = render_view(fields)
     fields, shared = _shared_goal_text(fields)
     # The authority precedes any task interpretation or reference to its text.
     for key in ('request', 'original_request'):

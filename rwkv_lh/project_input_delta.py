@@ -29,7 +29,7 @@ def make_delta(previous, current):
         raise ValueError('delta cannot cross role protocol')
     return {'base_digest':digest(previous), 'target_digest':digest(current),
             'set':{key:deepcopy(value) for key,value in current.items()
-                   if key in ('step_progress', 'action_feedback', 'references') or key not in previous or previous[key] != value},
+                   if key in ('step_progress', 'action_feedback', 'references', 'receipt_bindings') or key not in previous or previous[key] != value},
             'remove':sorted(set(previous)-set(current))}
 
 
@@ -81,6 +81,11 @@ def input_update(role, lane, payload, checkpoint):
     _validate(payload)
     _validate(state['payload'])
     _validate(state['anchor_input'])
+    # A handle remembered in State must never acquire another receipt identity.
+    previous_bindings = state['payload']['receipt_bindings']
+    current_bindings = payload['receipt_bindings']
+    if any(current_bindings[key] != previous_bindings[key] for key in current_bindings.keys() & previous_bindings.keys()):
+        raise ValueError('receipt handle changed identity inside the role State')
     anchor = state['anchor_input']
     retry = (role == 'decision' and payload['boundary']['id'] == anchor['boundary']['id']
              and payload['selected_evidence'] == anchor['selected_evidence']

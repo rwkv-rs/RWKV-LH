@@ -15,7 +15,7 @@ PROJECT_INPUT_PREFIX = (
     "its declared parameters inside a function/params JSON call. Role input: "
 )
 _GENERIC_INPUT_PREFIX = "\n\nUser: Function output: "
-PROMPT_LAYOUT_VERSION = 'project-role-prompt.v8'
+PROMPT_LAYOUT_VERSION = 'project-role-prompt.v9'
 
 
 def project_prompt_identity(role):
@@ -40,9 +40,16 @@ def render_project_assignment(payload):
     return 'Rules: ' + module.RULES + '\nInput:\n' + render_fields(payload) + '\n' + module.INSTRUCTION
 
 
-def render_project_event_append(event, visible_definitions=(), **kwargs):
+def render_project_event_append(event, visible_definitions=(), *, tool_update=None, **kwargs):
     """Render one current snapshot or a lossless replacement of changed fields."""
     rendered = model_io.render_event_append(event, visible_definitions, **kwargs)
+    if tool_update is not None:
+        if _GENERIC_INPUT_PREFIX not in rendered:
+            raise ModelIOError('tool menu update requires a Project role event')
+        lead, body = rendered.split(_GENERIC_INPUT_PREFIX, 1)
+        rendered = (lead + '\n\nSystem: Current tool menu update: replace each set definition, remove listed tools; '
+                    'only available names may be called. Unchanged definitions remain in force. '
+                    + model_io.canonical_json(tool_update) + _GENERIC_INPUT_PREFIX + body)
     if event.event_type == DELTA_EVENT_TYPE:
         if _GENERIC_INPUT_PREFIX not in rendered:
             raise ModelIOError('project delta lacked the generic event prefix')

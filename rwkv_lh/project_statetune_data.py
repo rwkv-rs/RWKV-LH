@@ -5,7 +5,7 @@ from .project_contracts import digest
 from .project_protocols import decision
 from .project_output_validation import validate_role_output
 from .project_runtime import role_definitions
-from .model_io import parse_model_command, JSON_CALL_STOP_SUFFIXES
+from .model_io import JSON_CALL_STOP_SUFFIXES
 from .harness import ActionHarness
 from .token_budget import tokenizer, VOCAB_PATH
 
@@ -46,8 +46,8 @@ def _normalize_project_row(row, *, role, row_schema, protocol, model_sha256, con
         # validate_input checks its two-state invariants. Formal freeze/admit
         # re-extracts every original boundary through project_trace with the
         # complete ledger, including progress, Native tokens and parent State.
-        core.require({k: v for k, v in payload.items() if k not in ('step_progress', 'action_feedback', 'references')}
-                     == {k: v for k, v in local.items() if k not in ('step_progress', 'action_feedback', 'references')},
+        core.require({k: v for k, v in payload.items() if k not in ('step_progress', 'action_feedback', 'references', 'receipt_bindings')}
+                     == {k: v for k, v in local.items() if k not in ('step_progress', 'action_feedback', 'references', 'receipt_bindings')},
                      'executor input differs from production builder')
     core.require(row.get('model_sha256') == model_sha256
                  and row.get('tokenizer_sha256') == core.sha256_file(VOCAB_PATH), 'model/tokenizer differs')
@@ -69,8 +69,10 @@ def _normalize_project_row(row, *, role, row_schema, protocol, model_sha256, con
     text = row['target_text'][:-len(JSON_CALL_STOP_SUFFIXES[0])]
     wire = json.loads(text)
     core.require(set(wire) == {'function', 'params'}, 'exact training call envelope required')
-    validate_role_output('decision' if role == ROLE else 'executor', row['input'], parse_model_command(text),
-                         role_definitions('decision' if role == ROLE else 'executor', ActionHarness()))
+    from .project_format_adapter import parse_role_call
+    native_role = 'decision' if role == ROLE else 'executor'
+    command, _ = parse_role_call(text, role=native_role, payload=row['input'])
+    validate_role_output(native_role, row['input'], command, role_definitions(native_role, ActionHarness()))
     core.require(row.get('review', {}).get('verdict') == 'accept'
                  and row['review'].get('issues') == [] and row.get('review_sha256') == digest(row['review']),
                  'accepted independently recorded review required')

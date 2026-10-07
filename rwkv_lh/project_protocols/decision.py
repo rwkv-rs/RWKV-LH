@@ -6,18 +6,19 @@ from rwkv_lh.project_evidence import evidence_stream, task_handoff_evidence_ids,
 from rwkv_lh.project_step_progress import build_step_progress, validate_step_progress
 from rwkv_lh.project_action_feedback import build_action_feedback, validate_action_feedback
 
-PROTOCOL = 'rwkv-lh.project-decision-input.v21'
+PROTOCOL = 'rwkv-lh.project-decision-input.v22'
 LANE = 'project-decision'
 OPERATIONS = ('delegate', 'continue_current', 'run_task_checks', 'accept_task', 'read_receipt',
               'replan', 'help', 'bind_checks', 'deliver_report', 'blocked')
 # The same three questions have role-specific permitted actions, not a new router.
 from .executor import INSTRUCTION
 RULES = (
-    'Choose the next direction from current evidence and permitted references. Delegate the original '
+    'Choose the next direction from current evidence and permitted references. Tool schemas give '
+    'parameter shapes; current parameter references give permitted values and task associations. Delegate the original '
     'goal directly when suitable; use the worker for investigation, replan for needed decomposition '
     'or revision, and help for diagnosis. Planning is optional. Do not write code or invent tasks. '
     'reason records your judgment. Optional handoff passes a task-scoped focus and authorized receipt'
-    ' IDs to Executor, which chooses concrete actions; it is a suggestion, not evidence or additional'
+    ' handles (receipt:N) to Executor, which chooses concrete actions; it is a suggestion, not evidence or additional'
     ' authority. Omit handoff when the objective and receipts suffice; distinguish later obligations '
     'and avoid copying the whole request. Use task-specific advice_ids, or [] without advice. Inspect'
     ' actual arguments and results in evidence_updates; hashes alone do not prove contents. Treat '
@@ -160,6 +161,7 @@ def build_input(state, *, remaining):
     tool_ids = {key for key, item in state['evidence'].items() if item['kind'] == 'tool'}
     selected_details = state['selected_evidence'].get(LANE, {})
     references = _references(state, options)
+    from rwkv_lh.project_receipt_refs import build_bindings
     return {'protocol': PROTOCOL, 'request': state['request'], 'plan_version': state['plan_version'],
         'goal': deepcopy(state['goal']), 'goal_checks': deepcopy(state['goal_checks']),
         'plan': deepcopy(state['plan']), 'task_status': deepcopy(status), 'reports': deepcopy(state['reports']),
@@ -172,6 +174,7 @@ def build_input(state, *, remaining):
         'action_feedback': build_action_feedback(state, role='decision', permitted=options,
             references=references, boundary_id=boundary['id']),
         'references': references,
+        'receipt_bindings': build_bindings(state, non_model),
         'selected_evidence': selected, 'evidence_updates': updates,
         'information_complete': {'plan': True, 'reports': True,
             'evidence_details': non_model <= selected.keys(),
@@ -195,7 +198,10 @@ def validate_input(value):
     fields(value, ('protocol', 'request', 'plan_version', 'plan', 'task_status', 'reports',
         'verification', 'acceptance', 'active', 'workspace_digest', 'boundary', 'latest_feedback',
         'protocol_feedback', 'advice', 'evidence_ids', 'remaining', 'information_complete', 'instruction',
-        'selected_evidence', 'evidence_updates', 'step_progress', 'action_feedback', 'references', 'goal', 'goal_checks'))
+        'selected_evidence', 'evidence_updates', 'step_progress', 'action_feedback', 'references', 'goal', 'goal_checks',
+        'receipt_bindings'))
+    from rwkv_lh.project_receipt_refs import validate_bindings
+    validate_bindings(value['receipt_bindings'], value['evidence_ids'])
     validate_goal(value['goal'])
     if value['goal']['request'] != value['request']:
         raise ValueError('decision goal differs from original request')

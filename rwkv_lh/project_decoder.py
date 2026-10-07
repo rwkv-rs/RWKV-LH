@@ -2,9 +2,10 @@
 from copy import deepcopy
 from .runtime.structured_output import build_decoder_contract
 from .project_protocols import decision, executor
+from .project_receipt_refs import visible_references
 
 INPUT_FRAMING = 'project-decoder-json-fence.v1'
-BOUNDARY_POLICY = 'project-boundary-decoder.v1'
+BOUNDARY_POLICY = 'project-boundary-decoder.v2'
 
 
 def _reference(schema, field, values):
@@ -33,16 +34,16 @@ def _reference(schema, field, values):
         raise ValueError('required scalar reference has no permitted values')
 
 
-def _boundary_parameters(role, payload, item):
+def _boundary_parameters(role, payload, item, references):
     name, schema = item['name'], item['parameters']
     if role == 'decision':
         if not payload['boundary']['options'][name]:
             return []
-        refs = payload['references'][name]
+        refs = references[name]
         scoped = {key.removesuffix('_by_task'): value for key, value in refs.items() if key.endswith('_by_task')}
         targets = refs['task_id'] if scoped else [None]
     else:
-        refs = payload['references'].get(name, {})
+        refs = references.get(name, {})
         if name == 'read_receipt' and not refs['evidence_id']:
             return []
         scoped, targets = {}, [None]
@@ -58,6 +59,38 @@ def _boundary_parameters(role, payload, item):
     return variants
 
 
+def _current_contracts(definitions, *, role, payload):
+    """One source of current availability and exact task-scoped constraints."""
+    if role not in ('decision', 'executor'):
+        raise ValueError('current Native role required')
+    {'decision': decision, 'executor': executor}[role].validate_input(payload)
+    references = visible_references(payload)
+    for item in definitions:
+        variants = _boundary_parameters(role, payload, item, references)
+        if variants:
+            yield item, variants
+
+
+def available_definitions(definitions, *, role, payload):
+    """Disclose each available tool shape once; references carry its current values.
+
+    Expanding every task-specific schema branch into the prompt duplicates the
+    contract for large plans. The decoder consumes those branches directly.
+    """
+    return [deepcopy(item) for item, _ in _current_contracts(definitions, role=role, payload=payload)]
+
+
+def tool_menu_update(definitions, *, role, payload, checkpoint, retry):
+    """Replace changed contracts and remove unavailable tools without repeating the catalog."""
+    previous = checkpoint['input_state']['anchor_input' if retry else 'payload']
+    old = {item['name']: item for item in available_definitions(definitions, role=role, payload=previous)}
+    current = {item['name']: item for item in available_definitions(definitions, role=role, payload=payload)}
+    if old == current:
+        return None
+    return {'available': list(current), 'set': [item for name, item in current.items() if old.get(name) != item],
+            'remove': [name for name in old if name not in current]}
+
+
 def build_role_decoder(definitions, *, role=None, payload=None):
     """Static catalog identity, or the exact grammar for a production boundary.
 
@@ -69,10 +102,11 @@ def build_role_decoder(definitions, *, role=None, payload=None):
     if role is not None or payload is not None:
         if role not in ('decision', 'executor') or payload is None:
             raise ValueError('boundary decoder requires a Native role and its input')
-        {'decision': decision, 'executor': executor}[role].validate_input(payload)
+        contracts = _current_contracts(definitions, role=role, payload=payload)
+    else:
+        contracts = ((item, [item['parameters']]) for item in definitions)
     return build_decoder_contract({'anyOf': [
         {'type': 'object', 'properties': {
             'function': {'const': item['name']}, 'params': params},
          'required': ['function', 'params'], 'additionalProperties': False}
-        for item in definitions
-        for params in (_boundary_parameters(role, payload, item) if role else [item['parameters']])]})
+        for item, variants in contracts for params in variants]})

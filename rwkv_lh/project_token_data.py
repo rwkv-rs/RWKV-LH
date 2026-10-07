@@ -5,13 +5,12 @@ from .project_trace import role_boundaries
 from .project_runtime import role_definitions
 from .project_output_validation import validate_role_output
 from .model_io import canonical_json, render_bootstrap, JSON_CALL_STOP_SUFFIXES
-from .project_model_io import (render_project_event_append, parse_project_model_command,
-                               render_project_assignment)
+from .project_model_io import render_project_event_append, render_project_assignment
 from .schema import ModelEvent
 from .harness import ActionHarness
 from .token_budget import tokenizer, VOCAB_PATH
 from .project_input_delta import INPUT_HANDOFF_VERSION, input_update
-from .project_decoder import build_role_decoder, INPUT_FRAMING, BOUNDARY_POLICY
+from .project_decoder import build_role_decoder, available_definitions, tool_menu_update, INPUT_FRAMING, BOUNDARY_POLICY
 from .project_protocols import decision, executor
 from .runtime.structured_output import decoder_receipt, state_output_token_ids
 
@@ -89,11 +88,14 @@ def replay_native_rows(rows):
                     event_id='PI-' + digest([row['input'], selected_parent['checkpoint_id']]),
                     scope_id=lane, payload=row['input'])
             suffix = render_project_event_append(event, previous_transcript=selected_parent['transcript'],
-                                                 close_generation_anchor=decoder_id is not None)
+                close_generation_anchor=decoder_id is not None,
+                tool_update=tool_menu_update(definitions, role=role, payload=row['input'], checkpoint=previous, retry=retry)
+                    if incremental else None)
             expected = [*ids, *tok.encode(suffix)]
             expected_text = prior_text + suffix
         else:
-            suffix = render_bootstrap(definitions, render_project_assignment(row['input']))
+            suffix = render_bootstrap(available_definitions(definitions, role=role, payload=row['input']),
+                                      render_project_assignment(row['input']))
             expected = [0, *tok.encode(suffix)]
             expected_text = suffix
         if raw.get('prompt_token_ids') != expected:
@@ -161,7 +163,8 @@ def _pack_project_candidate(replayed, command, *, role, context_tokens):
     if row['role'] != role:
         raise ValueError(f'{role} source required')
     target_command = canonical_json(command)
-    parsed = parse_project_model_command(target_command)
+    from .project_format_adapter import parse_role_call
+    parsed, _ = parse_role_call(target_command, role=role, payload=row['input'])
     validate_role_output(role, row['input'], parsed, role_definitions(role, ActionHarness()))
     target = target_command + JSON_CALL_STOP_SUFFIXES[0]
     target_ids = tokenizer().encode(target)

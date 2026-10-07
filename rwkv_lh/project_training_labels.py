@@ -11,6 +11,7 @@ from .goal_state_protocols.role_trace_dataset_v1 import _source_path
 from .harness import ActionHarness
 from .project_contracts import digest
 from .project_runtime import role_definitions
+from .project_decoder import available_definitions
 from .project_token_data import pack_decision_candidate, pack_executor_candidate
 from .project_training_sources import load_source, read_reference
 
@@ -55,7 +56,7 @@ def _build(source, operation_id, command, context_tokens, author):
         'source_operation_id': operation_id, 'source_event_digest': row['source_event_digest'],
         'role': 'project_' + row['role'], 'input_digest': digest(row['input']),
         'input': row['input'], 'input_text': replay['input_text'],
-        'available_tools': role_definitions(row['role'], ActionHarness()),
+        'available_tools': available_definitions(role_definitions(row['role'], ActionHarness()), role=row['role'], payload=row['input']),
         'executor_tools': role_definitions('executor', ActionHarness()),
         'observed_output': row['result']['evidence']['raw_generation']['raw_output'],
         'proposed_target': command, 'target_digest': digest(command),

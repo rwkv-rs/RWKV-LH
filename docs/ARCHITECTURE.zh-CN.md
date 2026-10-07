@@ -18,7 +18,7 @@
 |Trace|`project_trace.py::role_boundaries`|全链验真后使用生产 builder 重建边界；不自动授予训练资格|
 |工具合同|`harness.py::ActionDefinition`|菜单、schema、权限、回执和 decoder 共用注册定义；Project 检查工具由 `project_launch.PROJECT_CHECK` 注册|
 
-当前版本：Goal v1、Plan v5、Assignment v6、Ledger v13、Decision v21、Executor v17、Planner v16、prompt v8、Planner chat v4、输入传输 v2、边界解码策略 v1。每角色只有一个协议模块和一个 `build_input`，生产、数据与评测共用；运行时标签引用模块常量。旧／未知协议和不兼容 State 拒绝恢复。模型升级通过模型、tokenizer、State、容量和传输适配处理，不自动重写角色协议。
+当前版本：Goal v1、Plan v5、Assignment v6、Ledger v13、Decision v22、Executor v18、Planner v16、prompt v9、Planner chat v4、输入传输 v2、边界解码策略 v2。每角色只有一个协议模块和一个 `build_input`，生产、数据与评测共用；运行时标签引用模块常量。旧／未知协议和不兼容 State 拒绝恢复。模型升级通过模型、tokenizer、State、容量和传输适配处理，不自动重写角色协议。
 
 ## 从原目标到交付
 
@@ -67,6 +67,8 @@ Planner 的 requirements 是对原始需求的解释，interfaces 是实现选�
 
 工具、Planner 读取及验证的实际意图和原始结果自动送入 Decision；Executor 收到新工具观察。`read_receipt` 只补取已授权原始回执，不需要再次读取刚投递的返回。Decision 的 handoff 绑定原操作和当前合同，标为 suggestion，不能变成执行事实；引用限于当前工作、已声明依赖及工作区只读证据。省略新 handoff 不撤销既有授权，但旧建议正文不自动续用。delivery_context 中其他 worker 报告也是声明，不扩大权限。
 
+RWKV 的回执参数使用 `receipt:N` 短引用，按账本已确认的非模型回执顺序编号；角色作用域过滤不重新编号。唯一输入 builder 保存当前授权短引用到原始 OP 身份的一对一绑定，renderer 只转换宿主定义的引用位置并隐藏委派 UUID，原始工具参数、输出、用户文字和报告正文逐字保留。解码、菜单和可选引用共用这一绑定；生产 parser 只解析模型明确选择的引用，无匹配或越过动作／任务范围时拒绝，不自动选证据。账本继续保存完整 OP／W 身份；原始生成、映射记录及规范调用分别留证。State 恢复核对引用身份，精确 token 重放与训练目标校验共用当前接口；旧协议 State 不兼容。Planner 保留原始审计引用。
+
 步骤只有“已做／未做”：当前合同存在已确认工具返回即做过，失败也算做过，unknown 不算。真实发布路径和 OP 证据随之展示，不替代验证或接受。连续拒绝及重复数从同 lane／合同的已确认回执和相邻输入重建，不持久化第二套计数；新工具事实、成功模型调用或合同变化结束原序列，拒绝本身没有执行权威。
 
 checkpoint 绑定当前输入、工具合同、模型、State、证据与干净 anchor。拒绝后从 anchor 追加当前反馈，不接失败 child；新证据必须先进入 anchor 再推进已读游标。没有 checkpoint 时重建完整相关输入，旧布局或缺失绑定拒绝恢复。模型返回、State 提交或工具效果未知时停在 pending，已知结果与 UNKNOWN 分开留证，不自动重发。
@@ -95,7 +97,7 @@ Native 实例的 request_lock 串行执行实际 State 操作，generate 另持 
 
 所有新 RWKV 模型运行开启 Project 约束解码。服务须声明当前 decoder、Guidance、源码／权重及 State 证据；缺失或不匹配则拒绝。合同保存原 schema、生成 schema、显式延后的 uniqueItems 和摘要；其他不支持约束明确拒绝。生成结束由 grammar／EOS 控制，预算触顶仍中断；输入预填充和已知 token State 重建不加输出 grammar。off 只保留离线机制测试／历史审计，不作为新模型实验配置。
 
-`project_decoder.build_role_decoder` 从同一工具 schema 和生产输入生成本次约束：Decision 只允许 boundary 的当前方向，ID 必须来自 references；建议、交接及验证引用按任务绑定。Executor 无授权回执时不提供 `read_receipt`，报告证据为空时只允许空数组。静态工具目录及策略身份绑定 lane，每次实际 grammar 摘要绑定原始生成回执；合法边界推进可改变 grammar，不能改变目录／策略或重置 State。bootstrap 仍保留完整静态工具合同，逐次约束不宣称减少每次输入 token。运行、精确 token 重放和正式角色评测共用当前生成函数。
+`project_decoder.build_role_decoder` 从同一工具 schema 和生产输入生成本次约束：Decision 只允许 boundary 的当前方向，ID 必须来自 references；建议、交接及验证引用按任务绑定。Executor 无授权回执时不提供 `read_receipt`，报告证据为空时只允许空数组。静态工具目录及策略身份绑定 lane，每次实际 grammar 摘要绑定原始生成回执；合法边界推进可改变 grammar，不能改变目录／策略或重置 State。bootstrap 只展示当前可调用工具的参数结构，当前可选值及任务关联由 references 完整列出；不得将每任务解码分支重复展开为提示词中的多份 schema。后续按同一投影显式增补／替换变化定义、移除不可用工具，并列出当前全部可用名称，不重复发送未变合同。运行、精确 token 重放和正式角色评测共用当前生成函数。
 
 原始采样 token 完整保存，State 消费只排除一个合法终止 EOS；服务、客户端及 trace 核对 state_token_ids。下一 User 前关闭前一 Assistant JSON 围栏，提交与拒绝共用 framing，身份变化不能静默续用旧 checkpoint。正式角色评测必须使用精确 token 重放，记录 State 回滚与释放回执。
 

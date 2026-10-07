@@ -22,7 +22,7 @@ from .project_output_validation import normalize_role_output, validate_role_outp
 from .project_format_adapter import FORMAT_ADAPTER_VERSION, parse_role_call, rejected_call_definition
 from .token_budget import get_token_count
 from .project_input_delta import INPUT_HANDOFF_VERSION, input_update, seal_input_state
-from .project_decoder import build_role_decoder, INPUT_FRAMING, BOUNDARY_POLICY
+from .project_decoder import build_role_decoder, available_definitions, tool_menu_update, INPUT_FRAMING, BOUNDARY_POLICY
 
 
 class ProjectSessions:
@@ -99,11 +99,12 @@ class ProjectSessions:
             return
         selected = self.decision_settings if role == 'decision' else self.settings
         if checkpoint:
-            parent, event, _retry = input_update(role, lane, payload, checkpoint)
+            parent, event, retry = input_update(role, lane, payload, checkpoint)
             delta = render_project_event_append(event, previous_transcript=parent['transcript'],
-                                                close_generation_anchor=self.constrained_decoding)
+                close_generation_anchor=self.constrained_decoding,
+                tool_update=tool_menu_update(definitions, role=role, payload=payload, checkpoint=checkpoint, retry=retry))
         else:
-            delta = render_bootstrap(definitions, render_project_assignment(payload))
+            delta = render_bootstrap(available_definitions(definitions, role=role, payload=payload), render_project_assignment(payload))
         count = get_token_count(delta)
         limit = selected.max_prompt_tokens(1)
         if count > limit:
@@ -159,10 +160,13 @@ class ProjectSessions:
                 parent = session.bootstrap(ModelLaneKind.ACTION, canonical_json(payload), definitions, lane_id=lane)
             else:
                 selected_parent, event, retry = input_update(role, lane, payload, checkpoint)
+                session.event_renderer = partial(render_project_event_append, close_generation_anchor=decoder is not None,
+                    tool_update=tool_menu_update(definitions, role=role, payload=payload, checkpoint=checkpoint, retry=retry))
                 previous = session.import_checkpoint(selected_parent)
                 parent = session.append(previous, event)
         else:
-            parent = session.bootstrap(ModelLaneKind.ACTION, render_project_assignment(payload), definitions, lane_id=lane)
+            visible = definitions if role == 'planner' else available_definitions(definitions, role=role, payload=payload)
+            parent = session.bootstrap(ModelLaneKind.ACTION, render_project_assignment(payload), visible, lane_id=lane)
         def export_checkpoint(current, *, rejected):
             value = {'binding': binding, 'checkpoint': session.export(current)}
             if role != 'planner':

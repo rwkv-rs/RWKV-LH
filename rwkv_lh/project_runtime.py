@@ -70,7 +70,7 @@ def _role_definitions(role, harness):
     if role == 'executor':
         register_project_check(harness)
         return [*harness.g1i_tool_definitions(), definition('read_receipt', {'evidence_id': STRING},
-                    description='Retrieve an existing raw receipt using an authorized references.read_receipt.evidence_id. This makes no new observation; recent results are already delivered automatically. Goal IDs, file paths and file hashes are not receipt IDs.'),
+                    description='Retrieve an existing raw receipt using a listed receipt:N handle from references.read_receipt.evidence_id. This makes no new observation; recent results are already delivered automatically. Task IDs and file paths are not receipt handles.'),
             definition('report_work', {
             'status': {'type': 'string', 'enum': ['progress', 'submitted', 'blocked'],
                        'description': 'progress requests direction; submitted requests independent verification; blocked records a local obstacle.'},
@@ -86,7 +86,7 @@ def _role_definitions(role, harness):
         ('run_task_checks', {'task_id': STRING}, 'Execute the already bound independent checks on disposable copies of the current workspace. Requires a submitted worker report and no active assignment. Returns verification evidence; passing does not accept the task. Use bind_checks to obtain missing checks.'),
         ('bind_checks', {'task_id': STRING}, 'Request Planner check construction and independent review for submitted work with no active assignment. Preserves the design contract and does not run tests. Replacing existing checks requires evidence of a check defect; use replan for design changes.'),
         ('accept_task', {'task_id': STRING, 'verification_id': STRING}, 'Record your judgment that current passed verification covers the task objective. Requires its current verification receipt. Acceptance alone does not finish the project; optional deliver_report_id requests simultaneous delivery through the same completion guards.'),
-        ('read_receipt', {'evidence_id': STRING}, 'Retrieve an existing raw receipt by its authorized evidence_id, without rerunning a tool. Recent results are already delivered automatically; delegate or continue work for new observations.'),
+        ('read_receipt', {'evidence_id': STRING}, 'Retrieve an existing raw receipt by a listed receipt:N handle, without rerunning a tool. Recent results are already delivered automatically; delegate or continue work for new observations.'),
         ('replan', {'subject_id': {'enum': ['project']}}, 'Request optional strong planning or revision of project design, followed by independent review. Does not execute implementation. Use bind_checks for check-only changes and help for diagnosis without a design revision.'),
         ('help', {'subject_id': STRING}, 'Request strong-model diagnosis for an existing task or the project. Returns advice, not execution evidence, a new plan or task acceptance; reason describes the uncertainty.'),
         ('deliver_report', {'task_id': {**STRING, 'description': 'Task key of the existing submitted worker report to deliver verbatim.'}}, 'Complete the project by delivering an existing comprehensive worker report verbatim, only after all work has current accepted proof. Does not write a new summary or create a document; task_id selects the stored report.'),

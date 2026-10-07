@@ -10,7 +10,7 @@ from .model_io import ModelCommandNormalization, ModelIOError, canonical_json
 from .project_model_io import parse_project_model_command_with_trace
 from .project_protocols import planner
 
-FORMAT_ADAPTER_VERSION = 'project-boundary-format.v6'
+FORMAT_ADAPTER_VERSION = 'project-boundary-format.v7'
 
 _NAME_KEYS = ('function', 'name', 'tool', 'response')
 _ARGUMENT_KEYS = ('params', 'parameters', 'arguments', 'args', 'function_args')
@@ -128,6 +128,20 @@ def rejected_call_definition(raw, definitions, *, command=None):
 
 
 def parse_role_call(raw: str, *, role: str, payload: Mapping):
+    command, trace = _parse_role_call(raw, role=role, payload=payload)
+    if role == 'planner':
+        return command, trace
+    from .project_receipt_refs import resolve_command
+    resolved = resolve_command(payload, command)
+    if resolved == command:
+        return command, trace
+    return resolved, ModelCommandNormalization(
+        input_payload=trace.input_payload, normalized_payload=resolved.to_wire_dict(),
+        transformations=(*trace.transformations, 'receipt_handles:exact_ledger_binding'),
+        normalizer_version=FORMAT_ADAPTER_VERSION)
+
+
+def _parse_role_call(raw: str, *, role: str, payload: Mapping):
     """Map only exact, unambiguous envelopes to the one existing call contract.
 
     The independent schema/role/boundary checks run after this function. Invalid
