@@ -4,13 +4,15 @@ Events identify a root, not another embedded copy of the entire history. Changed
 paths add new nodes; existing input, output, token blocks and text are reused by
 content identity. This storage encoding is never sent to a model.
 """
-from functools import lru_cache
+from collections import OrderedDict
+import sys
 import hashlib
 import json
 
 PROTOCOL = 'rwkv-lh.project-record-store.v1'
 _TEXT_BLOCK = 2048
 _LIST_BLOCK = 128
+_NODE_CACHE_BYTE_LIMIT = 64 * 1024 * 1024
 
 
 def _json(value):
@@ -21,12 +23,56 @@ def _digest(body):
     return hashlib.sha256(body.encode('utf-8')).hexdigest()
 
 
+class _VerifiedNodeCache:
+    """Keep validated immutable nodes within this store's byte allowance.
+
+    Expanded caller values are never cached. The allowance accounts for each
+    retained node's object graph, key and conservative entry overhead; it is
+    not a bound on SQLite buffers, returned histories or process RSS.
+    """
+
+    def __init__(self, load, byte_limit):
+        self.load = load
+        self.byte_limit = byte_limit
+        self.entries = OrderedDict()
+        self.retained_bytes = 0
+
+    def _charge(self, key, node):
+        total = sys.getsizeof(key) + 256
+        pending, seen = [node], set()
+        while pending and total <= self.byte_limit:
+            value = pending.pop()
+            identity = id(value)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            total += sys.getsizeof(value)
+            if isinstance(value, list):
+                pending.extend(value)
+        return total
+
+    def __call__(self, key):
+        if key in self.entries:
+            self.entries.move_to_end(key)
+            return self.entries[key][0]
+        # Load validates the digest and complete node shape before admission.
+        node = self.load(key)
+        charge = self._charge(key, node)
+        if charge <= self.byte_limit:
+            while self.retained_bytes + charge > self.byte_limit:
+                _, (_, removed) = self.entries.popitem(last=False)
+                self.retained_bytes -= removed
+            self.entries[key] = (node, charge)
+            self.retained_bytes += charge
+        return node
+
+
 class RecordStore:
     def __init__(self, connection):
         self.connection = connection
-        # Cache only small encoded nodes in this one transaction, never expanded
-        # historical states or a verification claim from another transaction.
-        self._node = lru_cache(maxsize=512)(self._load)
+        # One transaction owns its verified-node cache. Bound retained memory
+        # by bytes, so a small shared history does not thrash a node-count cap.
+        self._node = _VerifiedNodeCache(self._load, _NODE_CACHE_BYTE_LIMIT)
 
     @staticmethod
     def create(connection):
