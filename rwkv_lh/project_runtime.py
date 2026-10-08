@@ -7,6 +7,7 @@ import time
 
 from .project_contracts import digest, fields, text, work_map, protected_paths
 from .project_ledger import ProjectLedger, UncertainOperation
+from .project_materials import capture_materials
 from .project_protocols import planner, executor
 from .harness import ActionHarness, ActionResult, HarnessError
 from .project_launch import register_project_check
@@ -112,8 +113,10 @@ class ProjectRuntime:
         s = self.db.state()
         if s['plan'] is None:
             role, lane = 'planner', 'planner'
+            workspace, materials = capture_materials(s['workspace'], s['request'],
+                expected_digest=s['workspace_digest'])
             payload = planner.build_input(s['request'], feedback=s['feedback'],
-                workspace=tree_identity(s['workspace']), protected_paths=s['protected_paths'],
+                workspace=workspace, materials=materials, protected_paths=s['protected_paths'],
                 remaining=self.remaining())
         else:
             role, lane = 'executor', s['active']['id']

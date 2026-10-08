@@ -2,11 +2,15 @@
 from copy import deepcopy
 from rwkv_lh.project_contracts import PLAN_PROTOCOL, WORKSPACE_PATH_SCHEMA, fields, resource_budget, text
 
-PROTOCOL = 'rwkv-lh.project-planner-input.v22'
-CHAT_LAYOUT_VERSION = 'project-planner-chat.v9'
+PROTOCOL = 'rwkv-lh.project-planner-input.v23'
+CHAT_LAYOUT_VERSION = 'project-planner-chat.v10'
 INSTRUCTION = (
     'Produce one initial executable plan for the original request. RWKV will execute it '
     'autonomously from actual tool feedback throughout the project. '
+    'The materials field contains the complete UTF-8 contents of existing workspace files '
+    'literally referenced in the request, with exact file identities. Use those actual '
+    'requirements and public entrypoints when planning write scopes; file inventory alone '
+    'does not establish an interface. Non-UTF-8 files are explicitly marked without text. '
     'If workspace contents are unknown, begin with an investigation step that RWKV can '
     'execute; never require that investigation to have happened before execution starts. '
     'Cover every requirement and preserve user interfaces and protected paths. Each task '
@@ -37,14 +41,14 @@ PLAN_SCHEMA = object_schema({'protocol': {'type': 'string', 'enum': [PLAN_PROTOC
     'protected_paths': {**PATHS, 'description': 'Literal protected paths; preserve all owner-protected paths.'}})
 
 
-def build_input(request, *, feedback=None, workspace=None, protected_paths=(), remaining=None):
+def build_input(request, *, feedback=None, workspace=None, materials=None, protected_paths=(), remaining=None):
     return {'protocol': PROTOCOL, 'mode': 'plan', 'request': text(request), 'plan': None,
-        'workspace': deepcopy(workspace or {}), 'protected_paths': list(protected_paths),
+        'workspace': deepcopy(workspace or {}), 'materials': deepcopy(materials or {}), 'protected_paths': list(protected_paths),
         'feedback': deepcopy(feedback), 'remaining': resource_budget(remaining), 'instruction': INSTRUCTION}
 
 
 def validate_input(value):
-    fields(value, ('protocol', 'mode', 'request', 'plan', 'workspace', 'protected_paths',
+    fields(value, ('protocol', 'mode', 'request', 'plan', 'workspace', 'materials', 'protected_paths',
                    'feedback', 'remaining', 'instruction'))
     if value['protocol'] != PROTOCOL or value['mode'] != 'plan' or value['plan'] is not None:
         raise ValueError('unsupported initial Planner protocol')
@@ -57,6 +61,8 @@ def validate_input(value):
         scope_path(path)
     if not isinstance(value['workspace'], dict):
         raise ValueError('workspace inventory required')
+    from rwkv_lh.project_materials import validate_materials
+    validate_materials(value['request'], value['workspace'], value['materials'])
     return value
 
 

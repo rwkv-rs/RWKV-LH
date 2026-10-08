@@ -20,7 +20,7 @@ flowchart LR
     E -->|预算或未知结果| B[中断：保留恢复边界]
 ```
 
-初始 Planner 只允许 `submit_plan`，收到原始请求、workspace 清单、保护路径和剩余预算。未知源码由计划中的调查步骤交给 Executor 读取；不要求执行证据先于执行。阶段与步骤数量按任务需要决定，没有固定数量上限或静默截断。
+初始 Planner 只允许 `submit_plan`，收到原始请求、workspace 清单、请求明确引用的已有文件材料、保护路径和剩余预算。材料入口按实际相对路径匹配，不特判文件名或扩展名；完整 UTF-8 正文、字节数与 SHA 和初始工作区身份绑定，非 UTF-8 文件明确标注而不伪造文本。材料捕获前后及逐文件身份均核对，发现变化即拒绝；这不是对任意外部写者的原子文件系统快照。未引用的源码与间接引用仍由计划中的调查步骤交给 Executor 读取；不要求执行证据先于执行。阶段与步骤数量按任务需要决定，没有固定数量上限或静默截断。
 
 宿主校验字段、唯一标识、需求引用、依赖结构与路径权限，不评价计划是否正确合理。不合规的初始返回结束为 `planner_protocol_error`，同一任务恢复时不会重新调用 Planner。
 
@@ -34,6 +34,7 @@ CLI、批量 coding 和 Web 统一调用 `project_agent.run_project_job()`，恢
 |---|---|---|
 |原目标与计划合同|`project_contracts.py`|结构、引用、路径与身份；不作语义验收|
 |持久记录|`project_ledger.py`|单写者、事务、事件链、原始回执、步骤选择、声明与未决操作|
+|初始材料|`project_materials.py`|完整捕获被请求引用的文件；不解释需求或授予写权限|
 |初始 Planner|`project_protocols/planner.py::build_input`|一次规划；不执行工作区工具|
 |自主 Executor|`project_protocols/executor.py::build_input`|原始目标、完整计划、当前步骤、声明、工具事实、回执与预算|
 |State 与实际传输|`project_sessions.py`|Native 增量、干净重试锚点、模型/协议/工具/采样身份绑定|
@@ -42,7 +43,7 @@ CLI、批量 coding 和 Web 统一调用 `project_agent.run_project_job()`，恢
 |工具合同|`harness.py::ActionDefinition`|菜单、schema、权限、回执与 decoder 共用定义|
 |项目自测工具|`project_launch.py`|Executor 可选的隔离启动、HTTP 与浏览器检查|
 
-当前版本：Goal v1、Plan v7、Assignment v7、Ledger v17、Executor v20、Planner v22、prompt v10、Planner chat v9、输入传输 v3、边界解码策略 v3、调用包装 v9。运行标签引用模块常量。旧协议、账本、prompt 和不兼容 State 一律拒绝恢复或改标签重用。
+当前版本：Goal v1、Plan v7、Assignment v7、Ledger v17、Executor v20、Planner v23、prompt v10、Planner chat v10、输入传输 v3、边界解码策略 v3、调用包装 v9。运行标签引用模块常量。旧协议、账本、prompt 和不兼容 State 一律拒绝恢复或改标签重用。
 
 底层只读工具与独立研究依赖不构成另一条编码产品入口。模型升级通过权重、tokenizer、State、上下文和传输配置适配，不自动改变角色协议。
 
@@ -72,7 +73,7 @@ SQLite 事件与内容寻址记录保留输入、输出、checkpoint、原始回
 
 内容记录在每个 RecordStore 内按 64 MiB 字节预算复用已校验节点，避免共享历史超过固定节点数量后反复读取与验真。预算计算节点对象、键与条目开销，超大节点不缓存；它不限制 SQLite 缓冲区、返回的完整历史或进程总内存。展开后的可变结果不共享，新读取事务重新校验，事件链检查仍覆盖全部历史；缓存不改变存储格式、模型输入或事实权限。
 
-输入超出部署容量时记录完整输入与估算，按中断处理，不截断计划。总预算耗尽、输出预算耗尽和超时均不能伪装成完成。
+Planner 材料与原始输入一同持久化；Trace 通过唯一 builder 重建并核对身份，不重读已变化的工作区。输入超出部署容量时记录完整输入与估算，按中断处理，不截断计划或材料。总预算耗尽、输出预算耗尽和超时均不能伪装成完成。
 
 ## 可观察输出与结果语义
 
