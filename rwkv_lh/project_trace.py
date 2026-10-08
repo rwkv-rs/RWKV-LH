@@ -23,20 +23,17 @@ def role_boundaries(root, *, read_only=True):
                     payload = planner.build_input(state['request'],
                         feedback=planner.review_feedback(state, lane) if pending_checks else state['feedback'],
                         protected_paths=protected_paths(state),
-                        evidence=[{'id': key, **value} for key, value in state['evidence'].items() if value['kind'] != 'model'],
                         workspace=source['workspace'], mode='review_checks' if pending_checks else 'checks',
                         remaining=source['remaining'], work_context=work_check_context(state), project_state=state)
                 elif candidate:
                     payload = planner.build_input(state['request'], plan=candidate['plan'],
                         feedback=planner.review_feedback(state, candidate['lane']), protected_paths=state['protected_paths'],
-                        evidence=[{'id': key, **value} for key, value in state['evidence'].items() if value['kind'] != 'model'],
                         workspace=source['workspace'], mode='review', remaining=source['remaining'],
                         review_context={key: value for key, value in candidate.items() if key != 'plan'}
                             | {'previous_plan': state['plan']}, project_state=state)
                 else:
                     payload = planner.build_input(state['request'], plan=state['plan'], feedback=state['feedback'],
                         protected_paths=state['protected_paths'],
-                        evidence=[{'id': key, **value} for key, value in state['evidence'].items() if value['kind'] != 'model'],
                         workspace=source['workspace'], mode='diagnose' if state.get('planner_request') == 'diagnose' else 'plan',
                         target_contracts=state.get('planner_target_contracts'), remaining=source['remaining'], project_state=state)
                 if digest(source['workspace']) != state['workspace_digest']:

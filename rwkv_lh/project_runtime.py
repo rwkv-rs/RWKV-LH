@@ -180,15 +180,13 @@ class ProjectRuntime:
             pending_checks = s['pending_checks']
             role, lane, planning = 'planner', pending_checks['lane'] if pending_checks else 'work-check-author', 'review_checks' if pending_checks else 'checks'
             payload = planner.build_input(s['request'], feedback=planner.review_feedback(s, lane) if pending_checks else s['feedback'],
-                protected_paths=protected_paths(s), evidence=[{'id': key, **value}
-                    for key, value in s['evidence'].items() if value['kind'] != 'model'],
+                protected_paths=protected_paths(s),
                 workspace=tree_identity(s['workspace']), mode=planning, remaining=self.remaining(),
                 work_context=work_check_context(s), project_state=s)
         elif candidate:
             role, lane, planning = 'planner', candidate['lane'], 'review'
             payload = planner.build_input(s['request'], plan=candidate['plan'],
                 feedback=planner.review_feedback(s, lane), protected_paths=s['protected_paths'],
-                evidence=[{'id': key, **value} for key, value in s['evidence'].items() if value['kind'] != 'model'],
                 workspace=tree_identity(s['workspace']), mode='review', remaining=self.remaining(),
                 review_context={key: value for key, value in candidate.items() if key != 'plan'}
                     | {'previous_plan': s['plan']}, project_state=s)
@@ -196,7 +194,6 @@ class ProjectRuntime:
             role, lane = 'planner', 'planner'
             payload = planner.build_input(s['request'], plan=s['plan'], feedback=s['feedback'],
                 protected_paths=s['protected_paths'],
-                evidence=[{'id': key, **value} for key, value in s['evidence'].items() if value['kind'] != 'model'],
                 workspace=tree_identity(s['workspace']), mode='diagnose' if planning == 'diagnose' else 'plan',
                 target_contracts=s.get('planner_target_contracts'), remaining=self.remaining(), project_state=s)
         elif s['active'] and s['control'] == 'executor':
