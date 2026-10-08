@@ -190,7 +190,7 @@ def render_fields(fields):
         if not value:
             continue
         if (last_id is not None and isinstance(value, dict) and value.get('evidence_id') == last_id
-                and value.get('kind') in ('tool_returned', 'planner_read_returned', 'execution_failed')):
+                and value.get('kind') in ('tool_returned', 'execution_failed')):
             # Same confirmed action/result appears intact in the adjacent section.
             continue
         if (last is not None and isinstance(value, dict) and value.get('kind') == 'verification'

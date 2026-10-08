@@ -166,8 +166,7 @@ class ProjectSessions:
             # request contract separately; checkpoint restoration binds the catalog.
             binding['strong_decoder_catalog_sha256'] = build_tool_contract(definitions)['contract_sha256']
             binding['prompt_identity'] = digest({'layout': planner.CHAT_LAYOUT_VERSION,
-                'plan_rules': planner.INSTRUCTION, 'review_rules': planner.REVIEW_INSTRUCTION,
-                'check_rules': planner.CHECK_AUTHOR_RULES, 'check_review_rules': planner.CHECK_REVIEW_RULES})
+                'instructions': planner.INSTRUCTIONS})
         if role != 'planner':
             binding['input_handoff'] = INPUT_HANDOFF_VERSION
             binding['prompt_identity'] = project_prompt_identity(role)

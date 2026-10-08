@@ -14,7 +14,7 @@ from .project_contracts import (digest, make_assignment, task_map, validate_plan
 from .workspace_snapshot import tree_identity
 from .project_record_store import RecordStore
 
-PROTOCOL = 'rwkv-lh.project-ledger.v15'
+PROTOCOL = 'rwkv-lh.project-ledger.v16'
 
 
 class UncertainOperation(RuntimeError):
@@ -389,33 +389,55 @@ class ProjectLedger:
             s['inbox'] = None
         return self.update('work_checks_proposed', propose)
 
-    def return_work_check_advice(self, params):
-        """Apply the model's explicit handoff, retaining unresolved proof as advice."""
+    def return_planner_advice(self, params):
+        """Return an explicit planning gap to RWKV, retaining unaccepted candidates."""
         fields(params, ('text', 'evidence_ids'))
         text(params['text']); strings(params['evidence_ids'])
         state = self.state()
-        inbox, candidate = state['inbox'], state['pending_checks']
-        if (not inbox or inbox['role'] != 'planner' or inbox['planning'] not in ('checks', 'review_checks')
-                or state['planner_request'] != 'checks' or inbox['plan_version'] != state['plan_version']):
-            raise ValueError('goal check advice requires the current explicit proof request')
+        inbox = state['inbox']
+        if not inbox or inbox['role'] != 'planner' or inbox['plan_version'] != state['plan_version']:
+            raise ValueError('planner advice requires the current planning boundary')
+        mode = inbox['planning']
+        proof = mode in ('checks', 'review_checks')
+        candidate = state['pending_checks'] if proof else state['pending_plan']
         receipt = state['evidence'][inbox['operation_id']]
-        if receipt['intent']['input']['work_context'] != work_check_context(state):
-            raise ValueError('goal check advice context changed')
-        visible = {item['id'] for item in receipt['intent']['input']['evidence']}
+        payload = receipt['intent']['input']
+        from .project_protocols.planner import _diagnostic_feedback
+        if (receipt['intent']['role'] != 'planner' or receipt['intent']['lane'] != inbox['lane']
+                or payload['mode'] != mode
+                or payload['assistance_request'] != _diagnostic_feedback(state['planner_request_context'])):
+            raise ValueError('planner advice request identity changed')
+        if proof:
+            if state['planner_request'] != 'checks' or payload['work_context'] != work_check_context(state):
+                raise ValueError('goal check advice context changed')
+        elif mode not in ('plan', 'review', 'diagnose') or state['planner_request'] != ('diagnose' if mode == 'diagnose' else 'plan'):
+            raise ValueError('planner advice requires its current request')
+        if candidate:
+            if mode not in ('review', 'review_checks') or inbox['lane'] != candidate['lane']:
+                raise ValueError('planner advice is not bound to its proposal')
+            if mode == 'review' and payload['plan'] != candidate['plan']:
+                raise ValueError('plan advice candidate changed')
+        elif mode in ('review', 'review_checks'):
+            raise ValueError('review advice requires its unaccepted candidate')
+        visible = {item['id'] for item in payload['evidence'] if item['kind'] != 'model'}
         if set(params['evidence_ids']) - visible:
-            raise ValueError('unknown or undisclosed goal check advice evidence')
-        if candidate and inbox['lane'] != candidate['lane']:
-            raise ValueError('goal check advice is not bound to its proposal')
+            raise ValueError('unknown or undisclosed planner advice evidence')
         def advised(s):
-            advice = {**deepcopy(params), 'subject_id': state['planner_subject_id'], 'is_execution_evidence': False}
+            advice = {**deepcopy(params),
+                'subject_id': state.get('planner_subject_id', 'project') if proof or mode == 'diagnose' else 'project',
+                'is_execution_evidence': False,
+                'planning_context': {'mode': mode, 'candidate': deepcopy(candidate),
+                    'assistance_request': deepcopy(payload['assistance_request'])}}
             s['advice'][inbox['operation_id']] = advice
-            s['feedback'] = {'kind': 'work_check_advice', 'advice_id': inbox['operation_id'],
-                'mode': inbox['planning'], 'candidate': deepcopy(candidate), **advice}
+            s['feedback'] = {'kind': 'work_check_advice' if proof else 'strong_advice',
+                'advice_id': inbox['operation_id'], 'mode': mode, 'candidate': deepcopy(candidate), **advice}
+            s['pending_plan'] = None
             s['pending_checks'] = None
             s['planner_request'] = None
             s['planner_request_context'] = None
             s['inbox'] = None
-        return self.update('work_check_advised', advised)
+            s['control'] = 'decision'
+        return self.update('planner_advised', advised)
 
     def resolve_work_check_review(self, params):
         from .project_protocols.planner import validate_review

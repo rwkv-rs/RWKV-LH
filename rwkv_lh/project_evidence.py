@@ -57,7 +57,7 @@ def executor_evidence_ids(state):
 
 
 def task_handoff_evidence_ids(state, task_id):
-    """Current-task/dependency receipts and read-only workspace evidence, not model claims."""
+    """Current-task/dependency receipts, not model claims or implicit read authority."""
     from .project_contracts import work_map
     tasks = work_map(state)
     task = tasks.get(task_id)
@@ -78,8 +78,7 @@ def task_handoff_evidence_ids(state, task_id):
         allowed.update(state['reports'].get(dep, {}).get('evidence_ids', []))
     for identifier, receipt in state['evidence'].items():
         intent = receipt['intent']
-        if (receipt['kind'] == 'planner_read'
-                or receipt['kind'] == 'tool' and intent['assignment_id'] in lanes
+        if (receipt['kind'] == 'tool' and intent['assignment_id'] in lanes
                 or receipt['kind'] == 'verification' and intent['task_id'] == task_id
                    and intent.get('checks') == task['checks']):
             allowed.add(identifier)

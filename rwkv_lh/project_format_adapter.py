@@ -10,7 +10,7 @@ from .model_io import ModelCommandNormalization, ModelIOError, canonical_json
 from .project_model_io import parse_project_model_command_with_trace
 from .project_protocols import planner
 
-FORMAT_ADAPTER_VERSION = 'project-boundary-format.v7'
+FORMAT_ADAPTER_VERSION = 'project-boundary-format.v8'
 
 _NAME_KEYS = ('function', 'name', 'tool', 'response')
 _ARGUMENT_KEYS = ('params', 'parameters', 'arguments', 'args', 'function_args')
@@ -61,23 +61,6 @@ def _explicit_envelope(value, *, role):
             calls = value['tool_calls']
             if isinstance(calls, list) and len(calls) == 1:
                 return _explicit_tool_item(calls[0]), ['explicit_single_tool_calls_item']
-            if role == 'planner' and isinstance(calls, list) and len(calls) > 1:
-                decoded = [_explicit_tool_item(item) for item in calls]
-                identities = [item['id'] for item in calls if 'id' in item]
-                if len(identities) != len(set(identities)):
-                    raise ModelIOError('tool call identities must be unique')
-                if all(item['function'] in ('read_file', 'read_files') for item in decoded):
-                    requests = []
-                    for item in decoded:
-                        if item['function'] == 'read_file':
-                            requests.append(item['params'])
-                        else:
-                            params = item['params']
-                            if (set(params) != {'requests'} or not isinstance(params['requests'], list)
-                                    or not params['requests'] or any(not isinstance(p, Mapping) for p in params['requests'])):
-                                raise ModelIOError('invalid explicit read_files member')
-                            requests.extend(params['requests'])
-                    return {'function': 'read_files', 'params': {'requests': requests}}, ['explicit_read_only_tool_batch']
         raise ModelIOError('Project tool envelope requires exactly one call and no extra fields')
     if isinstance(value.get('function'), Mapping):
         if set(value) <= {'function', 'id', 'type'}:

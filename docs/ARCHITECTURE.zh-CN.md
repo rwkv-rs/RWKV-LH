@@ -1,6 +1,6 @@
 # 当前编码项目架构
 
-项目使用 Decision RWKV 选择方向、Executor RWKV 连续执行、强 Planner 按需规划与审查。Controller 负责身份、权限、事务、预算和完成门，不选择业务方案、不补模型参数、不改写 Final。本文描述当前实现边界；实验成绩、服务状态和维护记录仅在本地管理。
+项目使用 Decision RWKV 选择方向、Executor RWKV 连续执行、强 Planner 按需规划与审查。RWKV 依靠独立 State、局部上下文和真实工具反馈持续推进项目；目标是在交付质量相同的前提下降低长任务与强模型消耗。工作区工具只接受 RWKV 发起的操作，强模型通过计划、检查和建议返回要求。Controller 负责身份、权限、事务、预算和完成门，不选择业务方案、不补模型参数、不改写 Final。本文描述当前实现边界；实验成绩、服务状态和维护记录仅在本地管理。
 
 ## 唯一入口与职责
 
@@ -10,7 +10,7 @@
 |---|---|---|
 |工作合同|`project_contracts.py`|原目标、可选计划、任务、依赖、范围与检查；不限制阶段／任务数量|
 |项目事实|`project_ledger.py`|事务、单写者租约、事件链、委派、原始回执、验证、接受和 pending|
-|强 Planner|`project_protocols/planner.py::build_input`|计划／检查作者、独立审查、诊断；可只读取证，不能改工作区|
+|强 Planner|`project_protocols/planner.py::build_input`|计划／检查作者、独立审查、诊断；缺证据时返回 advise，由 RWKV 决定和执行取证，不直接调用工作区工具|
 |Decision|`project_protocols/decision.py::build_input`|完整目标／计划、边界问题、真实引用、报告、验证和剩余预算；输出一个方向|
 |Executor|`project_protocols/executor.py::build_input`|当前委派、原目标、相关需求、授权证据、实际回执和剩余预算；自主选择工具／参数|
 |角色 State|`project_sessions.py`|独立 lane、增量输入、干净 anchor、模型／协议／证据绑定|
@@ -18,7 +18,7 @@
 |Trace|`project_trace.py::role_boundaries`|全链验真后使用生产 builder 重建边界；不自动授予训练资格|
 |工具合同|`harness.py::ActionDefinition`|菜单、schema、权限、回执和 decoder 共用注册定义；Project 检查工具由 `project_launch.PROJECT_CHECK` 注册|
 
-当前版本：Goal v1、Plan v5、Assignment v6、Ledger v15、Decision v22、Executor v18、Planner v18、prompt v9、Planner chat v5、输入传输 v2、边界解码策略 v2。每角色只有一个协议模块和一个 `build_input`，生产、数据与评测共用；运行时标签引用模块常量。旧／未知协议和不兼容 State 拒绝恢复。模型升级通过模型、tokenizer、State、容量和传输适配处理，不自动重写角色协议。
+当前版本：Goal v1、Plan v5、Assignment v6、Ledger v16、Decision v22、Executor v18、Planner v19、prompt v9、Planner chat v6、输入传输 v2、边界解码策略 v2。每角色只有一个协议模块和一个 `build_input`，生产、数据与评测共用；运行时标签引用模块常量。旧／未知协议和不兼容 State 拒绝恢复。模型升级通过模型、tokenizer、State、容量和传输适配处理，不自动重写角色协议。
 
 ## 从原目标到交付
 
@@ -32,6 +32,7 @@ flowchart LR
     E -->|报告／让出| L
     D -->|规划／诊断／绑定检查| P[强 Planner 作者与独立审查 lane]
     P --> L
+    P -->|补证据／修复要求| D
     D -->|执行检查| V[相同冻结树上的独立检查副本]
     V --> L
     D -->|明确接受与选择报告| G[统一完成门]
@@ -49,6 +50,8 @@ flowchart LR
 
 Planner 的 requirements 是对原始需求的解释，interfaces 是实现选型，completion 是验收意图，checks 是执行证明。计划可先以 checks=[] 经审查后开工，最终必须补齐证明。必要实现选型可以说明理由，但不得隐藏增加业务要求；重要承诺应有能区分坏实现的行为检查。结构覆盖不能证明语义忠实，仍需独立审查及最终验收。
 
+五种 Planner mode 都可通过 `advise` 将缺失证据或修复要求交回 Decision。当前请求结束，未接受的候选及原问题保留在建议的 `planning_context` 和原始模型回执中，不安装、不计为通过。RWKV 显式选择委派／继续执行，以及后续重规划或检查绑定；宿主不把建议直接翻译成工具调用，也不自动恢复已交回的候选。
+
 ## 合同变更与权限
 
 原始请求与所有计划义务完整保留，不截断数量。当前不支持删除／替代已安装 task ID；requirement ID 保留，解释文本可由独立审查结合 previous_plan 和原始请求修订。相关任务及依赖后继的旧报告、验证、接受和可恢复委派失效，活动合同不得热改。无关修订不重置仍兼容的委派。
@@ -63,13 +66,13 @@ Planner 的 requirements 是对原始需求的解释，interfaces 是实现选�
 
 项目事实、模型可见视图与 RWKV 隐状态分别保存。Decision 在项目内持续一个 lane，并逐边界核对判断身份；Executor 在兼容委派内持续。两个角色不互相复制 WKV 张量。未显式配置角色 State 时从 zero 开始，不继承旧直接执行器 State。
 
-Planner 每次输入包含当前工作状态、活动／可恢复委派、worker 声明、实际验证与接受、已有建议及审查意见；Decision 的可选方向使用同一守卫计算，仅供诊断，不授予 Planner 执行权限。求助／重规划／检查编写的原始问题独立持久化，文件读取、读取失败和协议拒绝只更新最新反馈；完成该请求才清除问题，新请求建立新身份。计划或检查被拒后，后续读取仍携带原候选与审查意见。已被合法调用修复的格式拒绝按既有恢复规则清除，不能冒充仍未解决的问题。
+Planner 每次输入包含当前工作状态、活动／可恢复委派、worker 声明、实际验证与接受、已有建议及审查意见；Decision 的可选方向使用同一守卫计算，不授予 Planner 执行权限。规划、计划审查、诊断、检查编写、检查审查分别使用本阶段的简短任务说明；格式由当前 mode 的工具 schema 给出，不复制通用长职责段。诊断仅带 RWKV 的实际工具定义，不复制两个 RWKV 角色的提示词或检查编写运行合同。求助／重规划／检查编写的原始问题独立持久化，协议拒绝不覆盖问题；提交建议时保留问题来源，新请求建立新身份。计划或检查被拒后，仍保留原候选与审查意见。已被合法调用修复的格式拒绝按既有恢复规则清除，不能冒充仍未解决的问题。
 
 唯一 builder 生成完整语义快照。RWKV 首次渲染完整输入，持续 State 后以 set/remove 无损表达变化；规则只在首次事实前提供，每次更新后仍有明确续写问题。Planner 当前每次发送独立、完整的 Chat 请求，checkpoint 用于身份与记账，不代表提供方保留上一请求的对话；不得给它发送无法独立解释的差分。内部枚举、投递哈希和审计 token 不冒充额外模型合同。
 
 Planner 用 `verbatim-json-values.v2` 共享相同完整文字和 JSON 结构：位置处显示显式引用对象，同次输入的 `shared_values` 保留对应原值；reference_key 选择不存在于源数据的名称。真实 null 仍是 null，不作为共享占位。嵌套引用在同次输入闭合，原操作身份、顺序、错误和不同版本分别保留，计入引用成本后实际 token 不减少则保留原展示。原目标、义务、检查和实际参数不作静默摘要或裁剪。
 
-工具、Planner 读取及验证的实际意图和原始结果自动送入 Decision；Executor 收到新工具观察。`read_receipt` 只补取已授权原始回执，不需要再次读取刚投递的返回。Decision 的 handoff 绑定原操作和当前合同，标为 suggestion，不能变成执行事实；引用限于当前工作、已声明依赖及工作区只读证据。省略新 handoff 不撤销既有授权，但旧建议正文不自动续用。delivery_context 中其他 worker 报告也是声明，不扩大权限。
+工具及验证的实际意图和原始结果自动送入 Decision；Executor 收到新工具观察。`read_receipt` 只补取已授权原始回执，不需要再次读取刚投递的返回。Decision 的 handoff 绑定原操作和当前合同，标为 suggestion，不能变成执行事实；引用限于当前工作及已声明依赖。省略新 handoff 不撤销既有授权，但旧建议正文不自动续用。delivery_context 中其他 worker 报告也是声明，不扩大权限。
 
 RWKV 的回执参数使用 `receipt:N` 短引用，按账本已确认的非模型回执顺序编号；角色作用域过滤不重新编号。唯一输入 builder 保存当前授权短引用到原始 OP 身份的一对一绑定，renderer 只转换宿主定义的引用位置并隐藏委派 UUID，原始工具参数、输出、用户文字和报告正文逐字保留。解码、菜单和可选引用共用这一绑定；生产 parser 只解析模型明确选择的引用，无匹配或越过动作／任务范围时拒绝，不自动选证据。账本继续保存完整 OP／W 身份；原始生成、映射记录及规范调用分别留证。State 恢复核对引用身份，精确 token 重放与训练目标校验共用当前接口；旧协议 State 不兼容。Planner 的 `decision_reference_context` 复用 Decision 参数范围并给出短引用绑定，诊断时能看见任务对应的 advice 候选；这不授予 Planner Decision 权限。Planner 自己的 `advise.evidence_ids` 仍用原始 OP 身份。
 
@@ -91,7 +94,7 @@ Native 实例的 request_lock 串行执行实际 State 操作，generate 另持 
 
 `check_command(argv)` 直接执行参数数组并丢弃副本写入。两种命令共用进程／沙箱后端及 PATH 规则：显式值替换默认值，保持搜索顺序，空／相对项相对 cwd；仅映射已有挂载路径，不增加挂载或展开变量。省略时使用默认项目 Python。普通命令隔离宿主网络；Chromium 专用缓存只读挂载，不挂载整个 home／仓库，也不提供全局 Node Playwright。
 
-`project_check_contract.CHECK_EXECUTION` 供检查作者和审查共用：检查须自足、非空并断言需求行为，Web／全栈须实际 Chromium。语法预检只解析已识别的内联形式，不执行候选程序或证明一般语义。忠实检查揭露实现错误不等于检查错误；checks/review_checks 中的 advise 可显式交回问题，不绑定／接受检查、不改目标、不自动继续 Executor。
+`project_check_contract.CHECK_EXECUTION` 供可能编写或审查检查的阶段共用，诊断不重复携带：检查须自足、非空并断言需求行为，Web／全栈须实际 Chromium。语法预检只解析已识别的内联形式，不执行候选程序或证明一般语义。忠实检查揭露实现错误不等于检查错误；advise 可显式交回问题，不绑定／接受检查、不改目标、不自动继续 Executor。
 
 显式 launch 支持根 index.html 的静态项目和标准 Vite/build→dist/index.html 前端，在独立副本记录文件身份、安装、构建、HTTP 就绪与停止回执；后端、SSR、自定义输出仍未覆盖。`check_project` 在一次有界调用中复用该生命周期，可通过 `RWKV_LH_PROJECT_URL` 运行模型明确给出的 Python／Playwright检查。检查所见服务副本只读，原工作区不变；省略 argv 只证明 HTTP 就绪，返回时服务已经停止。墙钟中断先清进程，再保留未确认操作。
 
@@ -105,7 +108,7 @@ Native 实例的 request_lock 串行执行实际 State 操作，generate 另持 
 
 原始采样 token 完整保存，State 消费只排除一个合法终止 EOS；服务、客户端及 trace 核对 state_token_ids。下一 User 前关闭前一 Assistant JSON 围栏，提交与拒绝共用 framing，身份变化不能静默续用旧 checkpoint。正式角色评测必须使用精确 token 重放，记录 State 回滚与释放回执。
 
-格式适配只拆解单个无歧义的 tool_call/tool_calls/function/response 外壳和一次严格解析的 arguments 字符串；函数、参数、原返回和转换记录保留，不生成缺参或把 reject 改 accept。重复键、冲突、多义或未知外层字段拒绝。Planner 明确的 read_file/read_files 多调用可完整归并为有序 read_files：首条执行前校验整个批次，每项独立只读回执绑定原 OP、index/count，完成前保留 inbox，恢复仅消费未记账部分。其他角色、多调用混入写入或无效项均拒绝，没有固定批次数量上限。
+格式适配只拆解单个无歧义的 tool_call/tool_calls/function/response 外壳和一次严格解析的 arguments 字符串；函数、参数、原返回和转换记录保留，不生成缺参或把 reject 改 accept。重复键、冲突、多义或未知外层字段拒绝。所有角色均要求一次明确调用；不把多条模型输出合并成工具批次，不选择第一条。Planner 没有 read_file/read_files 入口或读取执行器。
 
 当前 Strong 请求共用 `deepseek_api.chat_request`，只接受官方 HTTPS 根／v1／beta 并规范化端点，关闭重定向和自动 fallback。Planner 使用 beta strict tools，tool_choice=required、thinking disabled；非工具纠错／审查走 JSON Output。退役 backend、私有 tokenize／token 字段和未支持扩展参数在联网前拒绝；旧 Native 只读 Goal 的独立 phase 不回落 Chat。
 
@@ -127,4 +130,4 @@ Ledger 事件只保存内容根引用，`project_record_store.py` 将完整输�
 
 训练准入分别核验生产 trace、完整 Native token、来源授权、独立纠错、覆盖与固定回归。合法单行、原始轨迹或工程回归不自动授予训练资格；旧角色数据不得改标签复用。
 
-更早进入 Executor、减少 Planner 调用、合法输出或 worker 提交不能单独证明完成率、成本或训练收益。持续 State、工作单元及多任务验证成本仍需冻结源码、固定预算和独立验收的 Agent 对照；长期上下文选择、存储回收、任务删除／替代和强模型接管执行尚未实现。运行状态、实验记录和下一步仅在本地维护。
+更早进入 Executor、减少 Planner 调用、合法输出或 worker 提交不能单独证明完成率、成本或训练收益。持续 State、工作单元及多任务验证成本仍需冻结源码、固定预算和独立验收的 Agent 对照；长期上下文选择、存储回收和任务删除／替代尚未实现。Planner 历史事实的任务范围投影仍待完善，精简提示词不等于已经解决上下文增长。强模型不承担执行接管。运行状态、实验记录和下一步仅在本地维护。

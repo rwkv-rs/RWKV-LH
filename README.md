@@ -1,6 +1,6 @@
 # RWKV-LH
 
-面向 RWKV 状态续写模型的 Harness 与编码 Agent。Decision RWKV 选择方向，Executor RWKV 执行局部任务，强 Planner 按需规划与独立审查；Harness 执行工具、保存事实并校验完成条件。职责、协议与执行边界见[当前架构](docs/ARCHITECTURE.zh-CN.md)。
+面向 RWKV 状态续写模型的 Harness 与编码 Agent。RWKV 持续推进真实项目，保留目标、调用工具、根据结果调整并完成验证；Decision RWKV 选择方向，Executor RWKV 连续执行局部任务。强 Planner 按需规划、检查与诊断，所有工作区工具由 RWKV 发起，Harness 负责实际执行、保存事实并校验完成条件。职责、协议与执行边界见[当前架构](docs/ARCHITECTURE.zh-CN.md)。
 
 在相同交付质量下降低强模型消耗是优化目标，当前尚未证明成本与完成率收益。项目仍处于实验阶段。
 

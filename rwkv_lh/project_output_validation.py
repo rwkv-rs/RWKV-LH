@@ -42,8 +42,10 @@ def validate_role_output(role, payload, command, definitions):
     validate_schema(command.arguments, selected['parameters'])
     if role == 'planner':
         mode = payload.get('mode')
-        if command.name not in planner.allowed_operations(payload):
-            raise ValueError('planner operation is not permitted in the current mode')
+        allowed = planner.allowed_operations(payload)
+        if command.name not in allowed:
+            raise ValueError(f'planner operation {command.name!r} is not permitted in mode {mode!r}; '
+                             f'available: {", ".join(sorted(allowed))}')
         if mode in ('review', 'review_checks') and command.name in ('review_plan', 'review_checks'):
             planner.validate_review(command.arguments)
     if role == 'planner' and command.name in ('submit_plan', 'revise_plan'):

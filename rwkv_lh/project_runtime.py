@@ -22,7 +22,7 @@ from .project_output_validation import normalize_role_output, validate_schema
 from .project_evidence import (evidence_stream, executor_observations, record_delivery,
                                executor_evidence_ids, select_evidence)
 
-ARCHITECTURE = 'rwkv-lh.goal-decision-execution.v6'
+ARCHITECTURE = 'rwkv-lh.goal-decision-execution.v7'
 
 
 @dataclass(frozen=True)
@@ -48,11 +48,7 @@ def role_definitions(role, harness):
 
 def _role_definitions(role, harness):
     if role == 'planner':
-        read_file = next(item for item in harness.g1i_tool_definitions() if item['name'] == 'read_file')
-        return [read_file, definition('read_files', {'requests': {
-                    'type': 'array', 'items': read_file['parameters'], 'minItems': 1}},
-                    description='Read every explicitly requested file in order, preserving separate read-only receipts.'),
-                definition('submit_plan', {'plan': planner.PLAN_SCHEMA}, description='Submit a complete plan candidate for independent review; this does not execute or accept tasks. Preserve every original obligation.'),
+        return [definition('submit_plan', {'plan': planner.PLAN_SCHEMA}, description='Submit a complete plan candidate for independent review; this does not execute or accept tasks. Preserve every original obligation.'),
                 definition('submit_checks', {'checks': {'type': 'array', 'items': planner.CHECK_SCHEMA, 'minItems': 1},
                     'rationale': STRING, 'replacements': {'type': 'array', 'items': planner.REPLACEMENT_SCHEMA}},
                     description='Submit independent check candidates for the selected submitted work, without redesigning it. Checks are bound only after independent review; submission does not execute them.'),
@@ -66,7 +62,7 @@ def _role_definitions(role, harness):
                     'replacements': {'type': 'array', 'items': planner.REPLACEMENT_SCHEMA}},
                     description='Revise the complete project design, preserving obligations; changed checks still require failure evidence and explicit replacements.'),
                 definition('advise', {'text': STRING, 'evidence_ids': {'type': 'array', 'items': STRING}},
-                           description='Return diagnostic advice, never an execution fact.')]
+                           description='Return a specific evidence gap, repair requirement or diagnostic advice to RWKV Decision. RWKV selects and executes all workspace tools. This ends the current planning request without accepting its candidate; the candidate and question remain recorded. Advice is never an execution fact.')]
     if role == 'executor':
         register_project_check(harness)
         return [*harness.g1i_tool_definitions(), definition('read_receipt', {'evidence_id': STRING},
@@ -276,14 +272,11 @@ class ProjectRuntime:
             self._feedback('model_output_budget_exhausted', role=role, evidence_id=inbox['operation_id'])
             return
         if role == 'planner':
-            if name == 'read_files':
-                self._planner_reads(params, inbox['lane'])
-                return
-            if name == 'read_file':
-                self._planner_read(params, inbox['lane'])
-                return
-            if inbox['planning'] in ('checks', 'review_checks') and name == 'advise':
-                self.db.return_work_check_advice(params)
+            from .project_output_validation import validate_role_output
+            source = s['evidence'][inbox['operation_id']]['intent']['input']
+            validate_role_output(role, source, ModelCommand(name, params), role_definitions(role, self.harness))
+            if name == 'advise':
+                self.db.return_planner_advice(params)
                 return
             if inbox['planning'] == 'review_checks':
                 if name != 'review_checks':
@@ -297,21 +290,6 @@ class ProjectRuntime:
                 if name != 'review_plan':
                     raise ValueError('independent review requires review_plan')
                 self.db.resolve_plan_review(params)
-            elif inbox['planning'] == 'diagnose':
-                if name != 'advise':
-                    raise ValueError('diagnosis requires advise')
-                fields(params, ('text', 'evidence_ids'))
-                text(params['text']); strings(params['evidence_ids'])
-                if set(params['evidence_ids']) - s['evidence'].keys():
-                    raise ValueError('unknown advice evidence')
-                def advised(state):
-                    advice = {**params, 'subject_id': state['planner_subject_id'], 'is_execution_evidence': False}
-                    state['advice'][inbox['operation_id']] = advice
-                    state['feedback'] = {'kind': 'strong_advice', 'advice_id': inbox['operation_id'], **advice}
-                    state['planner_request'] = None
-                    state['planner_request_context'] = None
-                    state['inbox'] = None
-                self.db.update('advised', advised)
             else:
                 if name not in ('submit_plan', 'revise_plan'):
                     raise ValueError('planning requires submit_plan')
@@ -399,56 +377,6 @@ class ProjectRuntime:
             self.db.complete(params['task_id'])
         elif name == 'blocked':
             self.db.update('blocked', lambda state: state.update(status='blocked', final=params['reason'], inbox=None))
-
-    def _planner_reads(self, params, lane):
-        """Consume every explicit read, resuming from durable receipts after a crash."""
-        schema = next(item['parameters'] for item in role_definitions('planner', self.harness)
-                      if item['name'] == 'read_files')
-        validate_schema(params, schema)  # Validate the entire batch before reading.
-        requests = params['requests']
-        state = self.db.state()
-        operation = state['inbox']['operation_id']
-        done = [receipt for receipt in state['evidence'].values()
-                if receipt['kind'] == 'planner_read'
-                and receipt['intent'].get('model_operation_id') == operation]
-        for index, receipt in enumerate(done):
-            if (index >= len(requests) or receipt['intent'].get('call_index') != index
-                    or receipt['intent']['arguments'] != self.harness.normalize_action(
-                        TaskAction('read_file', requests[index])).arguments
-                    or receipt['intent']['workspace_digest'] != state['workspace_digest']):
-                raise ValueError('planner read batch receipt does not match its original call')
-        for index in range(len(done), len(requests)):
-            self._planner_read(requests[index], lane, batch={
-                'model_operation_id': operation, 'call_index': index, 'call_count': len(requests)})
-
-    def _planner_read(self, params, lane, *, batch=None):
-        """Publish a bounded read receipt to the same planning/review lane, never a write."""
-        schema = next(item['parameters'] for item in role_definitions('planner', self.harness)
-                      if item['name'] == 'read_file')
-        validate_schema(params, schema)
-        action = self.harness.normalize_action(TaskAction('read_file', params))
-        tool = self.harness.definition('read_file')
-        if not tool.read_only or tool.side_effect:
-            raise ValueError('planner inspection requires a read-only action')
-        s = self.db.state()
-        before = self.db.workspace_digest()
-        if before != s['workspace_digest']:
-            raise ValueError('workspace changed before planner inspection')
-        identifier = self.db.begin_operation('planner_read', {'lane': lane, 'name': 'read_file',
-            'arguments': action.arguments, 'workspace_digest': before, **(batch or {})})
-        staged = self.db.root / 'planner_reads' / identifier / 'workspace'
-        copy_verified_workspace(s['workspace'], staged)
-        goal = GoalState.create(request=s['request'], workspace_root=str(staged), constraints=[])
-        result = self.harness.execute(action, goal).to_dict()
-        if self.db.workspace_digest() != before or digest(tree_identity(staged)) != before:
-            raise ValueError('workspace changed during planner inspection')
-        shutil.rmtree(staged.parent)
-        def returned(state):
-            if batch is None or batch['call_index'] + 1 == batch['call_count']:
-                state['inbox'] = None
-            state['feedback'] = {'kind': 'planner_read_returned', 'lane': lane,
-                'evidence_id': identifier, 'success': result['success']}
-        self.db.finish_operation(identifier, result, mutate=returned)
 
     def _tool(self, name, params, lane):
         s = self.db.state()
