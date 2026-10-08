@@ -3378,6 +3378,26 @@ class OpenAICompatibleSupervisorClient:
                     raise
         raise SupervisorProtocolError("contract reviewer repair loop exhausted")
 
+    @staticmethod
+    def _require_exact_response_keys(
+        value: Mapping[str, Any],
+        schema: Mapping[str, Any],
+        *,
+        phase: str,
+    ) -> None:
+        properties = schema.get("properties")
+        if not isinstance(properties, Mapping):
+            raise ValueError(f"{phase} response schema has no properties")
+        expected = set(str(item) for item in properties)
+        actual = set(str(item) for item in value)
+        missing = sorted(expected - actual)
+        extra = sorted(actual - expected)
+        if missing or extra:
+            raise ValueError(
+                f"{phase} response top-level keys mismatch: "
+                f"missing={missing}; extra={extra}"
+            )
+
     def create_plan(self, request: SupervisorPlanRequest) -> SupervisorPlan:
         base_prompt = (
             "You are the bounded planning supervisor for one RWKV workspace agent. "
@@ -3386,8 +3406,10 @@ class OpenAICompatibleSupervisorClient:
             "hidden acceptance criteria, or completed observations. Do not emit tool calls "
             "or tool parameters: the RWKV worker alone selects and executes tools. Steps "
             "must tell the worker what to inspect, transform, write, and observably verify. "
-            "Completion checks must be concrete consequences of the user request. Return "
-            "only the requested JSON object."
+            "Completion checks must be concrete consequences of the user request. OUTPUT "
+            "CONTRACT: return exactly these top-level keys and no others: objective, "
+            "constraints, steps, completion_checks, risks. Do not return plan, type, "
+            "run_id, request fields, or a schema wrapper. Return only that JSON object."
         )
         validation_error = ""
         total_attempts = 1 + self.settings.semantic_repair_attempts
@@ -3418,6 +3440,11 @@ class OpenAICompatibleSupervisorClient:
                 max_tokens=self.settings.max_plan_tokens,
             )
             try:
+                self._require_exact_response_keys(
+                    value,
+                    PLAN_RESPONSE_SCHEMA,
+                    phase="plan",
+                )
                 return SupervisorPlan.create(
                     objective=str(value.get("objective") or ""),
                     constraints=value.get("constraints") or (),
@@ -3442,77 +3469,169 @@ class OpenAICompatibleSupervisorClient:
         raise SupervisorProtocolError("supervisor plan repair loop exhausted")
 
     def review_final(self, request: SupervisorReviewRequest) -> SupervisorReview:
-        value = self._request_json(
-            phase="review",
-            run_id=request.run_id,
-            request_digest=request.request_digest,
-            system_prompt=(
-                "You are the bounded completion reviewer for one RWKV workspace agent. Review "
-                "the unchanged RWKV final candidate using only the immutable request, committed "
-                "plan, recorded actions, artifacts, and visible workspace manifest. You cannot "
-                "execute tools, rewrite the candidate, or assume hidden acceptance criteria. "
-                "Return pass only when the available record supports every material requested "
-                "outcome and completion check. Otherwise return revise with a short list of "
-                "specific, actionable issues. A pass must have an empty issues array; revise "
-                "must have at least one issue. Do not demand work unrelated to the request. "
-                "Return only the requested JSON object."
-            ),
-            request_payload=request.to_dict(),
-            schema=REVIEW_RESPONSE_SCHEMA,
-            max_tokens=self.settings.max_review_tokens,
+        base_prompt = (
+            "You are the bounded completion reviewer for one RWKV workspace agent. Review "
+            "the unchanged RWKV final candidate using only the immutable request, committed "
+            "plan, recorded actions, artifacts, and visible workspace manifest. You cannot "
+            "execute tools, rewrite the candidate, or assume hidden acceptance criteria. "
+            "Return pass only when the available record supports every material requested "
+            "outcome and completion check. Otherwise return revise with a short list of "
+            "specific, actionable issues. A pass must have an empty issues array; revise "
+            "must have at least one issue. Do not demand work unrelated to the request. "
+            "OUTPUT CONTRACT: return exactly these top-level keys and no others: "
+            "disposition, summary, issues. Do not return type, review_disposition, "
+            "request fields, or a schema wrapper. Return only that JSON object."
         )
-        return SupervisorReview.create(
-            ReviewDisposition(str(value.get("disposition") or "")),
-            summary=str(value.get("summary") or ""),
-            issues=value.get("issues") or (),
-        )
+        validation_error = ""
+        total_attempts = 1 + self.settings.semantic_repair_attempts
+        for semantic_attempt in range(1, total_attempts + 1):
+            payload = request.to_dict()
+            prompt = base_prompt
+            if validation_error:
+                payload["local_validation_repair"] = {
+                    "attempt": semantic_attempt,
+                    "previous_response_rejected": True,
+                    "error": validation_error,
+                    "instruction": (
+                        "Return a fresh complete object matching the requested top-level "
+                        "schema; do not nest or rename its fields."
+                    ),
+                }
+                prompt += (
+                    " The immediately preceding response failed local review validation. "
+                    "Repair the whole object using local_validation_repair.error."
+                )
+            value = self._request_json(
+                phase="review",
+                run_id=request.run_id,
+                request_digest=request.request_digest,
+                system_prompt=prompt,
+                request_payload=payload,
+                schema=REVIEW_RESPONSE_SCHEMA,
+                max_tokens=self.settings.max_review_tokens,
+            )
+            try:
+                self._require_exact_response_keys(
+                    value,
+                    REVIEW_RESPONSE_SCHEMA,
+                    phase="review",
+                )
+                return SupervisorReview.create(
+                    ReviewDisposition(str(value.get("disposition") or "")),
+                    summary=str(value.get("summary") or ""),
+                    issues=value.get("issues") or (),
+                )
+            except (TypeError, ValueError) as exc:
+                validation_error = f"{type(exc).__name__}: {exc}"[:1000]
+                self._emit(
+                    {
+                        "type": "supervisor_semantic_response_rejected",
+                        "phase": "review",
+                        "run_id": request.run_id,
+                        "request_digest": request.request_digest,
+                        "semantic_attempt": semantic_attempt,
+                        "error": validation_error,
+                    }
+                )
+                if semantic_attempt >= total_attempts:
+                    raise
+        raise SupervisorProtocolError("supervisor review repair loop exhausted")
 
     def next_directive(
         self,
         request: SupervisorDirectiveRequest,
     ) -> SupervisorDirective:
-        value = self._request_json(
-            phase="directive",
-            run_id=request.run_id,
-            request_digest=request.request_digest,
-            system_prompt=(
-                "You are the online planner/reviewer for one RWKV workspace worker. Each call "
-                "has exactly one boundary: initial state, one newly observed RWKV action burst, "
-                "one bounded batch of worker protocol rejections, or one new RWKV final "
-                "candidate. First review that newest outcome against "
-                "the immutable request and public recorded evidence. Then either accept the "
-                "exact current final candidate, or assign exactly ONE small, observable next "
-                "microtask. A microtask should advance one local obligation and should normally "
-                "be verifiable after one direct worker operation; do not return a multi-step "
-                "plan. You may identify what must be inspected, changed, or verified, but do "
-                "not emit a tool call, serialized tool parameters, business artifact content, "
-                "or a final answer. The RWKV worker alone chooses and executes operations. "
-                "Use accept_final only when worker_outcome.type is microtask_report and public "
-                "actions, artifacts, and workspace evidence support every material requested "
-                "outcome. Otherwise use continue. For continue, microtask_objective and at "
-                "least one completion check must be non-empty. For accept_final, objective, "
-                "checks, constraints, and issues must be empty and review_status must be "
-                "satisfied. initial has no issues; needs_correction has at least one concrete "
-                "issue; satisfied has no issues. Never use hidden acceptance criteria. Return "
-                "only the requested JSON object."
-            ),
-            request_payload=request.to_dict(),
-            schema=DIRECTIVE_RESPONSE_SCHEMA,
-            max_tokens=self.settings.max_directive_tokens,
+        base_prompt = (
+            "You are the online planner/reviewer for one RWKV workspace worker. Each call "
+            "has exactly one boundary: initial state, one newly observed RWKV action burst, "
+            "one bounded batch of worker protocol rejections, or one new RWKV final "
+            "candidate. First review that newest outcome against "
+            "the immutable request and public recorded evidence. Then either accept the "
+            "exact current final candidate, or assign exactly ONE small, observable next "
+            "microtask. A microtask should advance one local obligation and should normally "
+            "be verifiable after one direct worker operation; do not return a multi-step "
+            "plan. You may identify what must be inspected, changed, or verified, but do "
+            "not emit a tool call, serialized tool parameters, business artifact content, "
+            "or a final answer. The RWKV worker alone chooses and executes operations. "
+            "Use accept_final only when worker_outcome.type is microtask_report and public "
+            "actions, artifacts, and workspace evidence support every material requested "
+            "outcome. Otherwise use continue. For continue, microtask_objective and at "
+            "least one completion check must be non-empty. For accept_final, objective, "
+            "checks, constraints, and issues must be empty and review_status must be "
+            "satisfied. initial has no issues; needs_correction has at least one concrete "
+            "issue; satisfied has no issues. Never use hidden acceptance criteria. OUTPUT "
+            "CONTRACT: return exactly these top-level keys and no others: disposition, "
+            "review_status, review_summary, issues, microtask_objective, "
+            "completion_checks, constraints. The key is disposition, never type or "
+            "directive_disposition. Do not echo run_id, request, workspace, or repair "
+            "fields. Return only that JSON object."
         )
-        return SupervisorDirective.create(
-            directive_index=request.directive_index,
-            outcome_ref=request.outcome_ref,
-            disposition=DirectiveDisposition(str(value.get("disposition") or "")),
-            review_status=DirectiveReviewStatus(
-                str(value.get("review_status") or "")
-            ),
-            review_summary=str(value.get("review_summary") or ""),
-            issues=value.get("issues") or (),
-            microtask_objective=str(value.get("microtask_objective") or ""),
-            completion_checks=value.get("completion_checks") or (),
-            constraints=value.get("constraints") or (),
-        )
+        validation_error = ""
+        total_attempts = 1 + self.settings.semantic_repair_attempts
+        for semantic_attempt in range(1, total_attempts + 1):
+            payload = request.to_dict()
+            prompt = base_prompt
+            if validation_error:
+                payload["local_validation_repair"] = {
+                    "attempt": semantic_attempt,
+                    "previous_response_rejected": True,
+                    "error": validation_error,
+                    "instruction": (
+                        "Return a fresh complete object matching the requested top-level "
+                        "schema; do not nest or rename its fields."
+                    ),
+                }
+                prompt += (
+                    " The immediately preceding response failed local directive validation. "
+                    "Repair the whole object using local_validation_repair.error."
+                )
+            value = self._request_json(
+                phase="directive",
+                run_id=request.run_id,
+                request_digest=request.request_digest,
+                system_prompt=prompt,
+                request_payload=payload,
+                schema=DIRECTIVE_RESPONSE_SCHEMA,
+                max_tokens=self.settings.max_directive_tokens,
+            )
+            try:
+                self._require_exact_response_keys(
+                    value,
+                    DIRECTIVE_RESPONSE_SCHEMA,
+                    phase="directive",
+                )
+                return SupervisorDirective.create(
+                    directive_index=request.directive_index,
+                    outcome_ref=request.outcome_ref,
+                    disposition=DirectiveDisposition(
+                        str(value.get("disposition") or "")
+                    ),
+                    review_status=DirectiveReviewStatus(
+                        str(value.get("review_status") or "")
+                    ),
+                    review_summary=str(value.get("review_summary") or ""),
+                    issues=value.get("issues") or (),
+                    microtask_objective=str(
+                        value.get("microtask_objective") or ""
+                    ),
+                    completion_checks=value.get("completion_checks") or (),
+                    constraints=value.get("constraints") or (),
+                )
+            except (TypeError, ValueError) as exc:
+                validation_error = f"{type(exc).__name__}: {exc}"[:1000]
+                self._emit(
+                    {
+                        "type": "supervisor_semantic_response_rejected",
+                        "phase": "directive",
+                        "run_id": request.run_id,
+                        "request_digest": request.request_digest,
+                        "semantic_attempt": semantic_attempt,
+                        "error": validation_error,
+                    }
+                )
+                if semantic_attempt >= total_attempts:
+                    raise
+        raise SupervisorProtocolError("supervisor directive repair loop exhausted")
 
     @staticmethod
     def _stage_schema(request: SupervisorStageRequest) -> dict[str, Any]:

@@ -70,7 +70,7 @@ def render_project_event_append(event, visible_definitions=(), *, tool_update=No
     return lead + PROJECT_INPUT_PREFIX + render_project_assignment(event.payload) + model_io.ASSISTANT_JSON_CONTINUATION_ANCHOR
 
 
-def parse_project_model_command_with_trace(raw_output):
+def parse_project_model_command_with_trace(raw_output, *, bare_call=None):
     """Accept one explicit Project call plus surplus envelope IDs and annotations."""
     try:
         return model_io.parse_model_command_with_trace(raw_output)
@@ -92,8 +92,10 @@ def parse_project_model_command_with_trace(raw_output):
         raise parse_error
     input_payload = dict(value)
     value = dict(value)
-    if 'id' in value:
-        value.pop('id')
+    outer_ids = [key for key in value if isinstance(key, str) and key.casefold() == 'id']
+    if outer_ids:
+        for key in outer_ids:
+            value.pop(key)
         transformations.append('call_envelope:outer_id_removed')
     if 'content' in value:
         if (set(value) - {'content', 'state', 'summary'} or
@@ -101,16 +103,29 @@ def parse_project_model_command_with_trace(raw_output):
                 not isinstance(value['content'][0], Mapping)):
             raise parse_error
         value = dict(value['content'][0])
-        if 'id' in value:
-            value.pop('id')
+        content_ids = [key for key in value if isinstance(key, str) and key.casefold() == 'id']
+        if content_ids:
+            for key in content_ids:
+                value.pop(key)
             transformations.append('call_envelope:content_call_id_removed')
         transformations.append('call_envelope:single_content_call->function+params')
     if set(value) == {'function_call'} and isinstance(value['function_call'], Mapping):
         call = dict(value['function_call'])
-        if 'id' in call:
-            call.pop('id')
+        call_ids = [key for key in call if isinstance(key, str) and key.casefold() == 'id']
+        if call_ids:
+            for key in call_ids:
+                call.pop(key)
             value['function_call'] = call
             transformations.append('call_envelope:function_call_id_removed')
+    if bare_call is not None:
+        name, parameter_schema = bare_call
+        properties = parameter_schema.get('properties', {})
+        required = set(parameter_schema.get('required', ()))
+        if (isinstance(properties, Mapping) and required <= set(value) <= set(properties)
+                and not ({'function', 'name', 'tool', 'params', 'parameters',
+                          'arguments', 'args', 'function_args', 'function_call'} & set(value))):
+            value = {'function': name, 'params': value}
+            transformations.append(f'call_envelope:bare_role_parameters->{name}')
     if not transformations:
         raise parse_error
     command, nested = model_io.parse_model_command_with_trace(

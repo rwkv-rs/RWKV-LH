@@ -64,7 +64,9 @@ def pipeline_identity():
              'rwkv_lh/deepseek_api.py',
              'rwkv_lh/observation_corrections.py', 'rwkv_lh/correction_review.py',
              'rwkv_lh/coding_corrections.py', 'rwkv_lh/command_corrections.py',
-             'rwkv_lh/direct_trace_data.py', 'scripts/run_trace_correction_pipeline.py')
+             'rwkv_lh/direct_trace_data.py', 'rwkv_lh/harness.py',
+             'rwkv_lh/workspace_snapshot.py', 'rwkv_lh/correction_snapshots.py', 'rwkv_lh/data_pipeline.py',
+             'scripts/run_trace_correction_pipeline.py')
     return {name: file_sha(root / name) for name in names}
 
 
@@ -198,8 +200,11 @@ def run(directory, *, expected_packet_sha256, teacher):
             if set(envelope) != {'function', 'params'}:
                 return finish('quarantined', 'wrong_target_envelope')
             raw = json.dumps(envelope, ensure_ascii=False, separators=(',', ':'))
-            command = model_io.parse_model_command(raw)
-            normalized = executed_arguments(command) if command.name != 'final_answer' else command.arguments
+            try:
+                command = model_io.parse_model_command(raw)
+                normalized = executed_arguments(command) if command.name != 'final_answer' else command.arguments
+            except ValueError:
+                return finish('quarantined', 'invalid_target_command')
             result['function'] = command.name
             if command.name not in plan['allowed_functions']:
                 return finish('quarantined', 'action_outside_public_scope')
@@ -221,11 +226,15 @@ def run(directory, *, expected_packet_sha256, teacher):
             review_packet = build_review_packet(actual_rwkv_input=actual['input_text'], candidate=raw)
             judgment, reviewer = teacher.complete(REVIEW_INSTRUCTION,
                                                    json.dumps(review_packet, ensure_ascii=False))
-            reviewed = validate_review(review_packet, judgment)
+            write_json(directory / 'REVIEW_RESPONSE.json', {'judgment': judgment, 'identity': reviewer})
+            try:
+                reviewed = validate_review(review_packet, judgment)
+            except ValueError:
+                return finish('quarantined', 'invalid_semantic_review')
             write_json(directory / 'REVIEW.json', {'review': reviewed, 'identity': reviewer})
             if not reviewed['accepted']:
                 return finish('quarantined', 'semantic_review_rejected')
-            reviews = [{'reviewer': 'api:' + str(reviewer['model']), 'accepted': True,
+            reviews = [{'reviewer': reviewer.get('reviewer_id', 'api:' + str(reviewer['model'])), 'accepted': True,
                         'visible_evidence_only': True, 'independent': False,
                         'review_mode': 'single_author_execution',
                         'assessment': reviewed['assessment'], 'input_sha256': digest(actual['input_text']),
@@ -308,6 +317,7 @@ def run_batch(registration, *, teacher):
     if not isinstance(jobs, list) or not jobs:
         raise ValueError('nonempty registered jobs required')
     paths, boundaries = set(), set()
+    unresolved = False
     for job in jobs:
         path = Path(job['directory']).resolve(strict=True)
         if path in paths or file_sha(path / 'PACKET.json') != job['packet_sha256']:
@@ -322,7 +332,15 @@ def run_batch(registration, *, teacher):
             raise ValueError('duplicate production boundary')
         paths.add(path)
         boundaries.add(boundary)
+        if (path / 'RESULT.json').exists():
+            previous = json.loads((path / 'RESULT.json').read_text())
+            if previous.get('packet_sha256') != job['packet_sha256']:
+                raise ValueError('existing result belongs to another packet')
+            unresolved |= previous.get('status') not in {
+                'quarantined', 'execution_validated_pending_dataset_gate'}
     # Validate the ENTIRE registration before the first billable request.
+    if unresolved:
+        return summarize([job['directory'] for job in jobs])
     for job in jobs:
         try:
             run(job['directory'], expected_packet_sha256=job['packet_sha256'], teacher=teacher)
@@ -349,6 +367,15 @@ def export_candidates(registration, output):
     if len(sources) != len(registration['sources']):
         raise ValueError('duplicate source identity')
     rows, rejected, identities = [], [], set()
+    policy = registration.get('selection_policy', {})
+    if set(policy) - {'max_per_source', 'deduplicate_targets_per_source'}:
+        raise ValueError('unknown selection policy')
+    limit = policy.get('max_per_source')
+    if limit is not None and (type(limit) is not int or limit < 1):
+        raise ValueError('positive per-source selection limit required')
+    if type(policy.get('deduplicate_targets_per_source', False)) is not bool:
+        raise ValueError('explicit target deduplication flag required')
+    selected_counts, selected_targets = {}, set()
     for job in registration['jobs']:
         directory = Path(job['directory']).resolve()
         if file_sha(directory / 'PACKET.json') != job['packet_sha256']:
@@ -375,6 +402,16 @@ def export_candidates(registration, output):
         if file_sha(source['content_reference']['path']) != source['source_content_sha256']:
             raise ValueError('source content identity differs')
         target = json.loads((directory / 'VALIDATED_TARGET.json').read_text())
+        command = model_io.parse_model_command(target['target_text'][:-len(model_io.JSON_CALL_STOP_SUFFIXES[0])])
+        target_key = (plan['source_id'], command.name, json.dumps(command.arguments, sort_keys=True, ensure_ascii=False))
+        exclusion = None
+        if policy.get('deduplicate_targets_per_source') and target_key in selected_targets:
+            exclusion = 'duplicate_target_for_source'
+        elif limit is not None and selected_counts.get(plan['source_id'], 0) >= limit:
+            exclusion = 'registered_source_limit'
+        if exclusion:
+            rejected.append({'directory': str(directory), 'status': exclusion})
+            continue
         version, protocol_sha = protocol_identity()
         sample = digest(job['packet_sha256'] + target['target_text'])
         if sample in identities:
@@ -395,6 +432,8 @@ def export_candidates(registration, output):
         normalize_direct_row(row, model_sha256=plan['model_sha256'], context_tokens=plan['context_tokens'],
                              vocab_size=registration['vocab_size'], bos_token_id=registration['bos_token_id'])
         rows.append(row)
+        selected_targets.add(target_key)
+        selected_counts[plan['source_id']] = selected_counts.get(plan['source_id'], 0) + 1
     out.parent.mkdir(parents=True, exist_ok=True)
     write_json(out, {'rows': rows, 'excluded_jobs': rejected, 'training_admitted': False,
                      'next_gate': 'freeze with source isolation, coverage and fresh proof execution'})

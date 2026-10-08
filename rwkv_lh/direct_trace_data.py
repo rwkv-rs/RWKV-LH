@@ -438,19 +438,16 @@ def freeze_direct_dataset(registration: Mapping, *, registration_reference: Mapp
                  and sum(row['label_authority'] in ('executed_read', 'verified_read') for row in rows) >= coverage['read_boundaries']
                  and sum(row['label_authority'] in ('independent_review', 'verified_final') for row in rows) >= coverage['summary_boundaries'],
                  'direct coverage requirement not met')
-    coding_count = sum(row['label_authority'] == 'verified_coding' for row in rows)
-    if coding_count:
-        core.require(type(coverage.get('coding_boundaries')) is int
-                     and 0 < coverage['coding_boundaries'] <= coding_count,
-                     'coding coverage must be explicitly registered')
-    if command_proofs:
-        core.require(type(coverage.get('command_boundaries')) is int
-                     and 0 < coverage['command_boundaries'] <= len(command_proofs),
-                     'command coverage must be explicitly registered')
-    if stdio_proofs:
-        core.require(type(coverage.get('stdio_boundaries')) is int
-                     and 0 < coverage['stdio_boundaries'] <= len(stdio_proofs),
-                     'stdio coverage must be explicitly registered')
+    action_counts = {
+        'coding_boundaries': sum(row['label_authority'] == 'verified_coding' for row in rows),
+        'command_boundaries': len(command_proofs),
+        'stdio_boundaries': len(stdio_proofs),
+    }
+    for name, actual_count in action_counts.items():
+        minimum = coverage.get(name, 0)
+        core.require(type(minimum) is int and minimum >= 0 and actual_count >= minimum
+                     and (not actual_count or minimum > 0),
+                     name + ' coverage must be explicitly registered and met')
     counts = {'train': len(rows), **{split: sum(c['split'] == split for c in regression['cases'])
                                    for split in ('dev', 'confirmation')}}
     core.require(all(counts[k] >= registration['minimum_counts'][k] > 0 for k in counts), 'direct minimum counts not met')
