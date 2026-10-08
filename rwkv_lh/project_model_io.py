@@ -15,22 +15,21 @@ PROJECT_INPUT_PREFIX = (
     "its declared parameters inside a function/params JSON call. Role input: "
 )
 _GENERIC_INPUT_PREFIX = "\n\nUser: Function output: "
-PROMPT_LAYOUT_VERSION = 'project-role-prompt.v9'
+PROMPT_LAYOUT_VERSION = 'project-role-prompt.v10'
 
 
 def project_prompt_identity(role):
-    from .project_protocols import decision, executor
+    from .project_protocols import executor
     from .project_contracts import digest
-    module = {'decision': decision, 'executor': executor}[role]
+    module = {'executor': executor}[role]
     return digest({'layout': PROMPT_LAYOUT_VERSION, 'rules': module.RULES,
                    'question': module.INSTRUCTION})
 
 
 def render_project_assignment(payload):
     """Static rules first, intact facts next, one short question last."""
-    from .project_protocols import decision, executor
-    modules = {decision.PROTOCOL: (decision, 'instruction'),
-               executor.PROTOCOL: (executor, 'next_decision')}
+    from .project_protocols import executor
+    modules = {executor.PROTOCOL: (executor, 'next_action')}
     selected = modules.get(payload.get('protocol'))
     if selected is None:
         return model_io.canonical_json(payload)

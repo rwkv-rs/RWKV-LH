@@ -9,9 +9,7 @@ from .model_io import canonical_json
 
 def _context(intent):
     payload = intent['input']
-    if intent['role'] == 'decision':
-        return (payload['protocol'], payload['boundary']['id'], payload['selected_evidence'])
-    return (payload['protocol'], payload['assignment'], payload['original_request'])
+    return (payload['protocol'], payload['assignment'], payload['original_request'], payload['current_step'])
 
 
 def _attempt_identity(rejection):
@@ -19,7 +17,7 @@ def _attempt_identity(rejection):
     return (raw if isinstance(raw, str) else canonical_json(rejection['call']), rejection['error'])
 
 
-def rejection_attempt_history(state, rejection, *, assignment=None, workers=(), boundary_id=None):
+def rejection_attempt_history(state, rejection, *, assignment):
     """Count an unchanged current context's consecutive confirmed rejections.
 
 The latest rejection comes from the ledger's role_rejections projection; earlier
@@ -33,16 +31,11 @@ answer. First/last OPs and counts are a compact view of the intact receipt chain
     intent = records[-1][1]['intent']
     role, lane = intent['role'], intent['lane']
     context = _context(intent)
-    if role == 'decision':
-        from .project_evidence import evidence_stream
-        if (boundary_id != intent['input']['boundary']['id']
-                or evidence_stream(state, lane)[0] != intent['input']['selected_evidence']):
-            return None
-    else:
-        current = assignment if assignment is not None else next(
-            (worker for worker in workers if worker['id'] == lane), None)
-        if current != intent['input']['assignment'] or state['request'] != intent['input']['original_request']:
-            return None
+    if assignment != intent['input']['assignment'] or state['request'] != intent['input']['original_request']:
+        return None
+    prior_step = intent['input']['current_step']
+    if state['current_step_id'] != (prior_step['id'] if prior_step else None):
+        return None
     cursor = rejection
     newest_identity = _attempt_identity(rejection)
     identifiers = []

@@ -110,7 +110,7 @@ class TerminalSession:
         result = json.loads(delivery.read_text()) if delivery.exists() else {
             'termination': 'interrupted', 'termination_reason': 'no_delivery_receipt', 'changed_files': []}
         result['process_exit_code'] = code
-        self.exit_code = 0 if code == 0 and result.get('termination') == 'submitted' else 1
+        self.exit_code = 0 if code == 0 and result.get('termination') in ('submitted', 'model_finished') else 1
         self.unconfirmed = (code == 130 or not delivery.exists() or
                             bool(result.get('diagnostics', {}).get('pending_operation')))
         if (output / 'workspace').is_dir():
@@ -177,7 +177,7 @@ def run_terminal(args):
         value = getattr(args, field, None)
         if value is not None:
             extra.extend(['--'+field.replace('_', '-'), value])
-    for flag in ('record_generation_snapshots', 'require_initial_plan'):
+    for flag in ('record_generation_snapshots',):
         if getattr(args, flag, False):
             extra.append('--'+flag.replace('_', '-'))
     for path in args.protected_paths:

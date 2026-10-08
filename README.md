@@ -1,6 +1,6 @@
 # RWKV-LH
 
-面向 RWKV 状态续写模型的 Harness 与编码 Agent。RWKV 持续推进真实项目，保留目标、调用工具、根据结果调整并完成验证；Decision RWKV 选择方向，Executor RWKV 连续执行局部任务。强 Planner 按需规划、检查与诊断，所有工作区工具由 RWKV 发起，Harness 负责实际执行、保存事实并校验完成条件。职责、协议与执行边界见[当前架构](docs/ARCHITECTURE.zh-CN.md)。
+面向 RWKV 状态续写模型的 Harness 与编码 Agent。强 Planner 生成一次初始步骤计划，RWKV Executor 使用同一个持续 State 自主选择步骤、读写文件、运行工具、接收反馈并结束。当前先建立完整可观察的执行轨迹，已删除 Decision、在线审查和重新规划。模型声明完成与实际工具事实分别记录，错误也会原样保留。职责、协议与执行边界见[当前架构](docs/ARCHITECTURE.zh-CN.md)。
 
 在相同交付质量下降低强模型消耗是优化目标，当前尚未证明成本与完成率收益。项目仍处于实验阶段。
 
@@ -13,7 +13,7 @@ uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev
 .venv/bin/python -m playwright install chromium
 ```
 
-首次配置参照 [.env.example](.env.example) 创建 `.env.local`。需提供 RWKV 推理服务与强模型服务；项目角色读取 `RWKV_LH_PROJECT_DECISION_*` 和 `RWKV_LH_PROJECT_EXECUTOR_*`，强 Planner 使用 Supervisor 配置。未设置角色 State 时从 zero 开始，角色之间不共用 State；进程环境变量优先于配置文件。
+首次配置参照 [.env.example](.env.example) 创建 `.env.local`。需提供 RWKV 推理服务与强模型服务；Executor 读取 `RWKV_LH_PROJECT_EXECUTOR_*`，强 Planner 使用 Supervisor 配置。未设置 Executor State 时从 zero 开始，项目内切换步骤不重置 State；进程环境变量优先于配置文件。
 
 配置后用 `rwkv-lh-stack status` 核对服务，用 `rwkv-lh-runtime-smoke` 检查运行链路。以下命令均位于 `.venv/bin/`，也可在激活虚拟环境后直接使用。
 
@@ -27,9 +27,9 @@ uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev
   --max-calls 64 --max-seconds 600
 ```
 
-输出目录必须尚不存在，且不能与源目录重叠。Agent 在输出目录的 `workspace/` 副本中修改文件，执行记录位于 `execution/`；正常交付另有 `DELIVERY.json`。工作区副本隔离文件变更，命令仍使用现有工具权限。
+输出目录必须尚不存在，且不能与源目录重叠。Agent 在输出目录的 `workspace/` 副本中修改文件，执行记录位于 `execution/`；逐步命令与反馈见 `execution/PROGRESS.jsonl`，终态见 `DELIVERY.json`。工作区副本隔离文件变更，命令仍使用现有工具权限。
 
-退出码 0 表示模型提交回答，**不代表通过外部验收**。预算耗尽按中断处理；模型仍可能重复调用、遗漏修改或无依据提交。推理服务仍保有本次 State 时，可用 `rwkv-lh --resume /absolute/path/to/new-run` 沿原预算恢复；默认内存 State 在服务重启后失效，未知操作不会自动重放。
+退出码 0 表示 Executor 调用 `finish_work` 正常结束；`finished` 是模型声明，当前始终 `completed=false`、`acceptance=not_evaluated`，**不代表通过验收**。预算耗尽按中断处理；模型仍可能重复调用、遗漏修改或无依据提交。推理服务仍保有本次 State 时，可用 `rwkv-lh --resume /absolute/path/to/new-run` 沿原预算恢复；默认内存 State 在服务重启后失效，未知操作不会自动重放。
 
 不带参数启动 `rwkv-lh` 可进入交互终端，也可直接传入一句需求创建新项目。使用 `--jobs` 批量运行独立任务；全部参数见 `rwkv-lh --help`。
 

@@ -1,11 +1,11 @@
 """Constrain current role choices without choosing an action or resetting State."""
 from copy import deepcopy
 from .runtime.structured_output import build_decoder_contract
-from .project_protocols import decision, executor
+from .project_protocols import executor
 from .project_receipt_refs import visible_references
 
 INPUT_FRAMING = 'project-decoder-json-fence.v1'
-BOUNDARY_POLICY = 'project-boundary-decoder.v2'
+BOUNDARY_POLICY = 'project-boundary-decoder.v3'
 
 
 def _reference(schema, field, values):
@@ -36,34 +36,22 @@ def _reference(schema, field, values):
 
 def _boundary_parameters(role, payload, item, references):
     name, schema = item['name'], item['parameters']
-    if role == 'decision':
-        if not payload['boundary']['options'][name]:
-            return []
-        refs = references[name]
-        scoped = {key.removesuffix('_by_task'): value for key, value in refs.items() if key.endswith('_by_task')}
-        targets = refs['task_id'] if scoped else [None]
-    else:
-        refs = references.get(name, {})
-        if name == 'read_receipt' and not refs['evidence_id']:
-            return []
-        scoped, targets = {}, [None]
-    variants = []
-    for target in targets:
-        current = deepcopy(schema)
-        for field, values in refs.items():
-            if not field.endswith('_by_task'):
-                _reference(current, field, [target] if field == 'task_id' and scoped else values)
-        for field, by_task in scoped.items():
-            _reference(current, field, by_task[target])
-        variants.append(current)
-    return variants
+    refs = references.get(name, {})
+    if name == 'read_receipt' and not refs['evidence_id']:
+        return []
+    if payload['current_step'] is None and name not in ('select_step', 'report_step', 'finish_work', 'read_receipt'):
+        return []
+    current = deepcopy(schema)
+    for field, values in refs.items():
+        _reference(current, field, values)
+    return [current]
 
 
 def _current_contracts(definitions, *, role, payload):
-    """One source of current availability and exact task-scoped constraints."""
-    if role not in ('decision', 'executor'):
+    """One source of current availability and exact reference constraints."""
+    if role != 'executor':
         raise ValueError('current Native role required')
-    {'decision': decision, 'executor': executor}[role].validate_input(payload)
+    executor.validate_input(payload)
     references = visible_references(payload)
     for item in definitions:
         variants = _boundary_parameters(role, payload, item, references)
@@ -72,11 +60,7 @@ def _current_contracts(definitions, *, role, payload):
 
 
 def available_definitions(definitions, *, role, payload):
-    """Disclose each available tool shape once; references carry its current values.
-
-    Expanding every task-specific schema branch into the prompt duplicates the
-    contract for large plans. The decoder consumes those branches directly.
-    """
+    """Disclose each available tool shape once; references carry current values."""
     return [deepcopy(item) for item, _ in _current_contracts(definitions, role=role, payload=payload)]
 
 
@@ -100,7 +84,7 @@ def build_role_decoder(definitions, *, role=None, payload=None):
     if not definitions or len({item['name'] for item in definitions}) != len(definitions):
         raise ValueError('decoder requires unique role tools')
     if role is not None or payload is not None:
-        if role not in ('decision', 'executor') or payload is None:
+        if role != 'executor' or payload is None:
             raise ValueError('boundary decoder requires a Native role and its input')
         contracts = _current_contracts(definitions, role=role, payload=payload)
     else:

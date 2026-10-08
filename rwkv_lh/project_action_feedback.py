@@ -1,78 +1,39 @@
-"""Literal action/result pairs and the rejected call they help repair."""
+"""Literal tool feedback and protocol rejections for autonomous execution."""
 from copy import deepcopy
-
 from .project_evidence import executor_evidence_ids
 
 
-def build_action_feedback(state, *, role, assignment=None, permitted=None, references=None, boundary_id=None):
-    """Project existing receipts without selecting or manufacturing a next action."""
-    if state is None:
-        return {'receiving_role': role, 'last_execution': None, 'rejected_call': None}
-    from .project_protocols.decision import LANE
-    lane = LANE if role == 'decision' else assignment['id']
-    allowed = ({key for key, item in state['evidence'].items() if item['kind'] != 'model'}
-               if role == 'decision' else executor_evidence_ids(dict(state, active=assignment)))
+def build_action_feedback(state, *, role, assignment=None, references=None):
+    if role != 'executor':
+        raise ValueError('only Executor receives action feedback')
+    lane = assignment['id']
+    allowed = executor_evidence_ids(state)
     latest = None
-    # Evidence insertion order is the ledger's confirmed return order, not OP ID order.
     for identifier, receipt in state['evidence'].items():
         if identifier not in allowed:
             continue
-        if role == 'executor' and (receipt['kind'] != 'tool'
-                or receipt['intent']['assignment_id'] != lane):
-            continue
-        selected = state['selected_evidence'].get(LANE, {}).get(identifier, {}).get('evidence', {})
-        result = selected.get('raw_result', receipt['result'])
+        selected = state['selected_evidence'].get(lane, {}).get(identifier, {}).get('evidence', {})
         latest = {'evidence_id': identifier, 'kind': receipt['kind'],
-                  'action': deepcopy(receipt['intent']), 'result': deepcopy(result)}
+            'action': deepcopy(receipt['intent']),
+            'result': deepcopy(selected.get('raw_result', receipt['result']))}
     rejected = None
-    from .project_contracts import digest, work_map
-    tasks = work_map(state)
-    resumable = list(state.get('suspended', {}).values())
-    if state['active']:
-        resumable.append(state['active'])
-    current_workers = {worker['id'] for worker in resumable
-                       if worker['task']['id'] in tasks
-                       and worker['contract_digest'] == digest(tasks[worker['task']['id']])}
-    rejections = {entry.get('rejected_operation_id'): entry
-                  for key, entry in state['role_rejections'].items()
-                  if key == lane or (role == 'decision' and key in current_workers
-                      and entry.get('kind') == 'executor_rejected')}
-    for identifier, receipt in state['evidence'].items():
-        if identifier not in rejections:
-            continue
-        feedback = rejections[identifier]
-        rejected_role = receipt['intent']['role']
-        rejected = {'operation_id': identifier, 'role': rejected_role,
-                    'call': deepcopy(receipt['result'].get('evidence', {}).get('rejected_command')
-                                     or receipt['result']['command']),
-                    'raw_output': feedback.get('rejected_output'),
-                    'error': feedback['error'], 'is_execution_evidence': False,
-                    'usable_evidence_ids': [key for key in state['evidence'] if key in allowed],
-                    'permitted_directions': deepcopy(permitted) if rejected_role == 'decision' else None}
-        if rejected_role == 'executor' and role == 'decision':
-            # Give the worker's actual evidence scope, not the Decision's broader scope.
-            worker = receipt['intent']['input']['assignment']
-            local = dict(state, active=worker)
-            worker_ids = executor_evidence_ids(local)
-            rejected['usable_evidence_ids'] = [key for key in state['evidence'] if key in worker_ids]
-    if rejected is not None:
+    rejection = state['role_rejections'].get(lane)
+    if rejection:
+        identifier = rejection['rejected_operation_id']
+        receipt = state['evidence'][identifier]
+        recorded = receipt['result']['evidence']
+        command = recorded.get('rejected_command') or receipt['result']['command']
         from .project_runtime import role_definitions
         from .harness import ActionHarness
-        recorded = state['evidence'][rejected['operation_id']]['result'].get('evidence', {})
-        if 'rejected_parameter_schema' in recorded:
-            rejected['parameter_schema'] = deepcopy(recorded['rejected_parameter_schema'])
-            rejected['function_name'] = recorded['rejected_function_name']
-        else:
-            definition = next((item for item in role_definitions(rejected['role'], ActionHarness())
-                               if item['name'] == rejected['call'].get('function')), None)
-            rejected['parameter_schema'] = deepcopy(definition['parameters']) if definition else None
-            rejected['function_name'] = definition['name'] if definition else None
-        rejected['parameter_references'] = (deepcopy(references or {}) if rejected['role'] == role else {
-            name: {field: rejected['usable_evidence_ids']} for name, field in (
-                ('report_work', 'evidence_ids'), ('read_receipt', 'evidence_id'))})
+        definition = next((d for d in role_definitions(role, ActionHarness()) if d['name'] == command.get('function')), None)
+        rejected = {'operation_id': identifier, 'role': role, 'call': deepcopy(command),
+            'raw_output': rejection.get('rejected_output'), 'error': rejection['error'],
+            'is_execution_evidence': False, 'usable_evidence_ids': [k for k in state['evidence'] if k in allowed],
+            'parameter_schema': recorded.get('rejected_parameter_schema') or (definition['parameters'] if definition else None),
+            'function_name': recorded.get('rejected_function_name') or (definition['name'] if definition else None),
+            'parameter_references': deepcopy(references or {}), 'attempt_history': None}
         from .project_rejection_history import rejection_attempt_history
-        rejected['attempt_history'] = rejection_attempt_history(
-            state, rejected, assignment=assignment, workers=resumable, boundary_id=boundary_id)
+        rejected['attempt_history'] = rejection_attempt_history(state, rejected, assignment=assignment)
     return {'receiving_role': role, 'last_execution': latest, 'rejected_call': rejected}
 
 
@@ -120,7 +81,7 @@ def render_action_feedback(value):
         # This is a repair question tied to actual evidence, not a guessed diagnosis.
         result = execution['result']
         if result.get('success') is False or any(check.get('passed') is False for check in result.get('checks', [])):
-            lines.append('Repair context: the action above returned a failure. Use its error/output and the current task checks to choose a correction; do not repeat it unchanged without new evidence.')
+            lines.append('Repair context: the action above returned a failure. Use its error/output and the current task objective to choose a correction; do not repeat it unchanged without new evidence.')
     rejected = value['rejected_call']
     if rejected is None:
         lines.append('Current rejected call: none.')
@@ -145,9 +106,6 @@ def render_action_feedback(value):
                 lines.append('Explicit function name (diagnostic only, not an accepted call): '
                              + rejected['function_name'])
                 lines.append('Parameters of the rejected function: ' + canonical_json(rejected['parameter_schema']))
-        else:
-            lines.append('Only ' + rejected['role'] + ' can correct this call. You choose a permitted direction, '
-                         'not that role\'s tool. If continuing, explicitly hand off the task focus; reason is audit only.')
     return '\n'.join(lines)
 
 
@@ -156,7 +114,7 @@ def validate_action_feedback(value):
     """Check the view's shape; complete original-ledger replay proves its facts."""
     from .project_contracts import fields, strings
     fields(value, ('receiving_role', 'last_execution', 'rejected_call'))
-    if value['receiving_role'] not in ('decision', 'executor'):
+    if value['receiving_role'] != 'executor':
         raise ValueError('unknown feedback receiver')
     execution = value['last_execution']
     if execution is not None:
@@ -170,10 +128,10 @@ def validate_action_feedback(value):
     rejected = value['rejected_call']
     if rejected is not None:
         fields(rejected, ('operation_id', 'role', 'call', 'raw_output', 'error',
-                          'is_execution_evidence', 'usable_evidence_ids', 'permitted_directions',
+                          'is_execution_evidence', 'usable_evidence_ids',
                           'parameter_schema', 'parameter_references', 'function_name', 'attempt_history'))
         if (not isinstance(rejected['operation_id'], str) or not rejected['operation_id']
-                or rejected['role'] not in ('decision', 'executor')
+                or rejected['role'] != 'executor'
                 or not isinstance(rejected['call'], dict)
                 or not isinstance(rejected['error'], str) or not rejected['error']
                 or rejected['is_execution_evidence'] is not False):
@@ -185,9 +143,4 @@ def validate_action_feedback(value):
                 (not isinstance(name, str) or not name or name != name.strip() or not isinstance(schema, dict)))):
             raise ValueError('rejected function name and schema must be bound together')
         strings(rejected['usable_evidence_ids'])
-        if rejected['permitted_directions'] is not None:
-            if not isinstance(rejected['permitted_directions'], dict):
-                raise ValueError('permitted directions must be an object')
-            for references in rejected['permitted_directions'].values():
-                strings(references)
     return value

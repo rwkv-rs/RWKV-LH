@@ -65,6 +65,8 @@ def task_deadline(function):
         if elapsed > allowance:
             result.update(final=None, status='interrupted', termination='budget',
                           termination_reason='wall_budget_exhausted', acceptance='unreviewable')
+            if 'model_finished' in result:
+                result.update(model_finished=False, completed=False)
         output.mkdir(parents=True, exist_ok=True)
         (output / 'DELIVERY.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
         return result

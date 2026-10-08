@@ -1,8 +1,8 @@
 """Discard surplus identity echoes and validate the selected role operation."""
 from .schema_validation import validate_schema
-from .project_contracts import digest, validate_plan, validate_check
+from .project_contracts import digest, validate_plan
 from .model_io import ModelCommand
-from .project_protocols import decision, planner, executor
+from .project_protocols import planner, executor
 
 ROLE_PARAMETER_NORMALIZER_VERSION = 'project-role-identity-discard.v1'
 
@@ -17,7 +17,7 @@ def normalize_role_output(role, command, definitions):
     if selected is None or not isinstance(command.arguments, dict):
         return command, None
     declared = selected['parameters'].get('properties', {})
-    ignored = {'plan_version', 'workspace_digest'} if role == 'decision' else set()
+    ignored = set()
     discarded = sorted(key for key in command.arguments if key not in declared and
         (key == 'id' or key.endswith('_id') or key.endswith('_ids') or key in ignored))
     if not discarded:
@@ -36,6 +36,7 @@ def normalize_role_output(role, command, definitions):
 
 
 def validate_role_output(role, payload, command, definitions):
+    {'planner': planner, 'executor': executor}[role].validate_input(payload)
     selected = next((d for d in definitions if d['name'] == command.name), None)
     if selected is None:
         raise ValueError('operation not available to this role')
@@ -46,16 +47,9 @@ def validate_role_output(role, payload, command, definitions):
         if command.name not in allowed:
             raise ValueError(f'planner operation {command.name!r} is not permitted in mode {mode!r}; '
                              f'available: {", ".join(sorted(allowed))}')
-        if mode in ('review', 'review_checks') and command.name in ('review_plan', 'review_checks'):
-            planner.validate_review(command.arguments)
-    if role == 'planner' and command.name in ('submit_plan', 'revise_plan'):
+    if role == 'planner' and command.name == 'submit_plan':
         validate_plan(command.arguments['plan'])
-        if payload['plan'] is None and command.arguments.get('replacements'):
-            raise ValueError('initial plan cannot replace checks; submit the corrected candidate with submit_plan')
-    if role == 'planner' and command.name == 'submit_checks':
-        for check in command.arguments['checks']:
-            validate_check(check)
-    if role == 'decision':
-        decision.validate_response(payload, command.to_wire_dict())
     if role == 'executor':
+        if payload['current_step'] is None and command.name not in ('select_step', 'report_step', 'finish_work', 'read_receipt'):
+            raise ValueError('select_step is required before workspace tools')
         executor.validate_references(payload, command.to_wire_dict())

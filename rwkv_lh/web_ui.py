@@ -291,13 +291,24 @@ class ManualRunRepository:
         project = self.execution_root(run_id) / 'project.sqlite3'
         if project.is_file():
             state = ProjectLedger(project.parent).state()
-            output['project'] = {key: state[key] for key in ('goal', 'goal_checks', 'pending_checks',
-                'planner_request', 'pending_plan', 'plan', 'plan_version', 'task_status',
-                'reports', 'verification', 'acceptance', 'control', 'work_unit', 'check_revisions',
-                'active', 'pending', 'feedback', 'status', 'calls', 'elapsed')}
+            output['project'] = {key: state[key] for key in ('goal', 'plan', 'plan_version',
+                'reports', 'current_step_id', 'active', 'pending', 'feedback', 'status', 'calls', 'elapsed',
+                'final', 'final_claim')}
+            from .project_step_progress import build_step_progress
+            output['project']['step_progress'] = build_step_progress(state)['steps']
+            progress_path = project.parent / 'PROGRESS.jsonl'
+            progress = []
+            if progress_path.is_file():
+                lines = progress_path.read_text(encoding='utf-8').splitlines(keepends=True)
+                for number, line in enumerate(lines):
+                    if number == len(lines) - 1 and not line.endswith('\n'):
+                        break  # The writer has not completed this projection row yet.
+                    progress.append(json.loads(line))
+            output['project']['progress'] = progress
             output['project']['work_items'] = work_items(state)
             output['project']['actions'] = [{'action_id': key, 'operation': value['intent']['name'],
                 'arguments': value['intent']['arguments'], 'result': value['result'],
+                'task_id': value['intent']['task_id'],
                 'status': 'succeeded' if value['result'].get('success') else 'failed'}
                 for key, value in state['evidence'].items() if value['kind'] == 'tool']
         if self.state_available(run_id):

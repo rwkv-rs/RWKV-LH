@@ -17,16 +17,10 @@ def main():
     parser.add_argument('--request', required=True)
     parser.add_argument('--task-id', default='coding-task')
     parser.add_argument('--record-generation-snapshots', action='store_true')
-    parser.add_argument('--require-initial-plan', action='store_true',
-                        help='Explicitly require strong planning before the first RWKV decision')
     parser.add_argument('--protected-paths', action='append', default=[],
                         help="Read-only workspace path, '.' or './path'; repeat for multiple paths")
     parser.add_argument('--max-calls', type=int, default=12)
     parser.add_argument('--max-seconds', type=float, default=600)
-    parser.add_argument('--unit-calls', type=int, default=None,
-                        help='Optional execution work-unit call budget; default shares the total budget')
-    parser.add_argument('--unit-seconds', type=float, default=None,
-                        help='Optional execution work-unit time budget; observed after confirmed operations')
     parser.add_argument('--base-url')
     parser.add_argument('--model')
     parser.add_argument('--model-sha256')
@@ -37,7 +31,7 @@ def main():
     job = CodingJob(**{name: getattr(args, name) for name in CodingJob.__dataclass_fields__})
     result = run_coding_job(job, settings=settings)
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 0 if result['termination'] == 'submitted' else 1
+    return 0 if result['termination'] == 'model_finished' else 1
 
 
 if __name__ == '__main__':

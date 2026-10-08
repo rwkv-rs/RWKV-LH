@@ -15,10 +15,10 @@ from .project_trace import role_boundaries
 from .project_token_data import replay_native_rows
 from .workspace_snapshot import tree_identity
 
-SOURCE_SCHEMA = 'rwkv-lh.project-production-source.v1'
+SOURCE_SCHEMA = 'rwkv-lh.project-production-source.v2'
 _REQUIRED_MODULES = (
     'project_runtime.py', 'project_agent.py', 'project_ledger.py', 'project_trace.py', 'project_token_data.py',
-    'project_generation_snapshots.py', 'project_protocols/decision.py', 'project_protocols/executor.py')
+    'project_generation_snapshots.py', 'project_protocols/planner.py', 'project_protocols/executor.py')
 
 
 def read_reference(reference):
@@ -47,7 +47,7 @@ def _source(root, collection_reference, source_reference):
     # Current role protocols must be byte-identical. Source runtime identity and
     # the present read-only re-extractor are separately recorded; every input
     # and token is still rebuilt by the single current production builder.
-    for name in ('project_protocols/decision.py', 'project_protocols/executor.py'):
+    for name in ('project_protocols/planner.py', 'project_protocols/executor.py'):
         core.require(collection['runtime_files'].get('rwkv_lh/' + name) == core.sha256_file(package / name),
                      'Project source renderer or runtime differs from registered production')
     root = _source_path(Path(root))
@@ -67,7 +67,7 @@ def _read_locked_source(ledger, before, collection, registered):
     state = tip['state']
     core.require(state['pending'] is None, 'Project source has an unknown pending operation')
     result = json.loads((root / 'RESULT.json').read_text())
-    core.require(result.get('status') in ('completed', 'blocked', 'interrupted')
+    core.require(result.get('status') in ('finished', 'blocked', 'interrupted')
                  and result.get('model_calls') == state['calls']
                  and result.get('diagnostics', {}).get('pending_operation') is None
                  and state.get('record_generation_snapshots') is True,

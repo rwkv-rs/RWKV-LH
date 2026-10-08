@@ -5,17 +5,17 @@ removes obligations, or treats reconstructability as model comprehension.
 """
 from copy import deepcopy
 from .project_contracts import digest
-from .project_protocols import planner, decision, executor
+from .project_protocols import planner, executor
 from .schema import ModelEvent
 
-INPUT_HANDOFF_VERSION = 'project-input-handoff.v2'
+INPUT_HANDOFF_VERSION = 'project-input-handoff.v3'
 DELTA_EVENT_TYPE = 'project_role_input_delta'
 
 
 def _validate(payload):
     if not isinstance(payload, dict):
         raise ValueError('role payload must be an object')
-    modules = {module.PROTOCOL:module for module in (planner,decision,executor)}
+    modules = {module.PROTOCOL:module for module in (planner,executor)}
     module = modules.get(payload.get('protocol'))
     if module is None:
         raise ValueError('current role protocol required')
@@ -29,7 +29,7 @@ def make_delta(previous, current):
         raise ValueError('delta cannot cross role protocol')
     return {'base_digest':digest(previous), 'target_digest':digest(current),
             'set':{key:deepcopy(value) for key,value in current.items()
-                   if key in ('step_progress', 'action_feedback', 'references', 'receipt_bindings') or key not in previous or previous[key] != value},
+                   if key in ('step_progress', 'references', 'receipt_bindings') or key not in previous or previous[key] != value},
             'remove':sorted(set(previous)-set(current))}
 
 
@@ -87,12 +87,10 @@ def input_update(role, lane, payload, checkpoint):
     if any(current_bindings[key] != previous_bindings[key] for key in current_bindings.keys() & previous_bindings.keys()):
         raise ValueError('receipt handle changed identity inside the role State')
     anchor = state['anchor_input']
-    retry = (role == 'decision' and payload['boundary']['id'] == anchor['boundary']['id']
-             and payload['selected_evidence'] == anchor['selected_evidence']
-             and (state['rejected'] or (payload['protocol_feedback'] is not None
-                  and payload['protocol_feedback'] != state['payload']['protocol_feedback'])))
+    retry = False
     if role == 'executor':
         retry = (state['rejected'] and payload['assignment'] == anchor['assignment']
+                 and payload['current_step'] == anchor['current_step']
                  and all(item in anchor['observations'] for item in payload['observations'])
                  and (not payload['evidence_updates'] or payload['evidence_updates'] == anchor['evidence_updates']))
     parent = state['anchor_checkpoint'] if retry else checkpoint['checkpoint']

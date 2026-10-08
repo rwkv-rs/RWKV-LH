@@ -33,9 +33,6 @@ def _member(root: Path, reference: Mapping[str, Any]) -> Path:
 
 
 def _protocol(role: str) -> tuple[str, str]:
-    if role == 'project_decision':
-        from .project_statetune_data import protocol_identity
-        return protocol_identity()
     if role == 'project_executor':
         from .project_executor_statetune_data import protocol_identity
         return protocol_identity()
@@ -49,11 +46,8 @@ def _protocol(role: str) -> tuple[str, str]:
 
 def normalize_row(row: Mapping, *, role: str, model_sha256: str, context_tokens: int,
                   vocab_size: int, bos_token_id: int, expected_split: str = "train") -> dict:
-    if role in {'project_decision', 'project_executor'}:
-        if role == 'project_decision':
-            from .project_statetune_data import normalize_row as normalize_project
-        else:
-            from .project_executor_statetune_data import normalize_row as normalize_project
+    if role == 'project_executor':
+        from .project_executor_statetune_data import normalize_row as normalize_project
         return normalize_project(row, model_sha256=model_sha256, context_tokens=context_tokens,
                                  vocab_size=vocab_size, bos_token_id=bos_token_id, expected_split=expected_split)
     if role == "direct_actor":
@@ -119,7 +113,7 @@ def freeze_dataset(registration: Mapping, *, registration_reference: Mapping, ou
     The registration pins candidate, source, regression, minimum counts and
     written authorization. A valid audit alone never publishes a dataset.
     """
-    if registration.get('role') in {'project_decision', 'project_executor'}:
+    if registration.get('role') in {'project_executor'}:
         from .project_training_freeze import freeze_project_dataset
         return freeze_project_dataset(registration, registration_reference=registration_reference, output=output)
     if registration.get("role") == "direct_actor":
@@ -233,7 +227,7 @@ def freeze_dataset(registration: Mapping, *, registration_reference: Mapping, ou
 
 def admit_dataset(reference: Mapping, *, role: str, expected_regression: str, model_sha256: str,
                   context_tokens: int, vocab_size: int, bos_token_id: int) -> tuple[dict, list[dict]]:
-    if role in {'project_decision', 'project_executor'}:
+    if role in {'project_executor'}:
         from .project_training_freeze import admit_project_dataset
         return admit_project_dataset(reference, role=role, expected_regression=expected_regression,
             model_sha256=model_sha256, context_tokens=context_tokens, vocab_size=vocab_size, bos_token_id=bos_token_id)

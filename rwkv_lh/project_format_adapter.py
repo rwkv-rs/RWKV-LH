@@ -10,7 +10,7 @@ from .model_io import ModelCommandNormalization, ModelIOError, canonical_json
 from .project_model_io import parse_project_model_command_with_trace
 from .project_protocols import planner
 
-FORMAT_ADAPTER_VERSION = 'project-boundary-format.v8'
+FORMAT_ADAPTER_VERSION = 'project-boundary-format.v9'
 
 _NAME_KEYS = ('function', 'name', 'tool', 'response')
 _ARGUMENT_KEYS = ('params', 'parameters', 'arguments', 'args', 'function_args')
@@ -159,17 +159,7 @@ def _parse_role_call(raw: str, *, role: str, payload: Mapping):
         transformations.append('json_mode_annotation')
     if role == 'planner':
         mode = payload.get('mode')
-        if mode in ('review', 'review_checks') and set(wire) == {'verdict', 'issues'}:
-            name = 'review_checks' if mode == 'review_checks' else 'review_plan'
-            wire = {'function': name, 'params': wire}
-            transformations.append('call_envelope:bare_role_parameters->' + name)
-        elif mode == 'checks' and set(wire) == {'checks', 'rationale', 'replacements'}:
-            wire = {'function': 'submit_checks', 'params': wire}
-            transformations.append('call_envelope:bare_role_parameters->submit_checks')
-        elif mode == 'diagnose' and set(wire) == {'text', 'evidence_ids'}:
-            wire = {'function': 'advise', 'params': wire}
-            transformations.append('call_envelope:bare_role_parameters->advise')
-        elif mode == 'plan' and payload.get('plan') is None:
+        if mode == 'plan' and payload.get('plan') is None:
             if set(wire) == {'plan'}:
                 wire = {'function': 'submit_plan', 'params': wire}
                 transformations.append('bare_initial_plan_parameters')

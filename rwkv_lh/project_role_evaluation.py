@@ -36,7 +36,7 @@ RUN_SCHEMA = 'rwkv-lh.statetune-project-evaluation-run.v3'
 SPLITS = ('dev', 'confirmation')
 METRICS = ['role_contract_validity', 'reference_match', 'transport_failures', 'unknown_outcomes', 'budget_failures', 'not_run']
 SAMPLING = {'temperature', 'top_p', 'top_k', 'presence_penalty', 'frequency_penalty', 'penalty_decay', 'seed'}
-ROLES = ('project_decision', 'project_executor')
+ROLES = ('project_executor',)
 
 
 def validate_plan(plan):
@@ -172,7 +172,6 @@ def _validated(raw, row):
 
 def _reference_identity(wire, role):
     params = dict(wire['params'])
-    if role == 'project_decision': params.pop('reason', None)
     return {'function': wire['function'], 'params': params}
 
 

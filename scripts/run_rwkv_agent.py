@@ -1,4 +1,4 @@
-"""Run coding projects with RWKV-directed planning or explicit read-only utilities."""
+"""Run coding projects with one initial strong plan and autonomous RWKV execution or explicit read-only utilities."""
 import argparse
 import json
 from pathlib import Path
@@ -31,8 +31,6 @@ def main(argv=None):
     parser.add_argument('--output-dir')
     parser.add_argument('--task-id', default='coding-task')
     parser.add_argument('--record-generation-snapshots', action='store_true')
-    parser.add_argument('--require-initial-plan', action='store_true',
-                        help='Explicitly require strong planning before the first RWKV decision')
     parser.add_argument('--protected-paths', action='append', default=[],
                         help="Read-only coding workspace path, '.' or './path'; repeat as needed")
     parser.add_argument('--max-calls', type=int, default=None)
@@ -70,7 +68,7 @@ def main(argv=None):
     if not any((args.jobs, args.source_workspace, args.new_project, args.preview, args.launch, args.resume)):
         parser.error('enter a task, or select --new-project, --source-workspace, --jobs, --preview or --resume')
     if args.launch:
-        if args.request or args.serve or args.protected_paths or args.require_initial_plan:
+        if args.request or args.serve or args.protected_paths:
             parser.error('--launch only runs the existing project')
         from rwkv_lh.project_launch import serve_project, new_launch_output, LaunchError
         try:
@@ -82,7 +80,7 @@ def main(argv=None):
     if args.preview:
         if args.launch_kind != 'static':
             parser.error('use --launch with --launch-kind vite')
-        if args.request or args.output_dir or args.serve or args.protected_paths or args.require_initial_plan:
+        if args.request or args.output_dir or args.serve or args.protected_paths:
             parser.error('--preview only serves the existing workspace')
         from rwkv_lh.project_preview import serve_preview
         try:
@@ -105,14 +103,14 @@ def main(argv=None):
         args.source_workspace, args.output_dir = str(source_path), str(output_path)
         print(f'Project output: {output_path}', flush=True)
     if args.resume:
-        if args.request or args.output_dir or args.protected_paths or args.require_initial_plan:
+        if args.request or args.output_dir or args.protected_paths:
             parser.error('--resume uses the recorded request and workspace')
         from rwkv_lh.project_agent import resume_project
         load_local_env(Path(__file__).resolve().parents[1] / '.env.local')
         overrides = {name: getattr(args, name) for name in ('base_url', 'model', 'model_sha256') if getattr(args, name) is not None}
         result = resume_project(args.resume, settings=RuntimeSettings.from_env(overrides=overrides))
         print(json.dumps(result, ensure_ascii=False, indent=2))
-        return 0 if result['termination'] == 'submitted' else 1
+        return 0 if result['termination'] in ('submitted', 'model_finished') else 1
     jobs = []
     if args.source_workspace:
         if not args.request or not args.output_dir:
@@ -120,9 +118,9 @@ def main(argv=None):
         rows = [dict(task_id=args.task_id, request=args.request, workspace=args.source_workspace,
                      output_dir=args.output_dir, tool_scope='coding', max_calls=args.max_calls,
                      max_seconds=args.max_seconds, record_generation_snapshots=args.record_generation_snapshots,
-                     protected_paths=args.protected_paths, require_initial_plan=args.require_initial_plan)]
+                     protected_paths=args.protected_paths)]
     else:
-        if args.request or args.output_dir or args.protected_paths or args.require_initial_plan:
+        if args.request or args.output_dir or args.protected_paths:
             parser.error('--request and --output-dir belong to single coding tasks')
         rows = json.loads(args.jobs.read_text())
     if not isinstance(rows, list) or not rows or not all(isinstance(row, dict) for row in rows):
@@ -135,11 +133,11 @@ def main(argv=None):
         if parents:
             parser.error('project dependencies belong in the project plan; depends_on is retired from this entry')
         if 'assistance' in row:
-            parser.error('project assistance is requested by the decision role; legacy assistance jobs are retired')
+            parser.error('project uses one initial plan; assistance jobs are retired')
         scope = row.pop('tool_scope', 'files')
         recovery = row.pop('on_stall', None)
         if recovery is not None:
-            parser.error('on_stall is retired; project decisions request help or replanning explicitly')
+            parser.error('on_stall is retired; Executor controls its own execution and finish')
         if scope == 'coding':
             row['source_workspace'] = row.pop('workspace')
             jobs.append(CodingJob(**row))
@@ -153,7 +151,7 @@ def main(argv=None):
     settings = direct_agent_settings(RuntimeSettings.from_env(overrides=overrides))
     results = run_agent_jobs(jobs, settings=settings, concurrency=args.concurrency)
     print(json.dumps(results, ensure_ascii=False, indent=2))
-    exit_code = 0 if all(r['termination'] == 'submitted' for r in results) else 1
+    exit_code = 0 if all(r['termination'] in ('submitted', 'model_finished') for r in results) else 1
     if args.serve:
         from rwkv_lh.project_preview import serve_preview
         print(f'Agent termination: {results[0]["termination"]}; preview does not change task completion.', flush=True)

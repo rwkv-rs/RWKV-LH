@@ -276,13 +276,12 @@ function renderRun() {
   const state = summary.state || {};
   const project = summary.project;
   const direct = summary.request?.runtime === "direct_rwkv";
-  const status = statusClass(direct ? (metadata.status || metadata.phase) : (state.status || metadata.status || metadata.phase));
+  const projectStatus = metadata.active ? project?.status : summary.result?.status || project?.status;
+  const status = statusClass(direct ? (metadata.status || metadata.phase) : (projectStatus || state.status || metadata.status || metadata.phase));
   const contract = contractData();
   const satisfied = Object.values(contract.verdicts).filter((item) => item.status === "satisfied").length;
-  const current = project ? (project.status === 'completed' ? 'complete' :
-    project.pending?.kind === 'verification' || project.pending_checks || project.planner_request === 'checks' ? 'verify' :
-    project.active && project.control === 'executor' ? 'build' :
-    project.pending_plan || project.planner_request === 'plan' ? 'plan' : 'understand') : currentPhase(contract, status);
+  const current = project ? (project.status === 'finished' ? 'complete' :
+    project.active ? 'build' : 'plan') : currentPhase(contract, status);
   const actions = project?.actions || summary.result?.actions || state.actions || [];
   const evidenceEvents = app.events.filter(isEvidenceEvent);
 
@@ -295,22 +294,22 @@ function renderRun() {
   const resumable = !direct && !metadata.active && metadata.state_created && ["interrupted", "stopped", "failed", "blocked"].includes(status);
   $("resumeButton").classList.toggle("hidden", !resumable);
 
-  $("obligationMetric").textContent = project ? `${Object.values(project.task_status).filter(s => s === 'verified').length} / ${project.work_items.length}` : direct ? "未评审" : `${satisfied} / ${contract.obligations.length}`;
+  $("obligationMetric").textContent = project ? `${Object.values(project.reports).filter(s => s.status === 'done').length} / ${project.work_items.length}` : direct ? "未评审" : `${satisfied} / ${contract.obligations.length}`;
   $("actionMetric").textContent = actions.length;
-  $("evidenceMetric").textContent = project ? Object.keys(project.verification).length : evidenceEvents.length;
+  $("evidenceMetric").textContent = project ? project.actions.length : evidenceEvents.length;
   $("fileMetric").textContent = app.files.length;
   $("requestMetric").textContent = project?.calls ?? summary.result?.generation_started ?? state.model_request_count ?? app.traces.filter((item) => item.type === "model_request_started").length;
   $("contractCount").textContent = project?.work_items.length ?? contract.obligations.length;
   $("executionCount").textContent = actions.length;
-  $("evidenceCount").textContent = project ? Object.keys(project.verification).length : evidenceEvents.length;
+  $("evidenceCount").textContent = project ? project.actions.length : evidenceEvents.length;
   $("artifactCount").textContent = app.files.length;
   $("rawCount").textContent = app.traces.length + app.events.length;
-  $("currentPhaseLabel").textContent = direct ? (summary.result?.termination_reason || "RWKV 执行中") : phaseLabel(current);
+  $("currentPhaseLabel").textContent = project ? (projectStatus === 'finished' ? '模型已结束（未验收）' : projectStatus === 'blocked' ? '模型报告阻塞' : projectStatus === 'failed' ? '初始计划失败' : projectStatus === 'interrupted' ? '运行已中断' : project.active ? 'RWKV 正在执行' : '生成初始计划') : direct ? (summary.result?.termination_reason || "RWKV 执行中") : phaseLabel(current);
 
   renderPhases(current, status);
   renderOverview(summary, contract);
   renderContract(summary, contract);
-  renderActions(actions);
+  renderActions(project?.progress || actions);
   renderEvidence(contract, evidenceEvents);
   renderFiles();
   renderRaw();
@@ -339,12 +338,12 @@ function renderOverview(summary, contract) {
   const recent = app.events.slice(-10).reverse();
   $("liveActivity").innerHTML = recent.length ? recent.map((item) => `
     <div class="activity-item"><i></i><time>${escapeHtml(time(item.timestamp))}</time><strong>${escapeHtml(eventHeadline(item))}</strong></div>`).join("") : '<p class="empty-copy">等待第一个因果事件。</p>';
-  const output = summary.result?.final_output ?? summary.state?.final_output ?? "";
+  const output = summary.project?.final ?? summary.result?.final_output ?? summary.state?.final_output ?? "";
   $("finalOutput").textContent = !summary.metadata ? "正在加载任务记录…" : output || (summary.metadata?.active ? "RWKV 执行中，尚无回答。" : "本次运行未提交回答。");
   const verdicts = Object.values(contract.verdicts);
   const allPassed = Boolean(contract.obligations.length) && verdicts.length >= contract.obligations.length && verdicts.every((item) => item.status === "satisfied");
   const contradicted = verdicts.some((item) => item.status === "contradicted");
-  $("acceptanceBadge").textContent = summary.project ? (summary.project.status === 'completed' ? '目标检查通过；未做外部验收' : '目标检查未全部通过') : summary.request?.runtime === "direct_rwkv" ? "未进行外部验收" : allPassed ? "证据验收通过" : contradicted ? "发现矛盾" : "等待验收";
+  $("acceptanceBadge").textContent = summary.project ? '模型声明与工具事实分开记录；未做验收' : summary.request?.runtime === "direct_rwkv" ? "未进行外部验收" : allPassed ? "证据验收通过" : contradicted ? "发现矛盾" : "等待验收";
   $("acceptanceBadge").className = `review-badge ${allPassed ? "pass" : contradicted ? "fail" : "pending"}`;
   const errors = [summary.metadata?.error, ...(summary.state?.errors || []).map(pretty)].filter(Boolean);
   $("errorPanel").classList.toggle("hidden", !errors.length);
@@ -354,14 +353,14 @@ function renderOverview(summary, contract) {
 function renderContract(summary, contract) {
   if (summary.project) {
     const project = summary.project;
-    $("goalDigest").textContent = project.plan ? `计划版本 ${project.plan_version}` : '直接执行原始目标';
+    $("goalDigest").textContent = project.plan ? '初始计划' : '等待初始计划';
     $("goalRequest").textContent = summary.request?.request || '—';
     $("obligationBoard").innerHTML = (project.plan?.requirements || [{id: project.goal.id, text: project.goal.request}]).map(item =>
       `<article class="obligation"><header><code>${escapeHtml(item.id)}</code></header><p>${escapeHtml(item.text)}</p></article>`).join('');
     const tasks = project.work_items;
     $("nodeCount").textContent = `${tasks.length} tasks`;
     $("graphNodes").innerHTML = tasks.map(task =>
-      `<article class="graph-node"><header><code>${escapeHtml(task.id)}</code><span>${escapeHtml(project.task_status[task.id])}</span></header><strong>${escapeHtml(task.objective)}</strong><p>阶段：${escapeHtml(task.stage)} · 依赖：${escapeHtml(task.dependencies.join(', ') || '无')}</p></article>`).join('');
+      `<article class="graph-node"><header><code>${escapeHtml(task.id)}</code><span>${escapeHtml(project.reports[task.id]?.status || '未声明')}</span></header><strong>${escapeHtml(task.objective)}</strong><p>阶段：${escapeHtml(task.stage)} · 依赖：${escapeHtml(task.dependencies.join(', ') || '无')}</p><p>工具 ${project.step_progress.find(s => s.task_id === task.id)?.tool_calls || 0} 次 · 失败 ${project.step_progress.find(s => s.task_id === task.id)?.failed_tool_calls || 0} 次 · 文件变更 ${project.step_progress.find(s => s.task_id === task.id)?.mutation_count || 0} 次 · ${project.current_step_id === task.id ? '当前步骤' : ''}</p></article>`).join('');
     return;
   }
   $("goalDigest").textContent = summary.state?.goal_digest || "尚未创建";
@@ -380,6 +379,17 @@ function renderContract(summary, contract) {
 }
 
 function renderActions(actions) {
+  if (app.summary?.project) {
+    $("actionList").innerHTML = actions.map((row, index) => `
+      <article class="action-card">
+        <span class="sequence">${String(index + 1).padStart(2, "0")}</span>
+        <code>${escapeHtml(row.command?.function || 'operation')}</code>
+        <p>${escapeHtml(row.role)} · ${escapeHtml(row.step_id || '尚未选择步骤')}</p>
+        <span class="action-status">${escapeHtml(row.feedback?.kind || row.status)}</span>
+        <details><summary>原始命令、模型输出与实际反馈</summary><pre>${escapeHtml(pretty(row))}</pre></details>
+      </article>`).join('') || '<p class="empty-copy">等待第一条操作记录。</p>';
+    return;
+  }
   $("actionList").innerHTML = actions.length ? actions.map((action, index) => `
     <article class="action-card ${escapeHtml(statusClass(action.status))}">
       <span class="sequence">${String(index + 1).padStart(2, "0")}</span>
@@ -396,11 +406,12 @@ function isEvidenceEvent(item) {
 
 function renderEvidence(contract, events) {
   if (app.summary?.project) {
-    const checks = Object.entries(app.summary.project.verification);
-    const acceptance = app.summary.project.acceptance || {};
-    $("reviewSummary").textContent = `计划内验证记录 ${checks.length} 条，目标满足判断 ${Object.keys(acceptance).length} 条；外部验收另行运行。`;
-    $("evidenceTimeline").innerHTML = checks.map(([task, receipt]) =>
-      `<article class="evidence-card"><strong>${escapeHtml(task)} · 检查 ${escapeHtml(receipt.status)} · ${acceptance[task] ? '已判断目标满足' : '尚未判断目标满足'}</strong><pre>${escapeHtml(pretty({verification: receipt, goal_acceptance: acceptance[task] || null}))}</pre></article>`).join('');
+    const project = app.summary.project;
+    const reports = Object.entries(project.reports);
+    $("reviewSummary").textContent = `步骤声明 ${reports.length} 条，工具回执 ${project.actions.length} 条；声明不代表检查通过。`;
+    $("evidenceTimeline").innerHTML = reports.map(([task, report]) =>
+      `<article class="evidence-card"><strong>${escapeHtml(task)} · 模型声明 ${escapeHtml(report.status)}</strong><pre>${escapeHtml(pretty(report))}</pre></article>`).join('') +
+      (project.final_claim ? `<article class="evidence-card"><strong>最终报告（模型声明）</strong><pre>${escapeHtml(pretty(project.final_claim))}</pre></article>` : '');
     return;
   }
   const verdicts = Object.values(contract.verdicts);

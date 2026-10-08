@@ -11,7 +11,7 @@ from .harness import ActionHarness
 from .token_budget import tokenizer, VOCAB_PATH
 from .project_input_delta import INPUT_HANDOFF_VERSION, input_update
 from .project_decoder import build_role_decoder, available_definitions, tool_menu_update, INPUT_FRAMING, BOUNDARY_POLICY
-from .project_protocols import decision, executor
+from .project_protocols import executor
 from .runtime.structured_output import decoder_receipt, state_output_token_ids
 
 
@@ -42,7 +42,7 @@ def replay_native_rows(rows):
         role, lane = row['role'], row['lane']
         if role == 'planner':
             continue
-        {'decision': decision, 'executor': executor}[role].validate_input(row['input'])
+        {'executor': executor}[role].validate_input(row['input'])
         definitions = role_definitions(role, ActionHarness())
         exported = row['checkpoint']
         if exported['binding']['tools_digest'] != digest(definitions):
@@ -66,7 +66,7 @@ def replay_native_rows(rows):
                 or raw.get('input_bos_token_count') != 1 or raw.get('postprocessed') is not False):
             raise ValueError('original full-context Native tokens required')
         incremental = exported['binding'].get('input_handoff')
-        if incremental not in (None, INPUT_HANDOFF_VERSION):
+        if incremental != INPUT_HANDOFF_VERSION:
             raise ValueError('unknown recorded input handoff')
         retry, selected_parent = False, None
         if lane in lanes:
@@ -75,18 +75,11 @@ def replay_native_rows(rows):
                 raise ValueError('decoder changed inside a recorded lane')
             if incremental != previous['binding'].get('input_handoff'):
                 raise ValueError('input handoff changed inside a recorded lane')
-            if incremental:
-                selected_parent, event, retry = input_update(role, lane, row['input'], previous)
-                try:
-                    ids, prior_text = checkpoints[selected_parent['checkpoint_id']]
-                except KeyError as exc:
-                    raise ValueError('retry anchor is absent from verified replay') from exc
-            else:
-                # Historical bytes only: runtime resume rejects unbound checkpoints.
-                selected_parent = previous['checkpoint']
-                event = ModelEvent(event_type='project_role_input',
-                    event_id='PI-' + digest([row['input'], selected_parent['checkpoint_id']]),
-                    scope_id=lane, payload=row['input'])
+            selected_parent, event, retry = input_update(role, lane, row['input'], previous)
+            try:
+                ids, prior_text = checkpoints[selected_parent['checkpoint_id']]
+            except KeyError as exc:
+                raise ValueError('retry anchor is absent from verified replay') from exc
             suffix = render_project_event_append(event, previous_transcript=selected_parent['transcript'],
                 close_generation_anchor=decoder_id is not None,
                 tool_update=tool_menu_update(definitions, role=role, payload=row['input'], checkpoint=previous, retry=retry)
@@ -148,10 +141,6 @@ def replay_native_rows(rows):
 
 def replay_native_inputs(source):
     return replay_native_rows(list(role_boundaries(source)))
-
-
-def pack_decision_candidate(replayed, command, *, context_tokens):
-    return _pack_project_candidate(replayed, command, role='decision', context_tokens=context_tokens)
 
 
 def pack_executor_candidate(replayed, command, *, context_tokens):

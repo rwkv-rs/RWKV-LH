@@ -706,7 +706,7 @@ class ActionHarness:
                 'Use stdin for input text and env for environment variables; argv does not expand '
                 'variables or interpret shell redirection. Omitted stdin supplies EOF. Returns stdout, stderr '
                 'and the process exit code; success means expected_exit_code matched, not task acceptance. '
-                'Use this for local self-checks; run_task_checks is Decision\'s bound verification. '
+                'Use this for self-selected local checks; a passing command does not verify the whole task. '
                 'Use run_shell when workspace changes must persist.'
             ), True, False, True, 120.0,
             {

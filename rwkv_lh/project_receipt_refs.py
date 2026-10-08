@@ -33,21 +33,15 @@ def visible_references(payload):
     result = deepcopy(payload['references'])
     for fields in result.values():
         for field, values in fields.items():
-            base = field.removesuffix('_by_task')
-            if base not in ('evidence_id', 'evidence_ids', 'handoff.evidence_ids', 'verification_id'):
-                continue
-            if field.endswith('_by_task'):
-                fields[field] = {task: [inverse[key] for key in ids] for task, ids in values.items()}
-            else:
+            if field in ('evidence_id', 'evidence_ids'):
                 fields[field] = [inverse[key] for key in values]
     return result
 
 
 def resolve_command(payload, command):
     """Resolve exactly the model's selections; never infer or repair a reference."""
-    paths = {'read_receipt': ('evidence_id',), 'report_work': ('evidence_ids',),
-             'delegate': ('handoff.evidence_ids',), 'continue_current': ('handoff.evidence_ids',),
-             'accept_task': ('verification_id',)}.get(command.name, ())
+    paths = {'read_receipt': ('evidence_id',), 'report_step': ('evidence_ids',),
+             'finish_work': ('evidence_ids',)}.get(command.name, ())
     if not paths:
         return command
     params = deepcopy(command.arguments)
@@ -64,8 +58,7 @@ def resolve_command(payload, command):
             raise ValueError(f'params.{path}: select an available receipt handle from current parameter references')
         resolved = [bindings[value] for value in values]
         references = payload['references'].get(command.name, {})
-        allowed = (references[path + '_by_task'].get(params.get('task_id'), [])
-                   if path + '_by_task' in references else references.get(path, []))
+        allowed = references.get(path, [])
         if set(resolved) - set(allowed):
             raise ValueError(f'params.{path}: receipt handle is outside this action/task scope')
         node[field] = resolved if field.endswith('_ids') else resolved[0]
@@ -77,10 +70,9 @@ def render_view(fields):
     if 'receipt_bindings' not in fields:
         return deepcopy(fields)
     inverse = {value: key for key, value in fields['receipt_bindings'].items()}
-    receipt_fields = {'evidence_id', 'evidence_ids', 'action_id', 'operation_id', 'verification_id',
-                      'shared_evidence_ids', 'usable_evidence_ids'}
+    receipt_fields = {'evidence_id', 'evidence_ids', 'action_id', 'operation_id', 'usable_evidence_ids'}
     opaque = {'arguments', 'params', 'result', 'raw_result', 'output', 'raw_output',
-              'parameter_schema', 'plan', 'goal', 'goal_checks', 'task', 'requirements', 'checks'}
+              'parameter_schema', 'plan', 'current_step', 'goal', 'task', 'requirements'}
 
     def visit(value, field=None):
         if field in opaque:

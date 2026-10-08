@@ -23,7 +23,7 @@ def production_model_identity(role: str, manifest: Mapping) -> str:
     Both hashes remain independently verified; legacy role services explicitly
     identify their serialized weights. This does not permit unbound aliases.
     """
-    return manifest["source"]["sha256"] if role in ("direct_actor", "project_decision", "project_executor") else manifest["output"]["weights_sha256"]
+    return manifest["source"]["sha256"] if role in ("direct_actor", "project_executor") else manifest["output"]["weights_sha256"]
 
 
 def validate_compatibility(registration: Mapping, compatibility: Mapping, result: Mapping, *, registration_sha256: str) -> None:
@@ -276,7 +276,7 @@ def run_training(registration_reference: Mapping, output: Path, *, source_root: 
     if role == "selector_intent":
         from rwkv_lh.statetune_evaluation import validate_plan
         validate_plan(evaluation)
-    elif role in ("project_decision", "project_executor"):
+    elif role in ("project_executor",):
         from rwkv_lh.project_role_evaluation import validate_plan
         validate_plan(evaluation)
         core.require(evaluation['context_tokens'] == registration['context_tokens'],

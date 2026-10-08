@@ -86,10 +86,10 @@ def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
             max_transitions, request["max_seconds"], tool_scope=scope),
             settings=settings, session_factory=create_model_session)
     atomic_write_json(run_root / "result.json", {**result, "final_output": result["final"]})
-    submitted = result["termination"] == "submitted"
+    submitted = result["termination"] in ("submitted", "model_finished")
     execution = run_root / ("delivery/execution" if scope == "coding" else "execution")
     update_metadata(run_root, active=False, phase="finished" if submitted else "blocked",
-                    pid=None, status="submitted" if submitted else "interrupted",
+                    pid=None, status=("finished" if scope == "coding" else "submitted") if submitted else result.get("status", "interrupted"),
                     state_created=(execution / "state_snapshot.json").exists() or (execution / 'project.sqlite3').exists(),
                     termination_reason=result["termination_reason"],
                     worker_finished_at=utc_now(), result_path="result.json", error="")

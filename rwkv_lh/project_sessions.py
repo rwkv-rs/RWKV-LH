@@ -17,7 +17,7 @@ from .strong_session import StrongCompletion, StrongModelSession, KnownStrongOut
 from .supervisor_openai import SupervisorAPISettings
 from .project_runtime import RoleReply
 from .project_contracts import digest
-from .project_protocols import planner, decision, executor
+from .project_protocols import planner, executor
 from .project_output_validation import normalize_role_output, validate_role_output
 from .project_format_adapter import FORMAT_ADAPTER_VERSION, parse_role_call, rejected_call_definition
 from .token_budget import get_token_count
@@ -42,13 +42,11 @@ class ProjectInputBudgetError(InputBudgetError):
 
 class ProjectSessions:
     def __init__(self, settings, directory, *, session_factory=create_model_session,
-                 strong_settings=None, max_calls=128, decision_settings=None,
+                 strong_settings=None, max_calls=128,
                  constrained_decoding=None):
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True)
         self.settings = direct_agent_settings(RuntimeSettings.for_role('project_executor', fallback=settings))
-        self.decision_settings = decision_settings or direct_agent_settings(
-            RuntimeSettings.for_role('project_decision', fallback=settings))
         self.factory = session_factory
         self.strong_settings = strong_settings
         # Explicit deployment capacity, not a prompt/plan/evidence truncation rule.
@@ -72,14 +70,16 @@ class ProjectSessions:
         return record
 
     def _session(self, role, lane):
+        if role not in ('planner', 'executor'):
+            raise ValueError('only current Planner and Executor sessions are supported')
         if lane in self.sessions:
             return self.sessions[lane]
         if role == 'planner':
             strong = self.strong_settings or SupervisorAPISettings.from_env()
             strong = replace(strong, retry_attempts=1, semantic_repair_attempts=0,
                              plan_cache_enabled=False)
-            phase = 'project_plan_review' if lane.startswith(('plan-review-', 'check-review-')) else 'project_planning'
-            output_tokens = strong.max_review_tokens if phase == 'project_plan_review' else strong.max_plan_tokens
+            phase = 'project_planning'
+            output_tokens = strong.max_plan_tokens
             if self.planner_context_tokens <= output_tokens + 33:
                 raise ValueError('Project Planner context must exceed reserved output and safety margin')
             local = RuntimeSettings(base_url='http://unused.invalid', api_key='', model=strong.model,
@@ -88,7 +88,7 @@ class ProjectSessions:
             session = StrongModelSession(StrongCompletion(strong, self.directory, self.max_calls, phase=phase),
                                    settings=local, audit_hook=self._audit(role, lane))
         else:
-            selected = self.decision_settings if role == 'decision' else self.settings
+            selected = self.settings
             session = self.factory(settings=selected, audit_hook=self._audit(role, lane))
         session.event_renderer = render_project_event_append
         session.command_parser = parse_project_model_command
@@ -98,7 +98,7 @@ class ProjectSessions:
 
     def preflight(self, role, lane, payload, definitions, checkpoint):
         """Check input capacity and read-only setup before reserving model work."""
-        module = {'planner': planner, 'decision': decision, 'executor': executor}[role]
+        module = {'planner': planner, 'executor': executor}[role]
         module.validate_input(payload)
         if role == 'planner':
             session = self._session(role, lane)
@@ -119,7 +119,7 @@ class ProjectSessions:
                     configured_output=session.settings.action_max_output_tokens,
                     transport='planner_chat', wire_request=wire)
             return
-        selected = self.decision_settings if role == 'decision' else self.settings
+        selected = self.settings
         if checkpoint:
             parent, event, retry = input_update(role, lane, payload, checkpoint)
             delta = render_project_event_append(event, previous_transcript=parent['transcript'],
@@ -138,7 +138,7 @@ class ProjectSessions:
 
     def request(self, role, lane, payload, definitions, checkpoint):
         self.preflight(role, lane, payload, definitions, checkpoint)
-        module = {'planner': planner, 'decision': decision, 'executor': executor}[role]
+        module = {'planner': planner, 'executor': executor}[role]
         session = self._session(role, lane)
         if role == 'planner' and isinstance(session.client, StrongCompletion):
             session.client.input_builder = lambda: planner.chat_input(payload, definitions)
@@ -147,7 +147,7 @@ class ProjectSessions:
                 'input_protocol': planner.PROTOCOL, 'input_digest': digest(payload),
                 'tools_digest': digest(definitions), 'chat_input_digest': digest(planner.chat_input(payload, definitions))})
         # Use one role-aware framing adapter at every call. It retains the raw
-        # output and never chooses a Decision direction or accepts a plan.
+        # output and never chooses the next action or accepts task correctness.
         session.command_parser_with_trace = lambda raw: parse_role_call(raw, role=role, payload=payload)
         session.command_parser = lambda raw: session.command_parser_with_trace(raw)[0]
         decoder = (build_role_decoder(definitions, role=role, payload=payload)
@@ -161,9 +161,7 @@ class ProjectSessions:
             'tools_digest': digest(definitions), 'sampling_seed': session.settings.sampling_seed}
         if role == 'planner':
             from .strong_structured_output import build_tool_contract
-            # Mode and installed-plan changes select a different per-call menu,
-            # not a different role identity. StrongCompletion audits the actual
-            # request contract separately; checkpoint restoration binds the catalog.
+            # Bind the one initial-plan call to its exact tool catalog.
             binding['strong_decoder_catalog_sha256'] = build_tool_contract(definitions)['contract_sha256']
             binding['prompt_identity'] = digest({'layout': planner.CHAT_LAYOUT_VERSION,
                 'instructions': planner.INSTRUCTIONS})
@@ -179,11 +177,7 @@ class ProjectSessions:
             if checkpoint['binding'] != binding:
                 raise ValueError('role checkpoint model/protocol/tool identity mismatch')
             if role == 'planner':
-                session.import_checkpoint(checkpoint['checkpoint'])
-                # The complete planner input already carries the current plan, feedback,
-                # evidence and workspace. Replaying prior full snapshots makes retries
-                # grow with the number of attempts and can block before RWKV runs.
-                parent = session.bootstrap(ModelLaneKind.ACTION, canonical_json(payload), definitions, lane_id=lane)
+                raise ValueError('initial Planner cannot resume or replan inside an existing project')
             else:
                 selected_parent, event, retry = input_update(role, lane, payload, checkpoint)
                 session.event_renderer = partial(render_project_event_append, close_generation_anchor=decoder is not None,

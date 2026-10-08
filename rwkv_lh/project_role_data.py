@@ -7,7 +7,7 @@ from pathlib import Path
 from .project_contracts import digest
 from .project_ledger import ProjectLedger
 from .project_trace import role_boundaries
-from .project_protocols import planner, decision, executor
+from .project_protocols import planner, executor
 
 
 def file_sha(path):
@@ -52,37 +52,18 @@ def _generate_locked(ledger, registration, registration_sha, provenance, output)
         row['correction'] = None
         row['training_eligible'] = False
         row['eligibility_reason'] = 'Unreviewed extraction: no corrected target, token alignment, coverage or regression admission'
-    # Successor links are offline audit metadata, never part of a model input.
-    # Keep individual retries traceable while counting their judgment only once.
-    decisions = [row for row in rows if row['role'] == 'decision']
-    unique = {}
-    for index, row in enumerate(decisions):
-        payload = row['input']
-        unique.setdefault(payload['boundary']['id'], payload)
+    workers = [row for row in rows if row['role'] == 'executor']
+    for index, row in enumerate(workers):
         row['trajectory'] = {
-            'previous_decision_operation_id': decisions[index - 1]['operation_id'] if index else None,
-            'next_decision_operation_id': decisions[index + 1]['operation_id'] if index + 1 < len(decisions) else None,
-            'purpose': 'offline provenance only; future outcomes must not enter the earlier input',
-        }
-    progression = {
-        'returned_decisions': len(decisions), 'unique_boundaries': len(unique),
-        'boundary_kind_counts': dict(Counter(p['boundary']['kind'] for p in unique.values())),
-        'boundaries_with_execution_reports': sum(bool(p['reports']) for p in unique.values()),
-        'boundaries_with_verification': sum(bool(p['verification']) for p in unique.values()),
-        'boundaries_with_accepted_tasks': sum(
-            any(p['task_status'].get(key) == 'verified' for key in p['acceptance']) for p in unique.values()),
-        'boundaries_with_next_task_option': sum(
-            any(p['task_status'].get(key) == 'verified' for key in p['acceptance'])
-            and bool(p['boundary']['options']['delegate']) for p in unique.values()),
-        'scope': 'observed input evidence, not correct decisions or accepted training labels',
-    }
-    modules = {'planner': planner, 'decision': decision, 'executor': executor}
+            'previous_executor_operation_id': workers[index - 1]['operation_id'] if index else None,
+            'next_executor_operation_id': workers[index + 1]['operation_id'] if index + 1 < len(workers) else None,
+            'purpose': 'offline provenance only; future outcomes must not enter earlier input'}
+    modules = {'planner': planner, 'executor': executor}
     counts = dict(Counter(row['role'] for row in rows))
-    outcomes = Counter(row['result']['command']['function'] for row in decisions)
-    directions = {name: count for name, count in outcomes.items() if name in decision.OPERATIONS}
+    outcomes = Counter(row['result']['command']['function'] for row in workers)
     protocol_counts = Counter(row['input_protocol'] for row in rows)
     manifest = {
-        'schema': 'rwkv-lh.project-role-candidates.v1',
+        'schema': 'rwkv-lh.project-role-candidates.v2',
         'source_run': str(source.parent), 'source_ledger': str(source),
         'source_event_chain_tip': before, 'source_registration': str(registration),
         'source_registration_sha256': registration_sha,
@@ -92,11 +73,11 @@ def _generate_locked(ledger, registration, registration_sha, provenance, output)
         'protocol_modules': {role: {'protocol': module.PROTOCOL, 'sha256': file_sha(module.__file__)}
                              for role, module in modules.items()},
         'reconstructor_sha256': file_sha(Path(__file__).with_name('project_trace.py')),
-        'coverage': {'observed_decision_directions': dict(directions),
-                     'non_direction_outcomes': {name: count for name, count in outcomes.items()
-                                                if name not in decision.OPERATIONS},
-                     'missing_decision_directions': sorted(set(decision.OPERATIONS) - directions.keys()),
-                     'decision_progression': progression,
+        'coverage': {'observed_executor_operations': dict(outcomes),
+                     'boundaries_with_tool_feedback': sum(row['input']['action_feedback']['last_execution'] is not None for row in workers),
+                     'observed_step_selections': outcomes['select_step'],
+                     'observed_step_reports': outcomes['report_step'],
+                     'observed_finish_claims': outcomes['finish_work'],
                      'accepted_training_rows': 0},
         'split_algorithm': 'none: unreviewed source packets, no train/dev/confirmation split',
         'similarity': {'algorithm': 'canonical input SHA-256 exact equality', 'threshold': 1.0,

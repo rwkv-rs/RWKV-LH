@@ -44,8 +44,8 @@ def _function(row):
 
 def _member(row):
     payload = row['input']
-    boundary = (payload['boundary']['id'] if row['role'] == 'project_decision'
-                else [payload['assignment']['id'], payload['observations']])
+    boundary = [payload['assignment']['id'], payload['current_step'], payload['step_reports'],
+                payload['selected_evidence'], payload['observations']]
     # The verified ledger genesis survives copied/resealed manifests and later
     # source completion. Retries at one semantic boundary still count once.
     lineage = row['source_lineage_digest']
@@ -126,7 +126,7 @@ def _registration(registration, reference):
     expected = {'schema_version', 'role', 'authorization', 'candidates', 'model_sha256', 'context_tokens',
         'vocab_size', 'bos_token_id', 'minimum_boundaries', 'required_functions', 'regression_fingerprint'}
     core.require(set(registration) == expected and registration['schema_version'] == FREEZE_SCHEMA
-                 and registration['role'] in ('project_decision', 'project_executor'),
+                 and registration['role'] == 'project_executor',
                  'Project freeze/re-extraction requires a complete current registration')
     auth = registration['authorization']
     core.require(set(auth) == {'path', 'sha256'}, 'sealed Project owner authorization required')
