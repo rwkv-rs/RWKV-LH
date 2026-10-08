@@ -1,9 +1,9 @@
 """One initial plan; the Planner never executes, reviews or accepts work."""
 from copy import deepcopy
-from rwkv_lh.project_contracts import PLAN_PROTOCOL, fields, resource_budget, text
+from rwkv_lh.project_contracts import PLAN_PROTOCOL, WORKSPACE_PATH_SCHEMA, fields, resource_budget, text
 
-PROTOCOL = 'rwkv-lh.project-planner-input.v21'
-CHAT_LAYOUT_VERSION = 'project-planner-chat.v8'
+PROTOCOL = 'rwkv-lh.project-planner-input.v22'
+CHAT_LAYOUT_VERSION = 'project-planner-chat.v9'
 INSTRUCTION = (
     'Produce one initial executable plan for the original request. RWKV will execute it '
     'autonomously from actual tool feedback throughout the project. '
@@ -11,7 +11,10 @@ INSTRUCTION = (
     'execute; never require that investigation to have happened before execution starts. '
     'Cover every requirement and preserve user interfaces and protected paths. Each task '
     'states its objective, dependencies, interfaces, write scope and expected deliverable '
-    'in completion. Dependencies describe intended order, not verified results. '
+    'in completion. Scope is a literal set of permitted write paths; use an empty '
+    'scope for steps that need no file writes. Do not invent a write target for a '
+    'read-only step. Safe workspace-relative paths may use an optional ./ prefix. '
+    'Dependencies describe intended order, not verified results. '
     'Choose as many tasks and stages as needed. Do not invent existing files or results. '
     'Return submit_plan. Runtime checks structure and permissions, not plan quality.')
 INSTRUCTIONS = {'plan': INSTRUCTION}
@@ -23,14 +26,15 @@ def object_schema(properties):
 
 TEXT = {'type': 'string', 'minLength': 1}
 TEXTS = {'type': 'array', 'items': TEXT, 'uniqueItems': True}
+PATHS = {**TEXTS, 'items': WORKSPACE_PATH_SCHEMA}
 TASK_SCHEMA = object_schema({'id': TEXT, 'stage': TEXT, 'objective': TEXT,
     'requirements': {**TEXTS, 'minItems': 1}, 'dependencies': TEXTS, 'interfaces': TEXTS,
-    'scope': {**TEXTS, 'minItems': 1, 'description': "Literal write paths: '.' or './path'."},
+    'scope': {**PATHS, 'description': 'Permitted literal write paths. Empty means read-only; it grants no write authority.'},
     'completion': {**TEXT, 'description': 'Expected deliverable, not verified completion.'}})
 PLAN_SCHEMA = object_schema({'protocol': {'type': 'string', 'enum': [PLAN_PROTOCOL]},
     'requirements': {'type': 'array', 'items': object_schema({'id': TEXT, 'text': TEXT}), 'minItems': 1},
     'tasks': {'type': 'array', 'items': TASK_SCHEMA, 'minItems': 1}, 'rationale': TEXT,
-    'protected_paths': TEXTS})
+    'protected_paths': {**PATHS, 'description': 'Literal protected paths; preserve all owner-protected paths.'}})
 
 
 def build_input(request, *, feedback=None, workspace=None, protected_paths=(), remaining=None):

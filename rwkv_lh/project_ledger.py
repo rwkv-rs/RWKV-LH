@@ -3,7 +3,7 @@ from contextlib import contextmanager, closing
 from copy import deepcopy
 import fcntl
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import sqlite3
 from uuid import uuid4
 
@@ -185,7 +185,7 @@ class ProjectLedger:
         def change(state):
             if state['plan'] is not None or state['active']:
                 raise ValueError('initial plan is already installed; no online replanning')
-            if set(state['protected_paths']) - set(plan['protected_paths']):
+            if {PurePosixPath(p) for p in state['protected_paths']} - {PurePosixPath(p) for p in plan['protected_paths']}:
                 raise ValueError('plan must preserve owner protected paths')
             state['plan'] = plan
             state['plan_version'] = 1

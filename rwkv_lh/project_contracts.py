@@ -4,10 +4,17 @@ import hashlib
 import json
 from pathlib import PurePosixPath
 
-PLAN_PROTOCOL = 'rwkv-lh.project-plan.v6'
+PLAN_PROTOCOL = 'rwkv-lh.project-plan.v7'
 ASSIGNMENT_PROTOCOL = 'rwkv-lh.project-assignment.v7'
 GOAL_PROTOCOL = 'rwkv-lh.project-user-goal.v1'
 GOAL_ID = 'original-goal'
+WORKSPACE_PATH_SCHEMA = {
+    'type': 'string', 'minLength': 1,
+    'description': (
+        "Literal workspace-relative file or directory path. 'path' and './path' denote "
+        "the same path; '.' and './' denote the workspace root. Absolute paths, '..' "
+        "components, backslashes and NUL are forbidden. No globs or inferred targets."),
+}
 
 
 def digest(value):
@@ -59,11 +66,13 @@ def relative_path(value):
 
 
 def scope_path(value, *, field=None):
-    """A plan scope is path authority, so require explicit path syntax."""
+    """Validate literal write authority with the workspace's relative-path rules.
+
+    Preserve the model/owner spelling in the contract. Permission checks compare
+    POSIX paths, so equivalent safe spellings cannot change or broaden authority.
+    """
     try:
         relative_path(value)
-        if value != '.' and (not value.startswith('./') or PurePosixPath(value) == PurePosixPath('.')):
-            raise ValueError("scope path must be '.' or start with './'")
     except ValueError as exc:
         if field is not None:
             raise ValueError(f'{field}: invalid path {value!r}: {exc}') from exc
@@ -109,7 +118,7 @@ def validate_plan(value):
         if task['id'] in tasks or task['id'] == GOAL_ID:
             raise ValueError('duplicate or reserved task identity')
         for key in ('requirements', 'dependencies', 'interfaces', 'scope'):
-            strings(task[key], empty=key in ('dependencies', 'interfaces'))
+            strings(task[key], empty=key in ('dependencies', 'interfaces', 'scope'))
         if set(task['requirements']) - requirements.keys():
             raise ValueError('unknown requirement')
         covered.update(task['requirements'])

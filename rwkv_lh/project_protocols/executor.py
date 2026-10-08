@@ -4,13 +4,15 @@ from rwkv_lh.project_contracts import ASSIGNMENT_PROTOCOL, digest, fields, resou
 from rwkv_lh.project_step_progress import build_step_progress, validate_step_progress
 from rwkv_lh.project_action_feedback import build_action_feedback, validate_action_feedback
 
-PROTOCOL = 'rwkv-lh.project-executor-input.v19'
+PROTOCOL = 'rwkv-lh.project-executor-input.v20'
 INSTRUCTION = 'Choose the next tool, step report, step selection or finish_work. Return one function/params JSON call.'
 RULES = (
     'Execute the complete original_request using plan as initial guidance. You own '
     'step selection, implementation, testing, repair and termination throughout the project. '
     'Use select_step before workspace tools to identify the task and its write scope; '
-    'you may revisit any declared task. Dependencies describe intended order, '
+    'you may revisit any declared task. An empty write scope is read-only; choose '
+    'a task with the appropriate literal write paths before modifying files. '
+    'Dependencies describe intended order, '
     'not proof that earlier work succeeded. Protected paths always remain read-only. '
     'Use actual tool feedback to decide what to read, edit, run or repair next. '
     'A failed operation or file read does not mean a step is complete. report_step '

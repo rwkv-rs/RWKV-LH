@@ -42,7 +42,7 @@ CLI、批量 coding 和 Web 统一调用 `project_agent.run_project_job()`，恢
 |工具合同|`harness.py::ActionDefinition`|菜单、schema、权限、回执与 decoder 共用定义|
 |项目自测工具|`project_launch.py`|Executor 可选的隔离启动、HTTP 与浏览器检查|
 
-当前版本：Goal v1、Plan v6、Assignment v7、Ledger v17、Executor v19、Planner v21、prompt v10、Planner chat v8、输入传输 v3、边界解码策略 v3、调用包装 v9。运行标签引用模块常量。旧协议、账本、prompt 和不兼容 State 一律拒绝恢复或改标签重用。
+当前版本：Goal v1、Plan v7、Assignment v7、Ledger v17、Executor v20、Planner v22、prompt v10、Planner chat v9、输入传输 v3、边界解码策略 v3、调用包装 v9。运行标签引用模块常量。旧协议、账本、prompt 和不兼容 State 一律拒绝恢复或改标签重用。
 
 底层只读工具与独立研究依赖不构成另一条编码产品入口。模型升级通过权重、tokenizer、State、上下文和传输配置适配，不自动改变角色协议。
 
@@ -63,6 +63,8 @@ CLI、批量 coding 和 Web 统一调用 `project_agent.run_project_job()`，恢
 ## 权限、事务与中断
 
 工作区来自经身份核对的源目录副本。写入权限为当前步骤的显式范围，并叠加 owner 与初始计划的保护路径。禁止写入、路径逃逸及未知操作结果仍由宿主阻止，这些是执行边界，不是模型正确性检查。
+
+任务 `scope` 是字面写入路径集合：空数组表示只读，可读取材料但不能提交任何文件变更。字段缺失仍属协议错误。路径采用工作区相对路径规则，`file` 与 `./file`、`.` 与 `./` 权限相同；保留模型和 owner 的原始拼写，按 POSIX 路径身份比较保护范围，不猜测文件、不展开通配符。绝对路径、`..` 路径分量、反斜杠与 NUL 一律拒绝。Planner schema、计划验证、计划安装与执行权限遵循同一语义；旧计划不通过自动补字段或改路径迁移。
 
 工具在隔离副本执行。显式越权写入在执行前拒绝；命令运行后的整体变更若越权，全部不发布。合法变更以完整事务发布。失败和无变化分别保留原始回执，不产生假 mutation。命令没有跨调用持久后台服务保证；需要启动并检查项目时由模型选择现有工具。
 
