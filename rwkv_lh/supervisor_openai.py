@@ -114,9 +114,10 @@ def _int_env(name: str, default: int) -> int:
         raise ValueError(f"{name} must be an integer") from exc
 
 
-def _render_user_payload(request_payload: Mapping[str, Any]) -> str:
+def _render_user_payload(request_payload: Mapping[str, Any] | str) -> str:
     """Render authoritative requirements and repair questions at the byte tail."""
-
+    if isinstance(request_payload, str):
+        return request_payload
     tail_keys = ("immutable_request", "current_requirement", "request")
     ordered = {
         key: value
@@ -1214,7 +1215,7 @@ class OpenAICompatibleSupervisorClient:
             if phase in _STAGE_CHECKER_PHASES else self.settings.planner_request_options)
 
     def _request_json(self, *, phase: str, run_id: str, request_digest: str,
-                      system_prompt: str, request_payload: Mapping[str, Any],
+                      system_prompt: str, request_payload: Mapping[str, Any] | str,
                       schema: Mapping[str, Any], max_tokens: int, return_raw_content: bool = False,
                       tool_contract: Mapping[str, Any] | None = None) -> dict[str, Any] | str:
         selected_model = self.stage_checker_model_name if phase in _STAGE_CHECKER_PHASES else self.model_name
@@ -1258,7 +1259,7 @@ class OpenAICompatibleSupervisorClient:
         run_id: str,
         request_digest: str,
         system_prompt: str,
-        request_payload: Mapping[str, Any],
+        request_payload: Mapping[str, Any] | str,
         schema: Mapping[str, Any],
         max_tokens: int,
         selected_model: str,

@@ -8,6 +8,7 @@ import fcntl
 import hashlib
 import json
 from pathlib import Path
+import re
 import shutil
 import tempfile
 
@@ -22,12 +23,13 @@ from .token_budget import VOCAB_PATH
 from .workspace_snapshot import tree_identity
 
 SPLITS = ('train', 'dev', 'confirmation')
-REGRESSION_SCHEMA = 'rwkv-lh.project-fixed-regression.v1'
-INDEX_SCHEMA = 'rwkv-lh.project-fixed-regression-index.v1'
-PROOF_SCHEMA = 'rwkv-lh.project-freeze-proof.v1'
+REGRESSION_SCHEMA = 'rwkv-lh.project-fixed-regression.v2'
+INDEX_SCHEMA = 'rwkv-lh.project-fixed-regression-index.v2'
+PROOF_SCHEMA = 'rwkv-lh.project-freeze-proof.v2'
 REGRESSION_ROOT = Path(__file__).resolve().parents[1] / 'data/statetune_regressions'
 SIMILARITY = {'name': 'count_vector_cosine', 'encoding': 'utf-8', 'ngram_bytes': 5,
-              'threshold': 0.95, 'comparison': 'cross_split_same_role', 'index_keys': 'sha256_of_gram_bytes'}
+              'threshold': 0.95, 'comparison': 'cross_split_same_role', 'index_keys': 'sha256_of_gram_bytes',
+              'normalization': 'strip_line_initial_markdown_heading_markers_v1'}
 
 
 def _reference(path):
@@ -78,10 +80,21 @@ def _metadata_audit(members, minimum):
     return counts, boundaries
 
 
+def similarity_material(text):
+    """Ignore heading decoration for deduplication, never change the model input.
+
+    Recursive production Markdown has many repeated '#' prefixes. Their counts
+    can dominate the dot product of unrelated tasks. Keep every field name and
+    value, code body, inline hash, preprocessor directive and shebang. This also
+    makes a copied material detectable when only its heading depths change.
+    """
+    return re.sub(r'(?m)^#+[ \t]+', '', text)
+
+
 def _vector(text):
     # Hashing gram keys preserves the same count-vector cosine without storing
     # evaluation text fragments in the index used by training admission.
-    grams = _grams(text)
+    grams = _grams(similarity_material(text))
     result = {hashlib.sha256(gram).hexdigest(): count for gram, count in grams.items()}
     core.require(len(result) == len(grams), '5-gram index hash collision')
     return result
