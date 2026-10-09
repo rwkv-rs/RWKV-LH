@@ -95,7 +95,9 @@ def _build(source, operation_id, command, context_tokens, author):
     row = replay['row']
     pack = pack_executor_candidate
     packed = pack(replay, command, context_tokens=context_tokens)
-    core.require(packed['fits_context'], 'complete Project correction exceeds context; no truncation')
+    # Capturing and reviewing a correction is independent of a trainer's
+    # capacity. Keep the complete prefix; row admission below still rejects
+    # overlength samples through the shared training normalizer.
     snapshot = source['snapshots'][operation_id].parent / 'SNAPSHOT.json'
     packet = {'schema_version': PACKET_SCHEMA, 'source_manifest': source['reference'],
         'source_operation_id': operation_id, 'source_event_digest': row['source_event_digest'],
