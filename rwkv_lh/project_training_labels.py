@@ -16,7 +16,7 @@ from .project_token_data import pack_executor_candidate
 from .project_training_sources import load_source, read_reference
 
 PACKET_SCHEMA = 'rwkv-lh.project-correction-review-packet.v3'
-REVIEW_SCHEMA = 'rwkv-lh.project-correction-review-registration.v3'
+REVIEW_SCHEMA = 'rwkv-lh.project-correction-review-registration.v4'
 REVIEW_PHASE = 'project_independent_correction_review'
 REVIEW_FUNCTION = 'submit_correction_review'
 GUIDANCE = '''You independently review one proposed correction at an actual RWKV Project role boundary.
@@ -38,7 +38,9 @@ Do not invent future workspace facts or provide a replacement target. Call the
 sole submit_correction_review function, using its strict parameter schema with exactly verdict (accept or reject), issues (array of nonempty
 strings; accept requires empty), source_operation_id, input_digest, target_digest,
 reviewed_action, and rationale (nonempty string). Copy the three binding fields
-exactly. reviewed_action must be a JSON object, never prose, describing only the Proposed
+exactly. Copy reviewed_action exactly from Review bindings; its fields are fixed
+by the schema. These binding values identify the material and do not prescribe
+your verdict, issues or rationale. reviewed_action must be a JSON object, never prose, describing only the Proposed
 target. Use exactly function
 and these routing fields: execute_tool has step_id and tool; read_receipt has
 receipt_id; finish_work has outcome. Inspect all target arguments as well as its
@@ -57,11 +59,13 @@ def review_action(command):
 def review_tool_definitions(packet):
     """The review producer and verifier share one exact constrained output schema."""
     text = {'type': 'string', 'minLength': 1}
-    routing = {key: dict(text) for key in review_action(packet['proposed_target'])}
+    routing = {key: {'type': 'string', 'enum': [value]}
+               for key, value in review_action(packet['proposed_target']).items()}
     properties = {
         'verdict': {'type': 'string', 'enum': ['accept', 'reject']},
         'issues': {'type': 'array', 'items': dict(text)},
-        **{key: dict(text) for key in ('source_operation_id', 'input_digest', 'target_digest')},
+        **{key: {'type': 'string', 'enum': [packet[key]]}
+           for key in ('source_operation_id', 'input_digest', 'target_digest')},
         'reviewed_action': {'type': 'object', 'properties': routing,
                             'required': list(routing), 'additionalProperties': False},
         'rationale': dict(text)}
@@ -87,6 +91,7 @@ def build_review_input(packet):
     """One review renderer; retain failed output in provenance, not as a second target."""
     core.require(packet.get('schema_version') == PACKET_SCHEMA, 'current review packet required')
     bindings = {key: packet[key] for key in ('source_operation_id', 'input_digest', 'target_digest')}
+    bindings['reviewed_action'] = review_action(packet['proposed_target'])
     heading = 'Complete derived training window' if 'input_view' in packet else 'Complete original model input'
     material = ('# Independent correction review\n\n'
         '## ' + heading + '\n\n' + packet['input_text'] +
