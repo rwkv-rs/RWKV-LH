@@ -166,6 +166,7 @@ class ProjectSessions:
             binding['prompt_identity'] = digest({'layout': planner.CHAT_LAYOUT_VERSION,
                 'instructions': planner.INSTRUCTIONS})
         if role != 'planner':
+            binding['step_binding'] = payload['step_binding']
             binding['input_handoff'] = INPUT_HANDOFF_VERSION
             binding['prompt_identity'] = project_prompt_identity(role)
             if decoder is not None:

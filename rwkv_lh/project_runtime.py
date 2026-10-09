@@ -21,7 +21,7 @@ from .model_io import ModelCommand
 from .project_output_validation import normalize_role_output, validate_role_output
 from .project_evidence import record_delivery, executor_evidence_ids, select_evidence
 
-ARCHITECTURE = 'rwkv-lh.planned-autonomous-executor.v1'
+ARCHITECTURE = 'rwkv-lh.planned-autonomous-executor.v2'
 
 
 @dataclass(frozen=True)
@@ -47,9 +47,16 @@ def role_definitions(role, harness):
         raise ValueError('current project roles are planner and executor')
     register_project_check(harness)
     receipts = {'type': 'array', 'items': STRING, 'uniqueItems': True}
-    return deepcopy([*harness.g1i_tool_definitions(),
+    tools = deepcopy(harness.g1i_tool_definitions())
+    for tool in tools:
+        schema = tool['parameters']
+        if 'task_id' in schema['properties']:
+            raise ValueError('workspace tool argument conflicts with explicit step identity')
+        schema['properties'] = {'task_id': deepcopy(STRING), **schema['properties']}
+        schema['required'] = ['task_id', *schema.get('required', [])]
+    return deepcopy([*tools,
         definition('select_step', {'task_id': STRING},
-            description='Select any declared plan step, including revisiting one. Preserve the same project State. This does not prove dependencies or completion.'),
+            description='Under before_tool binding, select a declared step before its tool calls. Preserve the same State; this does not execute work or prove completion.'),
         definition('report_step', {'task_id': STRING,
             'status': {'type': 'string', 'enum': ['progress', 'done', 'blocked']},
             'summary': STRING, 'evidence_ids': receipts},
@@ -190,9 +197,10 @@ class ProjectRuntime:
         s = self.db.state()
         if not s['active'] or s['active']['id'] != lane:
             raise ValueError('stale worker assignment')
-        task = work_map(s).get(s['current_step_id'])
+        params = deepcopy(params)
+        task = work_map(s).get(params.pop('task_id'))
         if task is None:
-            raise ValueError('select_step is required before workspace tools')
+            raise ValueError('unknown tool task_id')
         allowed = {d['name'] for d in self.harness.g1i_tool_definitions()}
         if name not in allowed:
             raise ValueError('unknown execution operation')
@@ -205,7 +213,7 @@ class ProjectRuntime:
                 raise ValueError('workspace changed outside the recorded worker')
             policy = {'scope': task['scope'], 'protected': protected_paths(s)}
             violations = write_violations(explicit_write_targets(self.harness, action), **policy)
-            identifier = self.db.begin_operation('tool', {'assignment_id': lane, 'name': name,
+            identifier = self.db.begin_tool_operation({'assignment_id': lane, 'name': name,
                 'arguments': action.arguments, 'before': s['workspace_digest'], 'task_id': task['id'],
                 'source_operation_id': s['inbox']['operation_id']})
             transaction = self.db.root / 'tool_transactions' / identifier

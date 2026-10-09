@@ -3,6 +3,7 @@ from .schema_validation import validate_schema
 from .project_contracts import digest, validate_plan
 from .model_io import ModelCommand
 from .project_protocols import planner, executor
+from .project_action_binding import validate_action_binding
 
 ROLE_PARAMETER_NORMALIZER_VERSION = 'project-role-identity-discard.v1'
 
@@ -50,6 +51,5 @@ def validate_role_output(role, payload, command, definitions):
     if role == 'planner' and command.name == 'submit_plan':
         validate_plan(command.arguments['plan'])
     if role == 'executor':
-        if payload['current_step'] is None and command.name not in ('select_step', 'report_step', 'finish_work', 'read_receipt'):
-            raise ValueError('select_step is required before workspace tools')
+        validate_action_binding(payload, command.name, command.arguments)
         executor.validate_references(payload, command.to_wire_dict())

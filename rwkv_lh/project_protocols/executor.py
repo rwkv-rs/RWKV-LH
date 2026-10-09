@@ -3,13 +3,16 @@ from copy import deepcopy
 from rwkv_lh.project_contracts import ASSIGNMENT_PROTOCOL, digest, fields, resource_budget, text, validate_plan
 from rwkv_lh.project_step_progress import build_step_progress, validate_step_progress
 from rwkv_lh.project_action_feedback import build_action_feedback, validate_action_feedback
+from rwkv_lh.project_action_binding import validate_binding
 
-PROTOCOL = 'rwkv-lh.project-executor-input.v20'
-INSTRUCTION = 'Choose the next tool, step report, step selection or finish_work. Return one function/params JSON call.'
+PROTOCOL = 'rwkv-lh.project-executor-input.v21'
+INSTRUCTION = 'Choose the next available action. Include task_id in every workspace tool call. Return one function/params JSON call.'
 RULES = (
     'Execute the complete original_request using plan as initial guidance. You own '
     'step selection, implementation, testing, repair and termination throughout the project. '
-    'Use select_step before workspace tools to identify the task and its write scope; '
+    'Every workspace tool call must include task_id, identifying that operation\'s step and write scope. '
+    'With step_binding=with_tool, choose the step and tool together in that call. '
+    'With step_binding=before_tool, first use select_step and then provide the same task_id in the tool call. '
     'you may revisit any declared task. An empty write scope is read-only; choose '
     'a task with the appropriate literal write paths before modifying files. '
     'Dependencies describe intended order, '
@@ -17,8 +20,9 @@ RULES = (
     'Use actual tool feedback to decide what to read, edit, run or repair next. '
     'A failed operation or file read does not mean a step is complete. report_step '
     'records your progress/done/blocked claim and cited receipts; it does not change '
-    'the active step or verify anything. select_step changes focus without resetting '
-    'your State. finish_work(status=finished) ends with your final report; status=blocked '
+    'the active step or verify anything. Tool step changes preserve your State. '
+    'select_step is available only under before_tool and does not execute work. '
+    'finish_work(status=finished) ends with your final report; status=blocked '
     'ends with your stated obstacle. Either can be used without all step claims or tests, '
     'and neither proves correctness. Report actual changes, observed tests and remaining '
     'limits honestly. You may test and repair on your own. Budget exhaustion is interruption, '
@@ -41,11 +45,11 @@ def build_input(assignment, *, project_state, remaining=None):
     allowed = [key for key in project_state['evidence'] if key in executor_evidence_ids(project_state)]
     selected, updates = evidence_stream(project_state, assignment['id'])
     tasks = [task['id'] for task in project_state['plan']['tasks']]
-    references = {'select_step': {'task_id': tasks}, 'report_step': {'task_id': tasks, 'evidence_ids': allowed},
+    references = {'tool_step': {'task_id': tasks}, 'select_step': {'task_id': tasks}, 'report_step': {'task_id': tasks, 'evidence_ids': allowed},
         'finish_work': {'evidence_ids': allowed}, 'read_receipt': {'evidence_id': allowed}}
     current = next((task for task in project_state['plan']['tasks']
                     if task['id'] == project_state['current_step_id']), None)
-    return {'protocol': PROTOCOL, 'assignment': deepcopy(assignment),
+    return {'protocol': PROTOCOL, 'step_binding': validate_binding(project_state['step_binding']), 'assignment': deepcopy(assignment),
         'original_request': project_state['request'], 'plan': deepcopy(project_state['plan']),
         'current_step': deepcopy(current), 'step_reports': deepcopy(project_state['reports']),
         'remaining': resource_budget(remaining),
@@ -59,11 +63,12 @@ def build_input(assignment, *, project_state, remaining=None):
 
 
 def validate_input(value):
-    fields(value, ('protocol', 'assignment', 'original_request', 'plan', 'current_step', 'step_reports',
+    fields(value, ('protocol', 'step_binding', 'assignment', 'original_request', 'plan', 'current_step', 'step_reports',
         'remaining', 'step_progress', 'action_feedback', 'references', 'receipt_bindings',
         'selected_evidence', 'evidence_updates', 'observations', 'feedback', 'next_action'))
     if value['protocol'] != PROTOCOL or value['next_action'] != INSTRUCTION:
         raise ValueError('unsupported Executor protocol')
+    validate_binding(value['step_binding'])
     assignment = value['assignment']
     fields(assignment, ('protocol', 'id', 'task', 'contract_digest', 'plan_version',
                         'workspace_digest', 'protected_paths'))
@@ -85,11 +90,11 @@ def validate_input(value):
     from rwkv_lh.project_receipt_refs import validate_bindings
     from rwkv_lh.project_contracts import strings
     refs = value['references']
-    fields(refs, ('select_step', 'report_step', 'finish_work', 'read_receipt'))
-    for name, keys in (('select_step', ('task_id',)), ('report_step', ('task_id', 'evidence_ids')),
+    fields(refs, ('tool_step', 'select_step', 'report_step', 'finish_work', 'read_receipt'))
+    for name, keys in (('tool_step', ('task_id',)), ('select_step', ('task_id',)), ('report_step', ('task_id', 'evidence_ids')),
                        ('finish_work', ('evidence_ids',)), ('read_receipt', ('evidence_id',))):
         fields(refs[name], keys)
-    for name in ('select_step', 'report_step'):
+    for name in ('tool_step', 'select_step', 'report_step'):
         if refs[name]['task_id'] != list(tasks):
             raise ValueError('step references must preserve the whole plan')
     allowed = refs['read_receipt']['evidence_id']
@@ -142,7 +147,7 @@ def validate_input(value):
 
 def validate_references(payload, command):
     name, params = command['function'], command['params']
-    refs = payload['references'].get(name, {})
+    refs = payload['references'].get(name, payload['references']['tool_step'])
     for field, allowed in refs.items():
         values = params[field] if field.endswith('_ids') else [params[field]]
         if set(values) - set(allowed):

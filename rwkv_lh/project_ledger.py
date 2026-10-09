@@ -10,8 +10,9 @@ from uuid import uuid4
 from .project_contracts import digest, make_assignment, validate_plan, text, strings, make_goal, validate_goal, work_map
 from .workspace_snapshot import tree_identity
 from .project_record_store import RecordStore
+from .project_action_binding import WITH_TOOL, BEFORE_TOOL, validate_binding
 
-PROTOCOL = 'rwkv-lh.project-ledger.v17'
+PROTOCOL = 'rwkv-lh.project-ledger.v18'
 
 
 class UncertainOperation(RuntimeError):
@@ -28,6 +29,7 @@ class ProjectLedger:
         state = self.state()
         if state.get('protocol') != PROTOCOL:
             raise ValueError('unsupported project ledger protocol; start a new run')
+        validate_binding(state['step_binding'])
         validate_goal(state['goal'])
         if state['goal']['request'] != state['request'] or state['goal']['protected_paths'] != state['protected_paths']:
             raise ValueError('original goal differs from owner authority')
@@ -35,7 +37,7 @@ class ProjectLedger:
             validate_plan(state['plan'])
 
     @classmethod
-    def create(cls, root, *, request, workspace, max_calls, max_seconds, protected_paths=()):
+    def create(cls, root, *, request, workspace, max_calls, max_seconds, protected_paths=(), step_binding=WITH_TOOL):
         import math
         from .project_contracts import scope_path
         strings(list(protected_paths))
@@ -49,7 +51,7 @@ class ProjectLedger:
                 or not math.isfinite(max_seconds) or max_seconds <= 0):
             raise ValueError('positive finite budgets required')
         root.mkdir(parents=True, exist_ok=False)
-        state = {'protocol': PROTOCOL, 'request': text(request), 'workspace': str(workspace),
+        state = {'protocol': PROTOCOL, 'step_binding': validate_binding(step_binding), 'request': text(request), 'workspace': str(workspace),
             'workspace_digest': digest(tree_identity(workspace)), 'plan': None, 'plan_version': 0,
             'goal': make_goal(request, protected_paths), 'active': None, 'current_step_id': None,
             'reports': {}, 'pending': None, 'evidence': {}, 'feedback': None, 'sessions': {},
@@ -197,6 +199,8 @@ class ProjectLedger:
 
     def select_step(self, task_id):
         def change(state):
+            if state['step_binding'] != BEFORE_TOOL:
+                raise ValueError('standalone selection is not available; bind the tool task_id')
             if task_id not in work_map(state):
                 raise ValueError('unknown plan task')
             state['current_step_id'] = task_id
@@ -204,6 +208,30 @@ class ProjectLedger:
                 'authority': 'executor_choice'}
             state['inbox'] = None
         return self.update('step_selected', change)
+
+    def begin_tool_operation(self, payload):
+        """Persist the model's chosen step with its tool intent, never in a prior update."""
+        identifier = 'OP-' + uuid4().hex
+        def change(state):
+            if state['pending']:
+                raise UncertainOperation(state['pending']['id'])
+            inbox = state['inbox']
+            if (not inbox or inbox['role'] != 'executor'
+                    or payload['source_operation_id'] != inbox['operation_id']
+                    or payload['assignment_id'] != inbox['lane']
+                    or payload['name'] != inbox['command']['function']
+                    or payload['task_id'] != inbox['command']['params'].get('task_id')):
+                raise ValueError('tool intent differs from the model-selected operation')
+            task_id = payload['task_id']
+            if task_id not in work_map(state):
+                raise ValueError('unknown tool task_id')
+            if state['step_binding'] == BEFORE_TOOL and state['current_step_id'] != task_id:
+                raise ValueError('tool task_id differs from the prior model selection')
+            state['current_step_id'] = task_id
+            state['pending'] = {'id': identifier, 'kind': 'tool', 'payload': deepcopy(payload),
+                                'workspace_digest': state['workspace_digest']}
+        self.update('operation_started', change)
+        return identifier
 
     @staticmethod
     def _claim(state, summary, evidence_ids):

@@ -3,9 +3,10 @@ from copy import deepcopy
 from .runtime.structured_output import build_decoder_contract
 from .project_protocols import executor
 from .project_receipt_refs import visible_references
+from .project_action_binding import BEFORE_TOOL, CONTROL_ACTIONS, tool_steps
 
 INPUT_FRAMING = 'project-decoder-json-fence.v1'
-BOUNDARY_POLICY = 'project-boundary-decoder.v3'
+BOUNDARY_POLICY = 'project-boundary-decoder.v4'
 
 
 def _reference(schema, field, values):
@@ -39,8 +40,13 @@ def _boundary_parameters(role, payload, item, references):
     refs = references.get(name, {})
     if name == 'read_receipt' and not refs['evidence_id']:
         return []
-    if payload['current_step'] is None and name not in ('select_step', 'report_step', 'finish_work', 'read_receipt'):
+    if name == 'select_step' and payload['step_binding'] != BEFORE_TOOL:
         return []
+    if name not in CONTROL_ACTIONS:
+        steps = tool_steps(payload)
+        if not steps:
+            return []
+        refs = {'task_id': steps}
     current = deepcopy(schema)
     for field, values in refs.items():
         _reference(current, field, values)

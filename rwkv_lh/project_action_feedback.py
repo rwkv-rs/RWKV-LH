@@ -40,7 +40,7 @@ def build_action_feedback(state, *, role, assignment=None, references=None):
 def action_call(intent):
     """One invocation spelling; audit identity is rendered separately, not as a call."""
     if 'name' in intent and 'arguments' in intent:
-        return {'function': intent['name'], 'params': intent['arguments']}
+        return {'function': intent['name'], 'params': {'task_id': intent['task_id'], **intent['arguments']}}
     return intent
 
 

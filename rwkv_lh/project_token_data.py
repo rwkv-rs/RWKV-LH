@@ -45,6 +45,8 @@ def replay_native_rows(rows):
         {'executor': executor}[role].validate_input(row['input'])
         definitions = role_definitions(role, ActionHarness())
         exported = row['checkpoint']
+        if exported['binding'].get('step_binding') != row['input']['step_binding']:
+            raise ValueError('recorded tool step binding differs from the role input')
         if exported['binding']['tools_digest'] != digest(definitions):
             raise ValueError('recorded tool definitions differ from current production')
         cp = exported['checkpoint']
@@ -71,6 +73,8 @@ def replay_native_rows(rows):
         retry, selected_parent = False, None
         if lane in lanes:
             previous, ids, prior_text = lanes[lane]
+            if exported['binding']['step_binding'] != previous['binding']['step_binding']:
+                raise ValueError('tool step binding changed inside a recorded lane')
             if decoder_id != previous['binding'].get('decoder_catalog_sha256'):
                 raise ValueError('decoder changed inside a recorded lane')
             if incremental != previous['binding'].get('input_handoff'):
