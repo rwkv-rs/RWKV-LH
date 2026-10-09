@@ -328,7 +328,7 @@ class ModelSession:
         transcript = (
             render_independent_executor_bootstrap(assignment)
             if independent_tool_selector
-            else render_bootstrap(
+            else getattr(self, "bootstrap_renderer", render_bootstrap)(
                 visible_definitions,
                 assignment,
                 progressive_tool_disclosure=progressive_tool_disclosure,
@@ -539,7 +539,7 @@ class ModelSession:
         transcript = (
             render_independent_executor_bootstrap(assignment)
             if independent_tool_selector
-            else render_bootstrap(
+            else getattr(self, "bootstrap_renderer", render_bootstrap)(
                 visible_definitions,
                 assignment,
                 progressive_tool_disclosure=progressive_tool_disclosure,
@@ -1128,7 +1128,7 @@ class NativeRWKVModelSession(ModelSession):
         transcript = (
             render_independent_executor_bootstrap(assignment)
             if independent_tool_selector
-            else render_bootstrap(
+            else getattr(self, "bootstrap_renderer", render_bootstrap)(
                 visible_definitions,
                 assignment,
                 progressive_tool_disclosure=progressive_tool_disclosure,
@@ -1348,7 +1348,7 @@ class NativeRWKVModelSession(ModelSession):
         transcript = (
             render_independent_executor_bootstrap(assignment)
             if independent_tool_selector
-            else render_bootstrap(
+            else getattr(self, "bootstrap_renderer", render_bootstrap)(
                 visible_definitions,
                 assignment,
                 progressive_tool_disclosure=progressive_tool_disclosure,

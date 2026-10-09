@@ -9,7 +9,7 @@ from .model_session import ModelSession, InputBudgetError, create_model_session
 from .model_io import canonical_json, render_bootstrap
 from .project_model_io import (render_project_event_append, parse_project_model_command,
                                parse_project_model_command_with_trace,
-                               render_project_assignment, project_prompt_identity)
+                               render_project_assignment, project_prompt_identity, render_project_bootstrap)
 from .schema import ModelLaneKind, ModelEvent
 from .runtime.settings import RuntimeSettings, direct_agent_settings
 from .runtime.role_config import role_int
@@ -18,8 +18,8 @@ from .supervisor_openai import SupervisorAPISettings
 from .project_runtime import RoleReply
 from .project_contracts import digest
 from .project_protocols import planner, executor
-from .project_output_validation import normalize_role_output, validate_role_output
-from .project_format_adapter import FORMAT_ADAPTER_VERSION, parse_role_call, rejected_call_definition
+from .project_output_validation import validate_role_output
+from .project_model_io import CALL_PROTOCOL, parse_role_call, rejected_call_definition
 from .token_budget import get_token_count
 from .project_input_delta import INPUT_HANDOFF_VERSION, input_update, seal_input_state
 from .project_decoder import build_role_decoder, available_definitions, tool_menu_update, INPUT_FRAMING, BOUNDARY_POLICY
@@ -90,6 +90,8 @@ class ProjectSessions:
         else:
             selected = self.settings
             session = self.factory(settings=selected, audit_hook=self._audit(role, lane))
+        if role == 'executor':
+            session.bootstrap_renderer = render_project_bootstrap
         session.event_renderer = render_project_event_append
         session.command_parser = parse_project_model_command
         session.command_parser_with_trace = parse_project_model_command_with_trace
@@ -126,7 +128,7 @@ class ProjectSessions:
                 close_generation_anchor=self.constrained_decoding,
                 tool_update=tool_menu_update(definitions, role=role, payload=payload, checkpoint=checkpoint, retry=retry))
         else:
-            delta = render_bootstrap(available_definitions(definitions, role=role, payload=payload), render_project_assignment(payload))
+            delta = render_project_bootstrap(available_definitions(definitions, role=role, payload=payload), render_project_assignment(payload))
         count = get_token_count(delta)
         limit = selected.max_prompt_tokens(1)
         if count > limit:
@@ -155,7 +157,7 @@ class ProjectSessions:
         session.event_renderer = partial(render_project_event_append,
                                          close_generation_anchor=decoder is not None)
         binding = {'role': role, 'lane': lane, 'protocol': module.PROTOCOL,
-            'call_format': FORMAT_ADAPTER_VERSION,
+            'call_format': CALL_PROTOCOL,
             'model': session.settings.model, 'model_sha256': session.settings.model_sha256,
             'profile': session.settings.state_profile_id, 'profile_sha256': session.settings.state_profile_sha256,
             'tools_digest': digest(definitions), 'sampling_seed': session.settings.sampling_seed}
@@ -166,7 +168,7 @@ class ProjectSessions:
             binding['prompt_identity'] = digest({'layout': planner.CHAT_LAYOUT_VERSION,
                 'instructions': planner.INSTRUCTIONS})
         if role != 'planner':
-            binding['step_binding'] = payload['step_binding']
+            binding['action_protocol'] = executor.ACTION_PROTOCOL
             binding['input_handoff'] = INPUT_HANDOFF_VERSION
             binding['prompt_identity'] = project_prompt_identity(role)
             if decoder is not None:
@@ -211,11 +213,10 @@ class ProjectSessions:
             session.rollback(candidate, error='model output budget exhausted')
             return budget_reply({'raw_generation': candidate.raw_record()})
         normalization = None
-        parameter_normalization = None
         command = None
         try:
             command, normalization = session.parse_with_trace(candidate)
-            accepted, parameter_normalization = normalize_role_output(role, command, definitions)
+            accepted = command
             validate_role_output(role, payload, accepted, definitions)
         except (ValueError, TypeError, KeyError) as exc:
             session.rollback(candidate, error=str(exc))
@@ -230,10 +231,8 @@ class ProjectSessions:
                  'rejected_command': command.to_wire_dict() if command is not None else None,
                  'rejected_function_name': rejected_definition['name'] if rejected_definition else None,
                  'rejected_parameter_schema': rejected_definition['parameters'] if rejected_definition else None,
-                 'normalization': normalization.to_dict() if normalization and normalization.changed else None,
-                 'parameter_normalization': parameter_normalization})
+                 'normalization': normalization.to_dict() if normalization and normalization.changed else None})
         committed = session.commit(candidate, command)
         return RoleReply(accepted.to_wire_dict(), export_checkpoint(committed, rejected=False),
                          {'raw_generation': candidate.raw_record(), 'rejected': False,
-                          'normalization': normalization.to_dict() if normalization and normalization.changed else None,
-                          'parameter_normalization': parameter_normalization})
+                          'normalization': normalization.to_dict() if normalization and normalization.changed else None})

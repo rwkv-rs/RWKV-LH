@@ -33,15 +33,14 @@ def visible_references(payload):
     result = deepcopy(payload['references'])
     for fields in result.values():
         for field, values in fields.items():
-            if field in ('evidence_id', 'evidence_ids'):
+            if field in ('evidence_id', 'evidence_ids', 'receipt_id', 'receipt_ids'):
                 fields[field] = [inverse[key] for key in values]
     return result
 
 
 def resolve_command(payload, command):
     """Resolve exactly the model's selections; never infer or repair a reference."""
-    paths = {'read_receipt': ('evidence_id',), 'report_step': ('evidence_ids',),
-             'finish_work': ('evidence_ids',)}.get(command.name, ())
+    paths = {'read_receipt': ('receipt_id',), 'finish_work': ('receipt_ids',)}.get(command.name, ())
     if not paths:
         return command
     params = deepcopy(command.arguments)
@@ -70,7 +69,7 @@ def render_view(fields):
     if 'receipt_bindings' not in fields:
         return deepcopy(fields)
     inverse = {value: key for key, value in fields['receipt_bindings'].items()}
-    receipt_fields = {'evidence_id', 'evidence_ids', 'action_id', 'operation_id', 'usable_evidence_ids'}
+    receipt_fields = {'receipt_id', 'receipt_ids', 'evidence_id', 'evidence_ids', 'action_id', 'operation_id', 'usable_evidence_ids'}
     opaque = {'arguments', 'params', 'result', 'raw_result', 'output', 'raw_output',
               'parameter_schema', 'plan', 'current_step', 'goal', 'task', 'requirements'}
 

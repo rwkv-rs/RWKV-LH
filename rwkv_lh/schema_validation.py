@@ -6,6 +6,24 @@ import re
 
 def validate_schema(value, schema, path='params'):
     """The JSON Schema subset used by production role/tool definitions."""
+    if 'anyOf' in schema:
+        failures = []
+        selected_failures = []
+        for variant in schema['anyOf']:
+            try:
+                validate_schema(value, variant, path)
+                break
+            except ValueError as exc:
+                failures.append(str(exc))
+                discriminators = {key: prop['const'] for key, prop in variant.get('properties', {}).items()
+                                  if 'const' in prop}
+                if (isinstance(value, Mapping) and discriminators
+                        and all(key in value and value[key] == expected for key, expected in discriminators.items())):
+                    selected_failures.append(str(exc))
+        else:
+            # Diagnostics use an explicitly selected discriminator only after
+            # every variant failed. This never changes union acceptance.
+            raise ValueError(f'{path}: no permitted variant: ' + ' | '.join(selected_failures or failures))
     kind = schema.get('type')
     types = {'object': Mapping, 'array': list, 'string': str, 'boolean': bool,
              'integer': int, 'number': (int, float)}

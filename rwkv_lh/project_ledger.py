@@ -10,9 +10,8 @@ from uuid import uuid4
 from .project_contracts import digest, make_assignment, validate_plan, text, strings, make_goal, validate_goal, work_map
 from .workspace_snapshot import tree_identity
 from .project_record_store import RecordStore
-from .project_action_binding import WITH_TOOL, BEFORE_TOOL, validate_binding
 
-PROTOCOL = 'rwkv-lh.project-ledger.v18'
+PROTOCOL = 'rwkv-lh.project-ledger.v19'
 
 
 class UncertainOperation(RuntimeError):
@@ -29,7 +28,6 @@ class ProjectLedger:
         state = self.state()
         if state.get('protocol') != PROTOCOL:
             raise ValueError('unsupported project ledger protocol; start a new run')
-        validate_binding(state['step_binding'])
         validate_goal(state['goal'])
         if state['goal']['request'] != state['request'] or state['goal']['protected_paths'] != state['protected_paths']:
             raise ValueError('original goal differs from owner authority')
@@ -37,7 +35,7 @@ class ProjectLedger:
             validate_plan(state['plan'])
 
     @classmethod
-    def create(cls, root, *, request, workspace, max_calls, max_seconds, protected_paths=(), step_binding=WITH_TOOL):
+    def create(cls, root, *, request, workspace, max_calls, max_seconds, protected_paths=()):
         import math
         from .project_contracts import scope_path
         strings(list(protected_paths))
@@ -51,10 +49,10 @@ class ProjectLedger:
                 or not math.isfinite(max_seconds) or max_seconds <= 0):
             raise ValueError('positive finite budgets required')
         root.mkdir(parents=True, exist_ok=False)
-        state = {'protocol': PROTOCOL, 'step_binding': validate_binding(step_binding), 'request': text(request), 'workspace': str(workspace),
+        state = {'protocol': PROTOCOL, 'request': text(request), 'workspace': str(workspace),
             'workspace_digest': digest(tree_identity(workspace)), 'plan': None, 'plan_version': 0,
             'goal': make_goal(request, protected_paths), 'active': None, 'current_step_id': None,
-            'reports': {}, 'pending': None, 'evidence': {}, 'feedback': None, 'sessions': {},
+            'pending': None, 'evidence': {}, 'feedback': None, 'sessions': {},
             'calls': 0, 'elapsed': 0.0, 'max_calls': max_calls, 'max_seconds': max_seconds,
             'status': 'running', 'final': None, 'final_claim': None,
             'role_rejections': {}, 'protected_paths': list(protected_paths),
@@ -197,18 +195,6 @@ class ProjectLedger:
             state['inbox'] = None
         return self.update('plan_installed', change)
 
-    def select_step(self, task_id):
-        def change(state):
-            if state['step_binding'] != BEFORE_TOOL:
-                raise ValueError('standalone selection is not available; bind the tool task_id')
-            if task_id not in work_map(state):
-                raise ValueError('unknown plan task')
-            state['current_step_id'] = task_id
-            state['feedback'] = {'kind': 'step_selected', 'task_id': task_id,
-                'authority': 'executor_choice'}
-            state['inbox'] = None
-        return self.update('step_selected', change)
-
     def begin_tool_operation(self, payload):
         """Persist the model's chosen step with its tool intent, never in a prior update."""
         identifier = 'OP-' + uuid4().hex
@@ -219,14 +205,14 @@ class ProjectLedger:
             if (not inbox or inbox['role'] != 'executor'
                     or payload['source_operation_id'] != inbox['operation_id']
                     or payload['assignment_id'] != inbox['lane']
-                    or payload['name'] != inbox['command']['function']
-                    or payload['task_id'] != inbox['command']['params'].get('task_id')):
+                    or inbox['command']['function'] != 'execute_tool'
+                    or payload['name'] != inbox['command']['params']['tool']
+                    or payload['step_id'] != inbox['command']['params']['step_id']
+                    or payload['requested_arguments'] != inbox['command']['params']['arguments']):
                 raise ValueError('tool intent differs from the model-selected operation')
-            task_id = payload['task_id']
+            task_id = payload['step_id']
             if task_id not in work_map(state):
-                raise ValueError('unknown tool task_id')
-            if state['step_binding'] == BEFORE_TOOL and state['current_step_id'] != task_id:
-                raise ValueError('tool task_id differs from the prior model selection')
+                raise ValueError('unknown tool step_id')
             state['current_step_id'] = task_id
             state['pending'] = {'id': identifier, 'kind': 'tool', 'payload': deepcopy(payload),
                                 'workspace_digest': state['workspace_digest']}
@@ -239,30 +225,18 @@ class ProjectLedger:
         text(summary); strings(evidence_ids)
         if set(evidence_ids) - executor_evidence_ids(state):
             raise ValueError('unknown or unauthorized report evidence')
-        return {'summary': summary, 'evidence_ids': list(evidence_ids),
+        return {'summary': summary, 'receipt_ids': list(evidence_ids),
             'authority': 'executor_claim', 'source_operation_id': state['inbox']['operation_id'],
             'workspace_digest': state['workspace_digest']}
 
-    def report_step(self, task_id, status, summary, evidence_ids):
-        if status not in ('progress', 'done', 'blocked'):
-            raise ValueError('unknown step claim')
-        def change(state):
-            if task_id not in work_map(state):
-                raise ValueError('unknown plan task')
-            report = {**self._claim(state, summary, evidence_ids), 'status': status}
-            state['reports'][task_id] = report
-            state['feedback'] = {'kind': 'step_reported', 'task_id': task_id, 'report': report}
-            state['inbox'] = None
-        return self.update('step_reported', change)
-
-    def finish_work(self, status, summary, evidence_ids):
-        if status not in ('finished', 'blocked'):
+    def finish_work(self, outcome, summary, receipt_ids):
+        if outcome not in ('finished', 'blocked'):
             raise ValueError('unknown final claim')
         def change(state):
             if state['pending'] or not state['active']:
                 raise ValueError('finish requires a confirmed execution boundary')
-            claim = {**self._claim(state, summary, evidence_ids), 'status': status}
-            state.update(status=status, final=summary, final_claim=claim, inbox=None,
+            claim = {**self._claim(state, summary, receipt_ids), 'outcome': outcome}
+            state.update(status=outcome, final=summary, final_claim=claim, inbox=None,
                          feedback={'kind': 'executor_finished', 'claim': claim})
         return self.update('executor_finished', change)
 

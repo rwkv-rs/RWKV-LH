@@ -38,13 +38,14 @@ def _write(path, value):
     path.write_bytes(_canonical_bytes(value) + b'\n')
 
 
-def _function(row):
-    return json.loads(row['target_text'][:-len(JSON_CALL_STOP_SUFFIXES[0])])['function']
+def _action(row):
+    from .project_protocols.executor import action_key
+    return action_key(json.loads(row['target_text'][:-len(JSON_CALL_STOP_SUFFIXES[0])]))
 
 
 def _member(row):
     payload = row['input']
-    boundary = [payload['assignment']['id'], payload['current_step'], payload['step_reports'],
+    boundary = [payload['assignment']['id'], payload['current_step'], payload['step_progress'],
                 payload['selected_evidence'], payload['observations']]
     # The verified ledger genesis survives copied/resealed manifests and later
     # source completion. Retries at one semantic boundary still count once.
@@ -101,21 +102,21 @@ def _similarity_audit(members, vectors):
     return comparisons
 
 
-def audit_rows(rows, minimum_boundaries, required_functions):
+def audit_rows(rows, minimum_boundaries, required_actions):
     core.require(len({r['role'] for r in rows}) == 1, 'Project audit must contain exactly one role')
     members = [_member(row) for row in rows]
     counts, boundaries = _metadata_audit(members, minimum_boundaries)
-    core.require(set(required_functions) == set(SPLITS), 'registered function coverage must cover all splits')
-    coverage = {s: dict(Counter(_function(r) for r in rows if r['split'] == s)) for s in SPLITS}
-    for split, required in required_functions.items():
+    core.require(set(required_actions) == set(SPLITS), 'registered action coverage must cover all splits')
+    coverage = {s: dict(Counter(_action(r) for r in rows if r['split'] == s)) for s in SPLITS}
+    for split, required in required_actions.items():
         core.require(isinstance(required, list) and bool(required)
                      and len(set(required)) == len(required)
                      and all(isinstance(f, str) and f in coverage[split] for f in required),
-                     'registered Project function coverage is not met')
+                     'registered Project action coverage is not met')
     comparisons = _similarity_audit(members, {r['sample_id']: _vector(r['input_text']) for r in rows})
     return {'status': 'valid', 'quality_gates': {'verified_labels': True, 'family_isolation': True,
-        'distinct_boundaries': True, 'function_coverage': True, 'cross_split_similarity': True},
-        'counts': counts, 'distinct_boundaries': boundaries, 'function_counts': coverage,
+        'distinct_boundaries': True, 'action_coverage': True, 'cross_split_similarity': True},
+        'counts': counts, 'distinct_boundaries': boundaries, 'action_counts': coverage,
         'compared_pairs': comparisons, 'similarity_parameters': SIMILARITY,
         'split_algorithm': 'immutable_source_registration_by_repository_family'}
 
@@ -124,7 +125,7 @@ def _registration(registration, reference):
     from .statetune_data import FREEZE_SCHEMA, _protocol
     core.require(read_reference(reference) == registration, 'Project freeze registration differs from sealed record')
     expected = {'schema_version', 'role', 'authorization', 'candidates', 'model_sha256', 'context_tokens',
-        'vocab_size', 'bos_token_id', 'minimum_boundaries', 'required_functions', 'regression_fingerprint'}
+        'vocab_size', 'bos_token_id', 'minimum_boundaries', 'required_actions', 'regression_fingerprint'}
     core.require(set(registration) == expected and registration['schema_version'] == FREEZE_SCHEMA
                  and registration['role'] == 'project_executor',
                  'Project freeze/re-extraction requires a complete current registration')
@@ -165,7 +166,7 @@ def _prior(registration):
                  'immutable regression fingerprint differs')
     for name in ('role', 'model_sha256', 'context_tokens'):
         core.require(regression[name] == registration[name], 'immutable regression identity differs')
-    for name in ('minimum_boundaries', 'required_functions'):
+    for name in ('minimum_boundaries', 'required_actions'):
         core.require(regression[name] == {s: registration[name][s] for s in SPLITS[1:]},
                      'immutable regression coverage requirements differ')
     return folder, index, regression
@@ -208,7 +209,7 @@ def freeze_project_dataset(registration, *, registration_reference, output):
         rows += [r for split in SPLITS[1:] for r in prior['samples_by_split'][split]]
     _check_rows(rows, registration)
     rows.sort(key=lambda r: r['sample_id'])
-    audit = audit_rows(rows, registration['minimum_boundaries'], registration['required_functions'])
+    audit = audit_rows(rows, registration['minimum_boundaries'], registration['required_actions'])
     members = [_member(row) for row in rows]
     for member in members:
         source = read_reference(member['source_manifest'])
@@ -218,7 +219,7 @@ def freeze_project_dataset(registration, *, registration_reference, output):
         'model_sha256': registration['model_sha256'], 'input_protocol': protocol, 'protocol_sha256': protocol_sha,
         'context_tokens': registration['context_tokens'],
         'minimum_boundaries': {s: registration['minimum_boundaries'][s] for s in SPLITS[1:]},
-        'required_functions': {s: registration['required_functions'][s] for s in SPLITS[1:]},
+        'required_actions': {s: registration['required_actions'][s] for s in SPLITS[1:]},
         'samples_by_split': {s: [r for r in rows if r['split'] == s] for s in SPLITS[1:]}}
     if not prior:
         regression['fingerprint'] = digest(regression)
@@ -227,7 +228,7 @@ def freeze_project_dataset(registration, *, registration_reference, output):
     index = prior_index or {'schema_version': INDEX_SCHEMA, 'role': registration['role'],
         'fingerprint': regression['fingerprint'], 'regression_sha256': regression_sha,
         'members': [m for m in members if m['split'] != 'train'],
-        'function_counts': {s: audit['function_counts'][s] for s in SPLITS[1:]},
+        'action_counts': {s: audit['action_counts'][s] for s in SPLITS[1:]},
         'provenance_files': _provenance_files([r for r in rows if r['split'] != 'train']),
         'similarity_parameters': SIMILARITY,
         'similarity_vectors': {r['sample_id']: _vector(r['input_text']) for r in rows if r['split'] != 'train'}}
@@ -318,13 +319,13 @@ def admit_project_dataset(reference, *, role, expected_regression, model_sha256,
     counts, boundaries = _metadata_audit(members, registration['minimum_boundaries'])
     core.require(counts == manifest['counts'] and boundaries == proof['audit']['distinct_boundaries'],
                  'Project frozen coverage differs from source membership')
-    functions = {'train': dict(Counter(_function(r) for r in actual)), **index['function_counts']}
-    core.require(functions == proof['audit']['function_counts'] and all(
-        f in functions[s] for s in SPLITS for f in registration['required_functions'][s]),
-        'Project frozen function coverage differs from reviewed labels')
+    functions = {'train': dict(Counter(_action(r) for r in actual)), **index['action_counts']}
+    core.require(functions == proof['audit']['action_counts'] and all(
+        f in functions[s] for s in SPLITS for f in registration['required_actions'][s]),
+        'Project frozen action coverage differs from reviewed labels')
     core.require(proof['audit']['status'] == 'valid' and proof['audit']['quality_gates'] == {
         'verified_labels': True, 'family_isolation': True, 'distinct_boundaries': True,
-        'function_coverage': True, 'cross_split_similarity': True}, 'Project frozen quality proof differs')
+        'action_coverage': True, 'cross_split_similarity': True}, 'Project frozen quality proof differs')
     vectors = dict(index['similarity_vectors'])
     vectors.update({r['sample_id']: _vector(r['input_text']) for r in actual})
     core.require(_similarity_audit(members, vectors) == proof['audit']['compared_pairs'],

@@ -17,8 +17,8 @@ from .goal_state_protocols.role_trace_dataset_v1 import _source_path
 from .harness import ActionHarness
 from .model_io import JSON_CALL_STOP_SUFFIXES, ModelIOError, canonical_digest
 from .project_contracts import digest
-from .project_format_adapter import parse_role_call
-from .project_output_validation import normalize_role_output, validate_role_output
+from .project_model_io import parse_role_call
+from .project_output_validation import validate_role_output
 from .project_runtime import role_definitions
 from .project_decoder import build_role_decoder, BOUNDARY_POLICY
 from .runtime.structured_output import decoder_receipt, state_output_token_ids
@@ -165,7 +165,7 @@ def validate_cases(cases, plan):
 def _validated(raw, row):
     role = row['role'].removeprefix('project_'); definitions = role_definitions(role, ActionHarness())
     command, framing = parse_role_call(raw, role=role, payload=row['input'])
-    accepted, normalization = normalize_role_output(role, command, definitions)
+    accepted = command
     validate_role_output(role, row['input'], accepted, definitions)
     return accepted.to_wire_dict()
 

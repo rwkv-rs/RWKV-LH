@@ -42,7 +42,7 @@ def _normalize_project_row(row, *, role, row_schema, protocol, model_sha256, con
     text = row['target_text'][:-len(JSON_CALL_STOP_SUFFIXES[0])]
     wire = json.loads(text)
     core.require(set(wire) == {'function', 'params'}, 'exact training call envelope required')
-    from .project_format_adapter import parse_role_call
+    from .project_model_io import parse_role_call
     native_role = 'executor'
     command, _ = parse_role_call(text, role=native_role, payload=row['input'])
     validate_role_output(native_role, row['input'], command, role_definitions(native_role, ActionHarness()))

@@ -25,8 +25,7 @@ identifiers, current step, grounded claims and the next action.
 Task readiness means the worker can begin useful work, including reading local
 source and checking APIs. An unread local implementation is not by itself an
 external blocker. Executor may inspect workspace files with its available tools;
-task scope and protected paths constrain writes. Step selection does not claim that
-implementation has already succeeded. Reports and finish_work are model claims,
+task scope and protected paths constrain writes. Each tool action explicitly chooses its step. finish_work contains a model claim,
 not verified success. Review their content against observed evidence without inventing an online acceptance gate.
 Prior rejected output is not execution evidence. Never accept solely because a
 target parses; reject unsupported claims or a genuinely missing prerequisite.

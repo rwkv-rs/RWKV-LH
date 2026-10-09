@@ -18,10 +18,10 @@ from .observation_funnel import project_action_result
 from .project_deadline import project_deadline
 from .model_session import InputBudgetError
 from .model_io import ModelCommand
-from .project_output_validation import normalize_role_output, validate_role_output
+from .project_output_validation import validate_role_output
 from .project_evidence import record_delivery, executor_evidence_ids, select_evidence
 
-ARCHITECTURE = 'rwkv-lh.planned-autonomous-executor.v2'
+ARCHITECTURE = 'rwkv-lh.planned-autonomous-executor.v3'
 
 
 @dataclass(frozen=True)
@@ -46,26 +46,7 @@ def role_definitions(role, harness):
     if role != 'executor':
         raise ValueError('current project roles are planner and executor')
     register_project_check(harness)
-    receipts = {'type': 'array', 'items': STRING, 'uniqueItems': True}
-    tools = deepcopy(harness.g1i_tool_definitions())
-    for tool in tools:
-        schema = tool['parameters']
-        if 'task_id' in schema['properties']:
-            raise ValueError('workspace tool argument conflicts with explicit step identity')
-        schema['properties'] = {'task_id': deepcopy(STRING), **schema['properties']}
-        schema['required'] = ['task_id', *schema.get('required', [])]
-    return deepcopy([*tools,
-        definition('select_step', {'task_id': STRING},
-            description='Under before_tool binding, select a declared step before its tool calls. Preserve the same State; this does not execute work or prove completion.'),
-        definition('report_step', {'task_id': STRING,
-            'status': {'type': 'string', 'enum': ['progress', 'done', 'blocked']},
-            'summary': STRING, 'evidence_ids': receipts},
-            description='Record your step claim and actual receipts. Keep executing in the same State; no reviewer is called. This does not switch steps or verify correctness.'),
-        definition('finish_work', {'status': {'type': 'string', 'enum': ['finished', 'blocked']},
-            'summary': STRING, 'evidence_ids': receipts},
-            description='End the entire run with your report verbatim, even if steps remain or tests were not run. Finished is your claim, not verified success.'),
-        definition('read_receipt', {'evidence_id': STRING},
-            description='Retrieve an existing receipt by its listed receipt:N handle. Return its original body again; this does not rerun a tool.')])
+    return executor.action_definitions(harness.g1i_tool_definitions())
 
 
 class ProjectRuntime:
@@ -177,30 +158,28 @@ class ProjectRuntime:
             self._feedback(name, role=role, evidence_id=inbox['operation_id'])
             return
         definitions = role_definitions(role, self.harness)
-        accepted, _ = normalize_role_output(role, ModelCommand(name, params), definitions)
+        accepted = ModelCommand(name, params)
         validate_role_output(role, receipt['intent']['input'], accepted, definitions)
         params = accepted.arguments
         if role == 'planner':
             self.db.install_plan(params['plan'])
-        elif name == 'select_step':
-            self.db.select_step(**params)
-        elif name == 'report_step':
-            self.db.report_step(**params)
         elif name == 'finish_work':
             self.db.finish_work(**params)
         elif name == 'read_receipt':
-            self.expand_evidence(params['evidence_id'], executor_lane=inbox['lane'])
+            self.expand_evidence(params['receipt_id'], executor_lane=inbox['lane'])
+        elif name == 'execute_tool':
+            self._tool(params['tool'], params['arguments'], inbox['lane'], params['step_id'])
         else:
-            self._tool(name, params, inbox['lane'])
+            raise ValueError('unknown Executor action')
 
-    def _tool(self, name, params, lane):
+    def _tool(self, name, params, lane, step_id):
         s = self.db.state()
         if not s['active'] or s['active']['id'] != lane:
             raise ValueError('stale worker assignment')
         params = deepcopy(params)
-        task = work_map(s).get(params.pop('task_id'))
+        task = work_map(s).get(step_id)
         if task is None:
-            raise ValueError('unknown tool task_id')
+            raise ValueError('unknown tool step_id')
         allowed = {d['name'] for d in self.harness.g1i_tool_definitions()}
         if name not in allowed:
             raise ValueError('unknown execution operation')
@@ -214,7 +193,8 @@ class ProjectRuntime:
             policy = {'scope': task['scope'], 'protected': protected_paths(s)}
             violations = write_violations(explicit_write_targets(self.harness, action), **policy)
             identifier = self.db.begin_tool_operation({'assignment_id': lane, 'name': name,
-                'arguments': action.arguments, 'before': s['workspace_digest'], 'task_id': task['id'],
+                'arguments': action.arguments, 'requested_arguments': params,
+                'before': s['workspace_digest'], 'step_id': task['id'],
                 'source_operation_id': s['inbox']['operation_id']})
             transaction = self.db.root / 'tool_transactions' / identifier
             transaction.mkdir(parents=True)
@@ -262,7 +242,7 @@ class ProjectRuntime:
                     # The model chooses repair or an explicit handoff; unknown
                     # outcomes and scope violations still use their hard gates.
                     state['feedback'] = {'kind': 'execution_failed', 'evidence_id': identifier,
-                        'assignment_id': lane, 'task_id': task['id']}
+                        'assignment_id': lane, 'step_id': task['id']}
             # Raw evidence is retained separately from the model-facing projection.
             raw_path = self.db.root / 'raw_tools'
             raw_path.mkdir(exist_ok=True)

@@ -4,7 +4,8 @@ from .project_contracts import digest
 from .project_trace import role_boundaries
 from .project_runtime import role_definitions
 from .project_output_validation import validate_role_output
-from .model_io import canonical_json, render_bootstrap, JSON_CALL_STOP_SUFFIXES
+from .model_io import canonical_json, JSON_CALL_STOP_SUFFIXES
+from .project_model_io import render_project_bootstrap
 from .project_model_io import render_project_event_append, render_project_assignment
 from .schema import ModelEvent
 from .harness import ActionHarness
@@ -45,8 +46,8 @@ def replay_native_rows(rows):
         {'executor': executor}[role].validate_input(row['input'])
         definitions = role_definitions(role, ActionHarness())
         exported = row['checkpoint']
-        if exported['binding'].get('step_binding') != row['input']['step_binding']:
-            raise ValueError('recorded tool step binding differs from the role input')
+        if exported['binding'].get('action_protocol') != executor.ACTION_PROTOCOL:
+            raise ValueError('recorded action protocol differs from the role input')
         if exported['binding']['tools_digest'] != digest(definitions):
             raise ValueError('recorded tool definitions differ from current production')
         cp = exported['checkpoint']
@@ -73,8 +74,8 @@ def replay_native_rows(rows):
         retry, selected_parent = False, None
         if lane in lanes:
             previous, ids, prior_text = lanes[lane]
-            if exported['binding']['step_binding'] != previous['binding']['step_binding']:
-                raise ValueError('tool step binding changed inside a recorded lane')
+            if exported['binding']['action_protocol'] != previous['binding']['action_protocol']:
+                raise ValueError('action protocol changed inside a recorded lane')
             if decoder_id != previous['binding'].get('decoder_catalog_sha256'):
                 raise ValueError('decoder changed inside a recorded lane')
             if incremental != previous['binding'].get('input_handoff'):
@@ -91,7 +92,7 @@ def replay_native_rows(rows):
             expected = [*ids, *tok.encode(suffix)]
             expected_text = prior_text + suffix
         else:
-            suffix = render_bootstrap(available_definitions(definitions, role=role, payload=row['input']),
+            suffix = render_project_bootstrap(available_definitions(definitions, role=role, payload=row['input']),
                                       render_project_assignment(row['input']))
             expected = [0, *tok.encode(suffix)]
             expected_text = suffix
@@ -156,7 +157,7 @@ def _pack_project_candidate(replayed, command, *, role, context_tokens):
     if row['role'] != role:
         raise ValueError(f'{role} source required')
     target_command = canonical_json(command)
-    from .project_format_adapter import parse_role_call
+    from .project_model_io import parse_role_call
     parsed, _ = parse_role_call(target_command, role=role, payload=row['input'])
     validate_role_output(role, row['input'], parsed, role_definitions(role, ActionHarness()))
     target = target_command + JSON_CALL_STOP_SUFFIXES[0]

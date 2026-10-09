@@ -61,6 +61,7 @@ def _generate_locked(ledger, registration, registration_sha, provenance, output)
     modules = {'planner': planner, 'executor': executor}
     counts = dict(Counter(row['role'] for row in rows))
     outcomes = Counter(row['result']['command']['function'] for row in workers)
+    actions = Counter(executor.action_key(row['result']['command']) for row in workers)
     protocol_counts = Counter(row['input_protocol'] for row in rows)
     manifest = {
         'schema': 'rwkv-lh.project-role-candidates.v2',
@@ -74,9 +75,10 @@ def _generate_locked(ledger, registration, registration_sha, provenance, output)
                              for role, module in modules.items()},
         'reconstructor_sha256': file_sha(Path(__file__).with_name('project_trace.py')),
         'coverage': {'observed_executor_operations': dict(outcomes),
+                     'observed_executor_actions': dict(actions),
                      'boundaries_with_tool_feedback': sum(row['input']['action_feedback']['last_execution'] is not None for row in workers),
-                     'observed_step_selections': outcomes['select_step'],
-                     'observed_step_reports': outcomes['report_step'],
+                     'observed_tool_actions': outcomes['execute_tool'],
+                     'observed_receipt_reads': outcomes['read_receipt'],
                      'observed_finish_claims': outcomes['finish_work'],
                      'accepted_training_rows': 0},
         'split_algorithm': 'none: unreviewed source packets, no train/dev/confirmation split',

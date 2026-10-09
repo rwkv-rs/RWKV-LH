@@ -8,7 +8,7 @@ from .project_contracts import digest
 from .project_protocols import planner, executor
 from .schema import ModelEvent
 
-INPUT_HANDOFF_VERSION = 'project-input-handoff.v3'
+INPUT_HANDOFF_VERSION = 'project-input-handoff.v4'
 DELTA_EVENT_TYPE = 'project_role_input_delta'
 
 
@@ -29,7 +29,7 @@ def make_delta(previous, current):
         raise ValueError('delta cannot cross role protocol')
     return {'base_digest':digest(previous), 'target_digest':digest(current),
             'set':{key:deepcopy(value) for key,value in current.items()
-                   if key in ('step_progress', 'references', 'receipt_bindings') or key not in previous or previous[key] != value},
+                   if key == 'receipt_bindings' or key not in previous or previous[key] != value},
             'remove':sorted(set(previous)-set(current))}
 
 

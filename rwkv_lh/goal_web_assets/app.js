@@ -294,7 +294,7 @@ function renderRun() {
   const resumable = !direct && !metadata.active && metadata.state_created && ["interrupted", "stopped", "failed", "blocked"].includes(status);
   $("resumeButton").classList.toggle("hidden", !resumable);
 
-  $("obligationMetric").textContent = project ? `${Object.values(project.reports).filter(s => s.status === 'done').length} / ${project.work_items.length}` : direct ? "未评审" : `${satisfied} / ${contract.obligations.length}`;
+  $("obligationMetric").textContent = project ? `${project.step_progress.filter(s => s.tool_calls > 0).length} / ${project.work_items.length}` : direct ? "未评审" : `${satisfied} / ${contract.obligations.length}`;
   $("actionMetric").textContent = actions.length;
   $("evidenceMetric").textContent = project ? project.actions.length : evidenceEvents.length;
   $("fileMetric").textContent = app.files.length;
@@ -360,7 +360,7 @@ function renderContract(summary, contract) {
     const tasks = project.work_items;
     $("nodeCount").textContent = `${tasks.length} tasks`;
     $("graphNodes").innerHTML = tasks.map(task =>
-      `<article class="graph-node"><header><code>${escapeHtml(task.id)}</code><span>${escapeHtml(project.reports[task.id]?.status || '未声明')}</span></header><strong>${escapeHtml(task.objective)}</strong><p>阶段：${escapeHtml(task.stage)} · 依赖：${escapeHtml(task.dependencies.join(', ') || '无')}</p><p>工具 ${project.step_progress.find(s => s.task_id === task.id)?.tool_calls || 0} 次 · 失败 ${project.step_progress.find(s => s.task_id === task.id)?.failed_tool_calls || 0} 次 · 文件变更 ${project.step_progress.find(s => s.task_id === task.id)?.mutation_count || 0} 次 · ${project.current_step_id === task.id ? '当前步骤' : ''}</p></article>`).join('');
+      `<article class="graph-node"><header><code>${escapeHtml(task.id)}</code><span>${escapeHtml(project.current_step_id === task.id ? '最近执行' : '计划步骤')}</span></header><strong>${escapeHtml(task.objective)}</strong><p>阶段：${escapeHtml(task.stage)} · 依赖：${escapeHtml(task.dependencies.join(', ') || '无')}</p><p>工具 ${project.step_progress.find(s => s.step_id === task.id)?.tool_calls || 0} 次 · 失败 ${project.step_progress.find(s => s.step_id === task.id)?.failed_tool_calls || 0} 次 · 文件变更 ${project.step_progress.find(s => s.step_id === task.id)?.mutation_count || 0} 次 · ${project.current_step_id === task.id ? '当前步骤' : ''}</p></article>`).join('');
     return;
   }
   $("goalDigest").textContent = summary.state?.goal_digest || "尚未创建";
@@ -407,10 +407,9 @@ function isEvidenceEvent(item) {
 function renderEvidence(contract, events) {
   if (app.summary?.project) {
     const project = app.summary.project;
-    const reports = Object.entries(project.reports);
-    $("reviewSummary").textContent = `步骤声明 ${reports.length} 条，工具回执 ${project.actions.length} 条；声明不代表检查通过。`;
-    $("evidenceTimeline").innerHTML = reports.map(([task, report]) =>
-      `<article class="evidence-card"><strong>${escapeHtml(task)} · 模型声明 ${escapeHtml(report.status)}</strong><pre>${escapeHtml(pretty(report))}</pre></article>`).join('') +
+    $("reviewSummary").textContent = `工具回执 ${project.actions.length} 条；步骤活动和结束声明不代表验收通过。`;
+    $("evidenceTimeline").innerHTML = project.actions.map(action =>
+      `<article class="evidence-card"><strong>实际工具回执</strong><pre>${escapeHtml(pretty(action))}</pre></article>`).join('') +
       (project.final_claim ? `<article class="evidence-card"><strong>最终报告（模型声明）</strong><pre>${escapeHtml(pretty(project.final_claim))}</pre></article>` : '');
     return;
   }

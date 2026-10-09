@@ -11,10 +11,8 @@ flowchart LR
     U[原始目标与受保护路径] --> P[强 Planner：一次初始计划]
     P -->|结构合法| E[RWKV Executor：持续 State]
     P -->|协议错误| I[中断：保留原始输出]
-    E -->|task_id 与工具参数：同一次调用| T[Harness：隔离执行]
+    E -->|execute_tool：步骤、工具与参数| T[Harness：隔离执行]
     T -->|真实结果与错误| E
-    E -->|report_step| R[步骤声明与实际工具事实]
-    R --> E
     E -->|finish_work| F[模型最终报告：未验收]
     E -->|预算或未知结果| B[中断：保留恢复边界]
 ```
@@ -23,7 +21,7 @@ flowchart LR
 
 宿主校验字段、唯一标识、需求引用、依赖结构与路径权限，不评价计划是否正确合理。不合规的初始返回结束为 `planner_protocol_error`，同一任务恢复时不会重新调用 Planner。
 
-计划安装后，宿主建立一个覆盖原目标的稳定 Executor lane，完整计划送入首次输入。每次工作区工具调用都由模型显式给出 `task_id`；工具 intent 与这次选择在同一事务持久化，权限和回执绑定该步骤。切换步骤不会更换 lane、重新委派或清空 State。依赖描述计划顺序，不构成已验证依赖门；模型可以选择和重访任意已声明步骤。
+计划安装后，宿主建立一个覆盖原目标的稳定 Executor lane，完整计划送入首次输入。每次工作区工具调用都由模型显式给出 `step_id`；工具 intent 与这次选择在同一事务持久化，权限和回执绑定该步骤。切换步骤不会更换 lane、重新委派或清空 State。依赖描述计划顺序，不构成已验证依赖门；模型可以选择和重访任意已声明步骤。
 
 ## 唯一入口与模块职责
 
@@ -32,33 +30,41 @@ CLI、批量 coding 和 Web 统一调用 `project_agent.run_project_job()`，恢
 |职责|唯一实现|边界|
 |---|---|---|
 |原目标与计划合同|`project_contracts.py`|结构、引用、路径与身份；不作语义验收|
-|持久记录|`project_ledger.py`|单写者、事务、事件链、原始回执、步骤选择、声明与未决操作|
+|持久记录|`project_ledger.py`|单写者、事务、事件链、原始回执、动作步骤、结束声明与未决操作|
 |初始材料|`project_materials.py`|完整捕获被请求引用的文件；不解释需求或授予写权限|
 |初始 Planner|`project_protocols/planner.py::build_input`|一次规划；不执行工作区工具|
-|自主 Executor|`project_protocols/executor.py::build_input`|原始目标、完整计划、当前步骤、声明、工具事实、回执与预算|
-|工具步骤绑定|`project_action_binding.py`|显式步骤选择；当前协议下受控比较调用边界，不推断步骤或扩大权限|
+|自主 Executor|`project_protocols/executor.py::build_input`|原始目标、完整计划、最近工具步骤、工具事实、回执与预算|
+|动作合同|`project_protocols/executor.py::action_definitions`|执行工具、读取回执、结束；步骤与原始工具参数分离|
+|输入呈现|`project_markdown.py`、`project_model_io.py`|Markdown 工具目录、目标、计划、反馈和原始材料；唯一 bootstrap 与增量 renderer|
 |State 与实际传输|`project_sessions.py`|Native 增量、干净重试锚点、模型/协议/工具/采样身份绑定|
 |运行器|`project_runtime.py`|执行合法模型操作、落实权限、提交真实事实与预算中断|
 |Trace 重建|`project_trace.py::role_boundaries`|全链验真后调用当前生产 builder；不授予训练资格|
 |工具合同|`harness.py::ActionDefinition`|菜单、schema、权限、回执与 decoder 共用定义|
 |项目自测工具|`project_launch.py`|Executor 可选的隔离启动、HTTP 与浏览器检查|
 
-当前版本：Goal v1、Plan v7、Assignment v7、Ledger v18、Executor v21、Planner v23、prompt v10、Planner chat v10、输入传输 v3、边界解码策略 v4、调用包装 v9。运行标签引用模块常量。旧协议、账本、prompt 和不兼容 State 一律拒绝恢复或改标签重用。
+当前版本：Goal v1、Plan v7、Assignment v7、Ledger v19、Executor v22、动作 v1、Planner v23、prompt v11、Planner chat v10、输入传输 v4、边界解码策略 v5、严格调用 v2。运行标签引用模块常量。旧协议、账本、prompt 和不兼容 State 一律拒绝恢复或改标签重用。
 
 底层只读工具与独立研究依赖不构成另一条编码产品入口。模型升级通过权重、tokenizer、State、上下文和传输配置适配，不自动改变角色协议。
 
 ## Executor 操作与反馈
 
-- Harness 工具：模型在同一次调用中提供 `task_id` 与读写、搜索、运行命令或检查项目的参数。缺失或未知步骤一律拒绝；宿主不猜测、不沿用上次步骤来补参数。每次调用得到真实结果，再由同一 Executor 决定下一步。
-- `report_step(task_id, status, summary, evidence_ids)`：记录 `progress / done / blocked` 声明。不会自动切换步骤、触发审查或交回其他角色。
-- `read_receipt(evidence_id)`：重新投递已有工具回执原文，不重新执行工具。
-- `finish_work(status, summary, evidence_ids)`：`finished / blocked` 结束整个项目，报告原文保留。允许步骤未声明完成、未测试或错误时结束；宿主不补写正确答案。
+Executor 只产生一个严格的 `function/params` JSON 对象。动作参数为：
 
-当前默认绑定方式为 `with_tool`，菜单和 decoder 不提供单独 `select_step`。同一当前协议保留仅供预登记配对实验的 `before_tool` 条件：模型先调用 `select_step(task_id)`，工具仍必须显式提供相同 `task_id`；初始未选步骤时工具不可调用。它使用同一 Controller、schema、事务与权限，不接受旧协议或省略参数，没有面向用户的切换选项。绑定方式纳入输入、checkpoint 身份和 Native 回放验真，不能在同一 State lane 中更换。这项结构变更仍需真实模型配对实验验证，工程正确性不代表完成率提升。
+|动作|参数|效果|
+|---|---|---|
+|`execute_tool`|`step_id`、`tool`、`arguments`|在一次调用中选择计划步骤和工具；arguments 只含 Harness 原始工具参数|
+|`read_receipt`|`receipt_id`|重新投递已有回执原文，不重新执行工具|
+|`finish_work`|`outcome`、`summary`、`receipt_ids`|outcome 为 finished 或 blocked，保存模型原文并结束|
 
-步骤观察记录工具次数、失败次数、实际提交变更次数、路径、回执与当前选中状态。模型声明单独记录。读取文件、失败操作和成功空操作均不会被宿主写成“步骤已完成”。
+例如 `{"function":"execute_tool","params":{"step_id":"T2","tool":"read_file","arguments":{"path":"README.md"}}}`。旧工具直接调用、独立选步、步骤汇报、双绑定方式及兼容入口已删除。缺少步骤、未知工具、错误参数或多余字段一律拒绝，宿主不补齐、不丢弃字段。模型可以在没有自测或完成全部步骤时结束；finished 只代表模型声明。
 
-最新工具原始结果自动送达。回执按确认顺序提供 `receipt:N`，只在有类型的引用参数位置转换为原 OP；文件、工具内容与报告正文保持字面值。每次显式读取都有可见投递 revision，同样的正文也会再次进入增量。游标只确认实际输入包含的投递事件；无变化的旧工具正文不因后续选择或报告而重复追加。
+约束解码仍在生成时使用 guidance。schema 精确绑定全部合法步骤、各工具的参数变体、现有回执和结束枚举；必填字段不会延迟到生成后再补。schema 唯一推迟的是数组 uniqueItems 校验，宿主仍验证重复引用。非法回执不产生工具执行。强 Planner 的真实单工具 API carrier 只作确定性的传输解包；不接受模型自创别名、裸计划、额外身份或转义修复。
+
+模型的目标、计划、工具名字/描述/参数合同、事实反馈和预算统一渲染为 Markdown。实际源码、工具正文及拒绝原文按字面保留；其中本来就有的 JSON 不改写。内部输入对象用于哈希与审计，不直接序列化为 RWKV 决策提示。Native 初始输入、增量、容量检查和离线 token 回放调用同一 renderer。
+
+步骤观察只记录工具次数、失败、实际提交变更、路径、回执与最近工具步骤，不维护独立的“完成步骤”声明。工具实际参数默认值由 Harness 合同处理，模型原始 arguments 与执行后的 arguments 分别记录，防止混淆。
+
+最新工具原始结果自动送达。回执按确认顺序提供 `receipt:N`，只在有类型的引用参数位置转换为原 OP；文件、工具内容与报告正文保持字面值。每次显式读取都有可见投递 revision，同样的正文也会再次进入增量。游标只确认实际输入包含的投递事件；无变化的旧工具正文不因无关后续动作而重复追加。
 
 非法输出保留原文、错误、实际参数合同和连续拒绝事实，回到同一 Executor。拒绝生成不会提交其候选 State；干净锚点中的已确认事实保留。新工具事实或步骤变化推进正常父 State 链。Controller 不替模型选择修复、不补语义参数、不引入额外模型。
 
@@ -87,7 +93,7 @@ Planner 材料与原始输入一同持久化；Trace 通过唯一 builder 重建
 - `RESULT.json` 与外层 `DELIVERY.json`：最终状态、终止原因、模型报告、步骤事实和 mutation。
 - 开启选项时的 `generation_snapshots/`：每次生成前实际 workspace 的身份与快照。
 
-`status=finished` 与 `model_finished=true` 表示模型选择结束。当前执行流程始终保持 `completed=false`、`acceptance=not_evaluated`；外层超时可能标记不可评估。退出码 0 只表示模型正常结束并返回报告，不表示功能验收成功。Web 将步骤声明与工具事实分开显示，不能用绿灯或“已验证”代替真实验收。
+`status=finished` 与 `model_finished=true` 表示模型选择结束。当前执行流程始终保持 `completed=false`、`acceptance=not_evaluated`；外层超时可能标记不可评估。退出码 0 只表示模型正常结束并返回报告，不表示功能验收成功。Web 显示有执行记录的步骤、真实工具回执和最终模型声明，不能用绿灯或“已验证”代替真实验收。
 
 真实开发评测的 Strict、功能完成与 mutation 必须在独立结果中报告。后续独立验收不能回写这次运行的模型报告、冻结源码或评分口径。
 
@@ -97,4 +103,4 @@ Planner 材料与原始输入一同持久化；Trace 通过唯一 builder 重建
 
 候选来源需重验事件链、生成前快照、Native 完整输入 token、父 State、原始生成与实际 decoder。离线候选审查与训练准入仍独立存在，仅用于授权后的数据工作，执行器不会调用它们。未审查轨迹、机制夹具、脚本输出和参考实现不会自动成为训练数据。
 
-所有实验使用冻结源码清单与预登记预算；当前运行不依赖旧实验、旧 State 或旧调度。训练与新数据集版本另按明确授权执行。公开 CI 只验证发布源码与构建；完整工程回归和真实 Agent 成绩分别报告。
+所有实验使用冻结源码清单与预登记预算；当前运行不依赖旧实验、旧 State 或旧调度。训练与新数据集版本另按明确授权执行。公开 CI 只验证发布源码与构建；完整工程回归和真实 Agent 成绩分别报告。新开发基准覆盖 CLI、数据、API、维护、Web 与全栈的需求阅读、实现、自测、修复与交付；题目、私有黑盒、参考实现与变异验证只在本地。新任务不等于真实用户 trace，也不自动获得训练资格。

@@ -1,5 +1,5 @@
 """Literal current-role input rendering, shared by bootstrap and State updates."""
-from .model_io import canonical_json
+from .project_markdown import section
 from .project_action_feedback import action_call, action_origin, render_result, render_action_feedback
 from .project_step_progress import render_step_progress
 from .project_receipt_refs import render_view
@@ -13,7 +13,7 @@ def render_fields(fields):
                'action_feedback', 'evidence_updates', 'observations', 'step_progress'}
     for key, value in fields.items():
         if key not in special:
-            lines.append(key + ': ' + canonical_json(value))
+            lines.append(section(key, value))
     if 'step_progress' in fields:
         lines.append(render_step_progress(fields['step_progress']))
     feedback = fields.get('action_feedback')
@@ -23,17 +23,17 @@ def render_fields(fields):
         if feedback['last_execution']:
             delivered.add(feedback['last_execution']['evidence_id'])
     for identifier, receipt in fields.get('evidence_updates', {}).items():
-        lines.append('Receipt delivery: ' + canonical_json({
+        lines.append(section('Receipt delivery', {
             'evidence_id': identifier, 'delivery_revision': receipt['delivery_revision']}))
         if identifier in delivered:
             continue
         lines.extend(['Evidence ' + identifier + ' (data):',
-            'Action: ' + canonical_json(action_call(receipt['intent'])),
-            'Origin: ' + canonical_json(action_origin(receipt['intent'])),
+            section('Action', action_call(receipt['intent'])),
+            section('Origin', action_origin(receipt['intent'])),
             render_result(receipt['raw_result'] if 'raw_result' in receipt else receipt['result'])])
         delivered.add(identifier)
     for observation in fields.get('observations', []):
         # The full original body above includes the projected observation.
         if observation.get('evidence_id', observation.get('action_id')) not in delivered:
-            lines.append('Observation (data): ' + canonical_json(observation))
-    return '\n'.join(lines)
+            lines.append(section('Observation (data)', observation))
+    return '\n\n'.join(lines)

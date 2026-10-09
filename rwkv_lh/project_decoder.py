@@ -3,10 +3,9 @@ from copy import deepcopy
 from .runtime.structured_output import build_decoder_contract
 from .project_protocols import executor
 from .project_receipt_refs import visible_references
-from .project_action_binding import BEFORE_TOOL, CONTROL_ACTIONS, tool_steps
 
 INPUT_FRAMING = 'project-decoder-json-fence.v1'
-BOUNDARY_POLICY = 'project-boundary-decoder.v4'
+BOUNDARY_POLICY = 'project-boundary-decoder.v5'
 
 
 def _reference(schema, field, values):
@@ -38,19 +37,16 @@ def _reference(schema, field, values):
 def _boundary_parameters(role, payload, item, references):
     name, schema = item['name'], item['parameters']
     refs = references.get(name, {})
-    if name == 'read_receipt' and not refs['evidence_id']:
+    if name == 'read_receipt' and not refs['receipt_id']:
         return []
-    if name == 'select_step' and payload['step_binding'] != BEFORE_TOOL:
-        return []
-    if name not in CONTROL_ACTIONS:
-        steps = tool_steps(payload)
-        if not steps:
-            return []
-        refs = {'task_id': steps}
-    current = deepcopy(schema)
-    for field, values in refs.items():
-        _reference(current, field, values)
-    return [current]
+    variants = schema['anyOf'] if name == 'execute_tool' else [schema]
+    result = []
+    for variant in variants:
+        current = deepcopy(variant)
+        for field, values in refs.items():
+            _reference(current, field, values)
+        result.append(current)
+    return result
 
 
 def _current_contracts(definitions, *, role, payload):

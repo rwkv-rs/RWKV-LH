@@ -292,7 +292,7 @@ class ManualRunRepository:
         if project.is_file():
             state = ProjectLedger(project.parent).state()
             output['project'] = {key: state[key] for key in ('goal', 'plan', 'plan_version',
-                'reports', 'current_step_id', 'active', 'pending', 'feedback', 'status', 'calls', 'elapsed',
+                'current_step_id', 'active', 'pending', 'feedback', 'status', 'calls', 'elapsed',
                 'final', 'final_claim')}
             from .project_step_progress import build_step_progress
             output['project']['step_progress'] = build_step_progress(state)['steps']
@@ -308,7 +308,7 @@ class ManualRunRepository:
             output['project']['work_items'] = work_items(state)
             output['project']['actions'] = [{'action_id': key, 'operation': value['intent']['name'],
                 'arguments': value['intent']['arguments'], 'result': value['result'],
-                'task_id': value['intent']['task_id'],
+                'step_id': value['intent']['step_id'],
                 'status': 'succeeded' if value['result'].get('success') else 'failed'}
                 for key, value in state['evidence'].items() if value['kind'] == 'tool']
         if self.state_available(run_id):
