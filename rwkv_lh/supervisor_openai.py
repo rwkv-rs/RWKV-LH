@@ -1454,7 +1454,8 @@ class OpenAICompatibleSupervisorClient:
                         self._emit({'type': 'strong_tool_transport_normalized', 'call_id': call_id,
                             'contract_sha256': tool_contract['contract_sha256'],
                             'original_message': deepcopy(dict(message)), 'role_content': content,
-                            'argument_envelope_removed': tool_contract['argument_envelope'], 'semantic_fields_generated': False})
+                            'argument_encoding': tool_contract['argument_encoding'],
+                            'argument_bytes_preserved': True, 'semantic_fields_generated': False})
                     else:
                         content = message.get("content")
                     # Project roles receive the exact completed response, even

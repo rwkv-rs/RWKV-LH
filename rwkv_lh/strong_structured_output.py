@@ -1,9 +1,9 @@
 """Auditable provider schema projection; original role validation stays authoritative."""
 from copy import deepcopy
 from itertools import combinations
-from .model_io import canonical_digest, canonical_json, load_model_json
+from .model_io import canonical_digest, canonical_json
 
-PROTOCOL = 'rwkv-lh.strong-strict-tools.v3'
+PROTOCOL = 'rwkv-lh.strong-strict-tools.v4'
 _KEYWORDS = {'type', 'properties', 'required', 'additionalProperties', 'items', 'anyOf',
              'enum', 'const', 'description', 'title', 'default', 'pattern', 'format',
              'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf',
@@ -62,36 +62,25 @@ def build_tool_contract(definitions):
         raise ValueError('strict tools require unique current role definitions')
     tools, deferred = [], []
     for item in definitions:
-        # Every object, including the root, must be closed with all properties
-        # required. A nested pure anyOf preserves optional-argument omission.
-        parameters = {'type': 'object', 'properties': {
-            'params': _schema(item['parameters'], item['name'], deferred)},
-            'required': ['params'], 'additionalProperties': False}
+        # The provider carrier already identifies the function. Its arguments
+        # are the declared parameters, with no second call-envelope layer.
+        parameters = _schema(item['parameters'], item['name'], deferred)
         tools.append({'type': 'function', 'function': {'name': item['name'],
             'description': item['description'], 'strict': True,
             'parameters': parameters}})
+    choice = ({'type': 'function', 'function': {'name': definitions[0]['name']}}
+              if len(definitions) == 1 else 'required')
     contract = {'protocol': PROTOCOL, 'tools': tools, 'original_definitions': deepcopy(definitions),
-                'tool_choice': 'required', 'argument_envelope': 'params', 'deferred_constraints': deferred}
+                'tool_choice': choice, 'argument_encoding': 'direct_parameter_object',
+                'deferred_constraints': deferred}
     return {**contract, 'contract_sha256': canonical_digest(contract)}
 
 
 def tool_response_content(message):
     """Preserve the actual call carriers for the role parser, including invalid ones."""
     value = {'tool_calls': deepcopy(message.get('tool_calls', []))}
-    if isinstance(value['tool_calls'], list):
-        for item in value['tool_calls']:
-            function = item.get('function') if isinstance(item, dict) else None
-            try:
-                if not isinstance(function, dict) or not isinstance(function.get('arguments'), str):
-                    raise ValueError('invalid function carrier')
-                arguments = load_model_json(function['arguments'])
-                if not isinstance(arguments, dict) or set(arguments) != {'params'} or not isinstance(arguments['params'], dict):
-                    raise ValueError('missing or ambiguous declared params envelope')
-                function['arguments'] = canonical_json(arguments['params'])
-            except ValueError:
-                # Preserve the rejected carrier and make the entire batch fail.
-                # The original provider message is also retained in the audit.
-                value['strict_transport_error'] = 'invalid declared params envelope'
+    # Keep every arguments string byte-for-byte, including malformed JSON,
+    # duplicate keys or an obsolete wrapper. The role parser owns rejection.
     if message.get('content') not in (None, ''):
         value['content'] = message['content']
     if message.get('refusal'):

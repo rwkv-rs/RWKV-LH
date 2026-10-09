@@ -81,6 +81,6 @@ def chat_request(*, base_url=ORIGIN, model, system, user, max_tokens, stream=Fal
             raise ValueError('strict tool contract differs from current original role definitions')
         if settings['thinking'] != {'type': 'disabled'}:
             raise ValueError('DeepSeek required strict calls require thinking disabled')
-        body.update(tools=deepcopy(tool_contract['tools']), tool_choice='required')
-        body['messages'][0]['content'] += '\nCall the supplied tools with the original parameters inside the declared params field.'
+        body.update(tools=deepcopy(tool_contract['tools']), tool_choice=deepcopy(tool_contract['tool_choice']))
+        body['messages'][0]['content'] += '\nCall the selected function using its declared parameters directly.'
     return url, body, TRANSPORT

@@ -58,7 +58,7 @@ Executor 只产生一个严格的 `function/params` JSON 对象。动作参数�
 
 例如 `{"function":"execute_tool","params":{"step_id":"T2","tool":"read_file","arguments":{"path":"README.md"}}}`。旧工具直接调用、独立选步、步骤汇报、双绑定方式及兼容入口已删除。缺少步骤、未知工具、错误参数或多余字段一律拒绝，宿主不补齐、不丢弃字段。模型可以在没有自测或完成全部步骤时结束；finished 只代表模型声明。
 
-约束解码仍在生成时使用 guidance。schema 精确绑定全部合法步骤、各工具的参数变体、现有回执和结束枚举；必填字段不会延迟到生成后再补。schema 唯一推迟的是数组 uniqueItems 校验，宿主仍验证重复引用。非法回执不产生工具执行。强 Planner 的真实单工具 API carrier 只作确定性的传输解包；不接受模型自创别名、裸计划、额外身份或转义修复。
+约束解码仍在生成时使用 guidance。schema 精确绑定全部合法步骤、各工具的参数变体、现有回执和结束枚举；必填字段不会延迟到生成后再补。schema 唯一推迟的是数组 uniqueItems 校验，宿主仍验证重复引用。非法回执不产生工具执行。强 Planner 使用当前 strong-strict-tools v4 传输：唯一操作通过具名 tool_choice 指定，API arguments 直接包含该工具参数，不再套额外 params。原始 arguments 字符串逐字保留，由唯一角色 parser 校验；旧包装、模型自创别名、裸计划、额外身份和转义修复均不接受。传输格式通过不等于计划正确。
 
 模型的目标、计划、工具名字/描述/参数合同、事实反馈和预算统一渲染为 Markdown。实际源码、工具正文及拒绝原文按字面保留；其中本来就有的 JSON 不改写。内部输入对象用于哈希与审计，不直接序列化为 RWKV 决策提示。Native 初始输入、增量、容量检查和离线 token 回放调用同一 renderer。
 
