@@ -105,7 +105,7 @@ def import_source(reference, output):
 
 
 def author_correction(reference, operation, command, *, output, author, diagnosis, checks,
-                      context_tokens):
+                      context_tokens, input_view=None):
     """Store an author's correction, never synthesize or silently trim its input."""
     source = _train_source(reference)
     core.require(isinstance(diagnosis, str) and diagnosis.strip(), 'author must explain the observed error')
@@ -114,7 +114,7 @@ def author_correction(reference, operation, command, *, output, author, diagnosi
     for check in checks:
         core.require(isinstance(check, dict), 'check arguments must be objects')
         harness.normalize_action(TaskAction('check_command', check))
-    packet, packed = _build(source, operation, command, context_tokens, author)
+    packet, packed = _build(source, operation, command, context_tokens, author, input_view=input_view)
     core.require(command != source['replayed'][operation]['row']['result']['command'],
                  'an unchanged observed action is not a correction')
     output = _output(source, output)
@@ -128,13 +128,14 @@ def author_correction(reference, operation, command, *, output, author, diagnosi
     return _write(output/'CORRECTION.json', correction)
 
 
-def _load_correction(reference):
+def _load_correction(reference, *, _source_loader=load_source):
     correction = read_reference(reference)
     core.require(correction.get('schema_version') == CORRECTION_SCHEMA, 'current authored correction required')
     packet = read_reference(correction['packet'])
-    source = _train_source(packet['source_manifest'])
+    source = _source_loader(packet['source_manifest'])
+    core.require(source['registered']['split'] == 'train', 'only registered train sources enter the error corpus')
     expected, packed = _build(source, packet['source_operation_id'], packet['proposed_target'],
-                              packet['context_tokens'], packet['author'])
+                              packet['context_tokens'], packet['author'], input_view=packet.get('input_view'))
     core.require(packet == expected and read_reference(correction['supervision']) == packed,
                  'correction differs from the complete original input and authored target')
     core.require(correction['source_lineage_digest'] == source['event_root'], 'correction lineage differs')
@@ -239,14 +240,13 @@ def verify_correction(reference):
     return proof
 
 
-def load_executed_candidate(correction_reference, proof_reference, review_reference):
-    """Return a reviewed row only with the matching, still-intact execution proof.
+def _verify_execution_for_packet(correction_reference, proof_reference, reviewed_packet, *, _source_loader=load_source):
+    """Bind execution to the same original boundary and target, including a view.
 
-    This remains a candidate, not dataset admission. The caller must retain all
-    three references when freezing a corpus selection for training.
+    A derived window changes the evidence presented to the learner; it does not
+    change the source workspace on which this exact action was verified.
     """
-    from .project_training_labels import load_reviewed_candidate
-    correction, packet, packed, source = _load_correction(correction_reference)
+    correction, packet, _, source = _load_correction(correction_reference, _source_loader=_source_loader)
     proof = read_reference(proof_reference)
     directory = Path(correction_reference['path']).parent/'EXECUTION'
     core.require(Path(proof_reference['path']) == directory/'PROOF.json'
@@ -281,8 +281,16 @@ def load_executed_candidate(correction_reference, proof_reference, review_refere
                          'checks differ from registered commands')
     core.require(not _verification_gaps(receipt, correction['checks'], proof['checks_before'], proof['checks_after'])
                  and proof['verification_passed'] is True, 'correction execution verification failed')
-    core.require(packed['fits_context'], 'complete prefix exceeds training capacity; no truncation')
+    expected, packed = _build(source, packet['source_operation_id'], packet['proposed_target'],
+        packet['context_tokens'], packet['author'], input_view=reviewed_packet.get('input_view'))
+    core.require(reviewed_packet == expected, 'review describes another correction')
+    core.require(packed['fits_context'], 'complete training input exceeds training capacity; no truncation')
+
+
+def load_executed_candidate(correction_reference, proof_reference, review_reference):
+    """Return a candidate with both intact execution and independent review."""
+    from .project_training_labels import load_reviewed_candidate
     artifact = read_reference(review_reference)
     registration = read_reference(artifact['review_registration'])
-    core.require(read_reference(registration['packet']) == packet, 'review describes another correction')
+    _verify_execution_for_packet(correction_reference, proof_reference, read_reference(registration['packet']))
     return load_reviewed_candidate(review_reference)

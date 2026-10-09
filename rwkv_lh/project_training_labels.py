@@ -70,28 +70,46 @@ def review_tool_definitions(packet):
                             'required': list(properties), 'additionalProperties': False}}]
 
 
+def review_guidance(packet):
+    if 'input_view' not in packet:
+        return GUIDANCE
+    return GUIDANCE + '''\nThis material is an explicitly derived offline training window at a real boundary.
+The complete input to judge is the provided window, not the original full Native
+history. Its goal, plan, tool catalog, activity and supplied receipts come from
+the original production builder. Missing older receipt bodies are not assumed
+known. Judge whether the proposed action is grounded in THIS material. Required
+earlier receipts may be included in full. Reject a missing prerequisite rather
+than supplying it from your own knowledge. This changes training material only,
+not the production Executor or its continuous State.'''
+
+
 def build_review_input(packet):
     """One review renderer; retain failed output in provenance, not as a second target."""
     core.require(packet.get('schema_version') == PACKET_SCHEMA, 'current review packet required')
     bindings = {key: packet[key] for key in ('source_operation_id', 'input_digest', 'target_digest')}
+    heading = 'Complete derived training window' if 'input_view' in packet else 'Complete original model input'
     material = ('# Independent correction review\n\n'
-        '## Complete original model input\n\n' + packet['input_text'] +
+        '## ' + heading + '\n\n' + packet['input_text'] +
         '\n\n## Review bindings\n\n' + json.dumps(bindings, ensure_ascii=False, sort_keys=True) +
         '\n\n## Proposed target\n\n' + json.dumps(packet['proposed_target'], ensure_ascii=False, sort_keys=True))
-    return GUIDANCE, material
+    return review_guidance(packet), material
 
 
 def _reference(path):
     return {'path': str(path), 'sha256': core.sha256_file(path)}
 
 
-def _build(source, operation_id, command, context_tokens, author):
+def _build(source, operation_id, command, context_tokens, author, *, input_view=None):
     core.require(type(context_tokens) is int and context_tokens > 0, 'positive Project context required')
     core.require(isinstance(author, dict) and set(author) == {'identity', 'model'}
                  and all(isinstance(v, str) and v.strip() for v in author.values()),
                  'explicit correction author identity and model required')
     core.require(operation_id in source['replayed'], 'original Native source operation required')
     replay = source['replayed'][operation_id]
+    view_proof = None
+    if input_view is not None:
+        from .project_training_windows import materialize
+        replay, view_proof = materialize(source, operation_id, input_view)
     row = replay['row']
     pack = pack_executor_candidate
     packed = pack(replay, command, context_tokens=context_tokens)
@@ -109,17 +127,19 @@ def _build(source, operation_id, command, context_tokens, author):
         'proposed_target': command, 'target_digest': digest(command),
         'source_snapshot_manifest': _reference(snapshot), 'context_tokens': context_tokens,
         'author': dict(author), 'purpose': 'candidate_quality_review_only', 'training_eligible': False}
+    if input_view is not None:
+        packet.update(input_view=view_proof['policy'], input_view_proof=view_proof)
     return packet, packed
 
 
-def build_review_packet(source_reference, operation_id, command, *, context_tokens, author):
+def build_review_packet(source_reference, operation_id, command, *, context_tokens, author, input_view=None):
     """Rebuild facts using the sole production builder; the caller authors only a target."""
-    return _build(load_source(source_reference), operation_id, command, context_tokens, author)[0]
+    return _build(load_source(source_reference), operation_id, command, context_tokens, author, input_view=input_view)[0]
 
 
 def _review(registration, packet, reference):
     core.require(registration.get('schema_version') == REVIEW_SCHEMA
-                 and registration.get('guidance_sha256') == digest(GUIDANCE)
+                 and registration.get('guidance_sha256') == digest(review_guidance(packet))
                  and registration.get('max_requests') == 1,
                  'one preregistered independent Project review required')
     model = registration.get('reviewer_model')
@@ -234,8 +254,14 @@ def _load_reviewed_candidate(reference, *, _source_loader=load_source):
     packet = read_reference(registration['packet'])
     source = _source_loader(packet['source_manifest'])
     expected, packed = _build(source, packet['source_operation_id'], packet['proposed_target'],
-                              packet['context_tokens'], packet['author'])
+                              packet['context_tokens'], packet['author'], input_view=packet.get('input_view'))
     core.require(packet == expected, 'Project review packet differs from original production boundary')
+    if 'input_view' in packet:
+        from .project_correction_corpus import _verify_execution_for_packet
+        core.require('execution_correction' in registration and 'execution_proof' in registration,
+                     'derived window requires its original correction execution proof')
+        _verify_execution_for_packet(registration['execution_correction'], registration['execution_proof'],
+                                     packet, _source_loader=_source_loader)
     review, call_id = _review(registration, packet, artifact['trace'])
     from . import project_executor_statetune_data as adapter
     core.require(packet['role'] == adapter.ROLE, 'current Executor role required')
@@ -254,6 +280,9 @@ def _load_reviewed_candidate(reference, *, _source_loader=load_source):
         source_ledger_sha256=source['ledger_sha256'], review=review, review_sha256=digest(review),
         review_reference=dict(reference), reviewer_call_id=call_id,
         sample_id=digest([source['event_root'], packet['source_operation_id'], packet['target_digest']]))
+    if 'input_view' in packet:
+        row.update(input_view=packet['input_view'], input_view_proof=packet['input_view_proof'],
+                   server_input_verified=False, source_server_input_verified=True, derived_input_verified=True)
     adapter.normalize_row(row, model_sha256=row['model_sha256'], context_tokens=row['context_tokens'],
                           vocab_size=65536, bos_token_id=0, expected_split=row['split'])
     return row

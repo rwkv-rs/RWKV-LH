@@ -27,8 +27,12 @@ def _normalize_project_row(row, *, role, row_schema, protocol, model_sha256, con
     source, target = row.get('input_token_ids'), row.get('target_token_ids')
     core.require(all(isinstance(ids, list) and ids and all(type(t) is int and 0 <= t < vocab_size for t in ids)
                      for ids in (source, target)), 'invalid project token IDs')
-    core.require(source[:1] == [bos_token_id] and row.get('server_input_verified') is True,
-                 'full server input with true BOS required')
+    core.require(source[:1] == [bos_token_id], 'true BOS required')
+    if 'input_view' in row:
+        from .project_training_windows import validate_row_view
+        validate_row_view(row)
+    else:
+        core.require(row.get('server_input_verified') is True, 'full server input with true BOS required')
     core.require(len(source) + len(target) - 1 <= context_tokens, 'executor source exceeds context; no truncation')
     try:
         input_text = tokenizer().decode_bytes(source[1:]).decode('utf-8')
