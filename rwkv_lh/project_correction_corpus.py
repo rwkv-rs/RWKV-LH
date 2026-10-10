@@ -13,6 +13,8 @@ from .project_training_sources import load_source, read_reference
 from .project_training_labels import _build
 from .project_ledger import ProjectLedger
 from .project_runtime import ProjectRuntime
+from .project_receipt_refs import resolve_command
+from .model_io import ModelCommand
 from .harness import ActionHarness
 from .schema import GoalState, TaskAction
 from .workspace_snapshot import tree_identity, copy_verified_workspace
@@ -115,7 +117,7 @@ def author_correction(reference, operation, command, *, output, author, diagnosi
         core.require(isinstance(check, dict), 'check arguments must be objects')
         harness.normalize_action(TaskAction('check_command', check))
     packet, packed = _build(source, operation, command, context_tokens, author, input_view=input_view)
-    core.require(command != source['replayed'][operation]['row']['result']['command'],
+    core.require(_resolved_command(packet) != source['replayed'][operation]['row']['result']['command'],
                  'an unchanged observed action is not a correction')
     output = _output(source, output)
     output.mkdir(parents=True, exist_ok=False)
@@ -163,9 +165,9 @@ def _checks(checks, source_workspace, output):
 
 def _verification_gaps(receipt, checks, before, after):
     gaps = []
-    if not receipt['success']:
+    if receipt is not None and not receipt['success']:
         gaps.append('corrected_action_failed')
-    changed = receipt['metadata']['changed_paths']
+    changed = receipt['metadata']['changed_paths'] if receipt is not None else []
     if changed and not checks:
         gaps.append('changed_action_requires_checks')
     if after and not all(r['success'] for r in after):
@@ -175,16 +177,131 @@ def _verification_gaps(receipt, checks, before, after):
     return gaps
 
 
+def _resolved_command(packet):
+    command = packet['proposed_target']
+    return resolve_command(packet['input'], ModelCommand(command['function'], command['params'])).to_wire_dict()
+
+
+def _control_context(source, packet):
+    """Recover only evidence that existed before this actual generation.
+
+    Imported receipts retain their original identities and bytes. The offline
+    ledger explicitly imports them; it never invents past model/tool events.
+    """
+    snapshot = read_reference(packet['source_snapshot_manifest'])
+    found = []
+    with ProjectLedger.read_snapshot(source['ledger'].root) as ledger:
+        def collect(event):
+            if event['digest'] == snapshot['source_event_digest']:
+                found.append(event)
+        ledger.scan_verified_events(collect)
+    core.require(len(found) == 1, 'original control boundary must be unique')
+    event = found[0]
+    state = event['state']
+    pending = state['pending']
+    core.require(event['kind'] == 'operation_started' and pending
+                 and pending['id'] == packet['source_operation_id'] and pending['kind'] == 'model'
+                 and state['plan'] == packet['input']['plan'], 'original control boundary differs')
+    # This is the original production input, even when the training packet is
+    # a separately derived window. Future results never enter either prefix.
+    original = source['replayed'][packet['source_operation_id']]['row']['input']
+    core.require(pending['payload']['input_digest'] == digest(original), 'original input binding differs')
+    history = {key: deepcopy(state[key]) for key in ('active', 'current_step_id', 'selected_evidence')}
+    history['evidence'] = {key: deepcopy(value) for key, value in state['evidence'].items()
+                           if value['kind'] == 'tool'}
+    files = {}
+    for receipt in history['evidence'].values():
+        raw = receipt['result'].get('raw_receipt')
+        if raw:
+            path = (ledger.root / raw['path']).resolve(strict=True)
+            core.require(ledger.root in path.parents, 'imported receipt outside original records')
+            body = json.loads(path.read_text())
+            core.require(digest(body) == raw['content_digest'], 'original imported receipt digest differs')
+            files[raw['path']] = _reference(path)
+    binding = {'source_event_digest': event['digest'], 'imported_state_digest': digest(history),
+               'receipt_files': files}
+    return history, binding
+
+
+def _import_control_context(db, source, packet):
+    history, binding = _control_context(source, packet)
+    for relative, reference in binding['receipt_files'].items():
+        path = db.root / relative
+        core.require(not Path(relative).is_absolute() and '..' not in Path(relative).parts
+                     and not path.exists(), 'invalid imported receipt destination')
+        core.verify_file(Path(reference['path']), reference['sha256'])
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open('xb') as stream:
+            stream.write(Path(reference['path']).read_bytes())
+    def apply(state):
+        state.update(deepcopy(history))
+        state['offline_source_context'] = deepcopy(binding)
+    db.update('offline_correction_source_imported', apply)
+    return binding
+
+
+def _control_event(event):
+    return {key: event[key] for key in ('kind', 'digest')} | {'state_digest': digest(event['state'])}
+
+
+def _verify_control_state(db, tip, source, packet, proof):
+    history, binding = _control_context(source, packet)
+    state = tip['state']
+    command = _resolved_command(packet)
+    name, params = command['function'], command['params']
+    identifier = 'OFFLINE-' + digest({'source': packet['source_event_digest'], 'target': packet['target_digest']})
+    core.require(proof['source_context'] == binding == state.get('offline_source_context')
+                 and state['active'] == history['active'] and state['evidence'] == history['evidence']
+                 and state['current_step_id'] == history['current_step_id'], 'imported control evidence differs')
+    for relative, reference in binding['receipt_files'].items():
+        core.verify_file(db.root / relative, reference['sha256'])
+    core.require(state['calls'] == 0 and not state['sessions'] and state['pending'] is None
+                 and state['inbox'] is None and proof['model_calls'] == 0,
+                 'offline controls may not invent model calls or checkpoints')
+    core.require(proof['execution_success'] is True and proof['receipt'] is None and proof['changed_paths'] == []
+                 and proof['before_tree'] == proof['after_tree']
+                 and proof['control_event'] == _control_event(tip), 'control proof is not its actual event')
+    if name == 'finish_work':
+        claim = state['final_claim']
+        core.require(tip['kind'] == 'executor_finished' and state['status'] == params['outcome']
+                     and state['final'] == params['summary'] and claim['summary'] == params['summary']
+                     and claim['outcome'] == params['outcome'] and claim['receipt_ids'] == params['receipt_ids']
+                     and claim['authority'] == 'executor_claim'
+                     and claim['source_operation_id'] == identifier
+                     and claim['workspace_digest'] == state['workspace_digest']
+                     and state['feedback'] == {'kind': 'executor_finished', 'claim': claim},
+                     'final declaration differs from correction')
+        core.require(state['selected_evidence'] == history['selected_evidence'], 'finish changed delivered evidence')
+    else:
+        core.require(name == 'read_receipt' and tip['kind'] == 'evidence_selected'
+                     and state['status'] == 'running' and state['final_claim'] is None,
+                     'receipt correction changed final status')
+        lane, receipt_id = state['active']['id'], params['receipt_id']
+        expected = deepcopy(history['selected_evidence'])
+        evidence = deepcopy(history['evidence'][receipt_id])
+        raw = evidence['result'].get('raw_receipt')
+        if raw:
+            evidence['raw_result'] = json.loads((db.root / raw['path']).read_text())
+        selected = expected.setdefault(lane, {})
+        revision = selected.get(receipt_id, {}).get('revision', 0) + 1
+        selected[receipt_id] = {'revision': revision, 'evidence': evidence}
+        core.require(state['selected_evidence'] == expected
+                     and state['feedback'] == {'kind': 'receipt_requested', 'evidence_id': receipt_id,
+                                              'request_operation_id': identifier},
+                     'receipt delivery differs from actual source')
+
+
 def verify_correction(reference):
-    """Execute one corrected tool action through ProjectRuntime in a new ledger.
+    """Execute one current Executor action through production methods offline.
 
     The ledger explicitly records an offline author. It contains no model call,
     checkpoint or invented RWKV response, and is not a new training source.
     """
     correction, packet, packed, source = _load_correction(reference)
-    command = packet['proposed_target']
-    core.require(command['function'] == 'execute_tool',
-                 'receipt/finish corrections require evidence review; this verifier executes tools only')
+    command = _resolved_command(packet)
+    core.require(command['function'] in ('execute_tool', 'read_receipt', 'finish_work'),
+                 'current Executor correction required')
+    control = command['function'] != 'execute_tool'
     directory = Path(reference['path']).parent/'EXECUTION'
     directory.mkdir(exist_ok=False)
     before = source['snapshots'][packet['source_operation_id']]
@@ -194,6 +311,7 @@ def verify_correction(reference):
     db = ProjectLedger.create(directory/'execution', request=packet['input']['original_request'],
         workspace=workspace, max_calls=1, max_seconds=180, protected_paths=plan['protected_paths'])
     db.install_plan(plan)
+    source_context = _import_control_context(db, source, packet) if control else None
     state = db.state()
     identifier = 'OFFLINE-' + digest({'source': packet['source_event_digest'], 'target': packet['target_digest']})
     def bind(s):
@@ -209,14 +327,21 @@ def verify_correction(reference):
     runtime = ProjectRuntime(db, NoModelCalls())
     params = command['params']
     with db.lease():
-        runtime._tool(params['tool'], params['arguments'], state['active']['id'], params['step_id'])
-    evidence = [r for r in db.state()['evidence'].values() if r['kind'] == 'tool']
-    core.require(len(evidence) == 1, 'one actual correction tool receipt required')
-    raw_ref = evidence[0]['result']['raw_receipt']
-    receipt = json.loads((db.root/raw_ref['path']).read_text())
-    core.require(digest(receipt) == raw_ref['content_digest'], 'correction receipt changed')
+        if command['function'] == 'execute_tool':
+            runtime._tool(params['tool'], params['arguments'], state['active']['id'], params['step_id'])
+        elif command['function'] == 'read_receipt':
+            runtime.expand_evidence(params['receipt_id'], executor_lane=state['active']['id'])
+        else:
+            db.finish_work(**params)
+    receipt = None
+    if not control:
+        evidence = [r for r in db.state()['evidence'].values() if r['kind'] == 'tool']
+        core.require(len(evidence) == 1, 'one actual correction tool receipt required')
+        raw_ref = evidence[0]['result']['raw_receipt']
+        receipt = json.loads((db.root/raw_ref['path']).read_text())
+        core.require(digest(receipt) == raw_ref['content_digest'], 'correction receipt changed')
     checks_after = _checks(correction['checks'], workspace, directory/'checks_after')
-    changed = receipt['metadata']['changed_paths']
+    changed = [] if control else receipt['metadata']['changed_paths']
     gaps = _verification_gaps(receipt, correction['checks'], checks_before, checks_after)
     verified = not gaps
     if not packed['fits_context']:
@@ -231,11 +356,15 @@ def verify_correction(reference):
         'execution_tree': tree_identity(db.root, exclude_git=False),
         'checks_files': {key: _reference(directory/key/'RESULTS.json')
                          for key in ('checks_before', 'checks_after') if correction['checks']},
-        'receipt': receipt, 'execution_success': receipt['success'], 'changed_paths': changed,
+        'receipt': receipt, 'execution_success': True if control else receipt['success'], 'changed_paths': changed,
         'checks_before': checks_before, 'checks_after': checks_after,
         'verification_passed': verified, 'fits_context': packed['fits_context'],
         'training_eligible': False, 'admission_gaps': gaps, 'model_calls': 0,
         'implementation_sha256': core.sha256_file(__file__)}
+    if control:
+        tip = db.scan_verified_events()
+        proof.update(source_context=source_context, control_event=_control_event(tip))
+        _verify_control_state(db, tip, source, packet, proof)
     _write(directory/'PROOF.json', proof)
     return proof
 
@@ -267,11 +396,16 @@ def _verify_execution_for_packet(correction_reference, proof_reference, reviewed
         core.require(binding['authority'] == 'external_author_not_rwkv'
                      and binding['correction'] == correction_reference
                      and binding['target_digest'] == packet['target_digest'], 'offline author binding differs')
-        evidence = [e for e in tip['state']['evidence'].values() if e['kind'] == 'tool']
-        core.require(len(evidence) == 1, 'one real correction tool receipt required')
-        raw = evidence[0]['result']['raw_receipt']
-        receipt = json.loads((db.root/raw['path']).read_text())
-        core.require(digest(receipt) == raw['content_digest'] and receipt == proof['receipt'], 'execution receipt differs')
+        control = packet['proposed_target']['function'] != 'execute_tool'
+        if control:
+            _verify_control_state(db, tip, source, packet, proof)
+            receipt = None
+        else:
+            evidence = [e for e in tip['state']['evidence'].values() if e['kind'] == 'tool']
+            core.require(len(evidence) == 1, 'one real correction tool receipt required')
+            raw = evidence[0]['result']['raw_receipt']
+            receipt = json.loads((db.root/raw['path']).read_text())
+            core.require(digest(receipt) == raw['content_digest'] and receipt == proof['receipt'], 'execution receipt differs')
     for key in ('checks_before', 'checks_after'):
         expected = read_reference(proof['checks_files'][key])['results'] if correction['checks'] else []
         core.require(expected == proof[key] and len(expected) == len(correction['checks']), 'check proof differs')
@@ -279,7 +413,8 @@ def _verify_execution_for_packet(correction_reference, proof_reference, reviewed
             core.require(result['metadata']['argv'] == check['argv']
                          and result['metadata']['expected_exit_code'] == check.get('expected_exit_code', 0),
                          'checks differ from registered commands')
-    core.require(not _verification_gaps(receipt, correction['checks'], proof['checks_before'], proof['checks_after'])
+    gaps = _verification_gaps(receipt, correction['checks'], proof['checks_before'], proof['checks_after'])
+    core.require(not gaps
                  and proof['verification_passed'] is True, 'correction execution verification failed')
     expected, packed = _build(source, packet['source_operation_id'], packet['proposed_target'],
         packet['context_tokens'], packet['author'], input_view=reviewed_packet.get('input_view'))
