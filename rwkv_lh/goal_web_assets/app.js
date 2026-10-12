@@ -11,6 +11,8 @@ const app = {
   traceOffset: 0,
   topology: null,
   polling: null,
+  selectionVersion: 0,
+  pollFlight: null,
   activeTab: "overview",
   auditMode: "trace",
   selectedFile: "",
@@ -177,6 +179,8 @@ function newGoal() {
   resetFilePreview();
   clearInterval(app.polling);
   app.polling = null;
+  app.selectionVersion += 1;
+  app.pollFlight = null;
   app.selectedRun = "";
   app.summary = null;
   $("runView").classList.add("hidden");
@@ -189,6 +193,8 @@ async function selectRun(runId) {
   resetFilePreview();
   clearInterval(app.polling);
   app.polling = null;
+  const version = ++app.selectionVersion;
+  app.pollFlight = null;
   app.selectedRun = runId;
   app.summary = null;
   app.events = [];
@@ -205,6 +211,7 @@ async function selectRun(runId) {
   renderRun();
   renderRuns();
   await pollRun();
+  if (version !== app.selectionVersion || runId !== app.selectedRun) return;
   const phase = app.summary?.metadata?.phase;
   if (!["finished", "failed", "stopped", "blocked"].includes(phase)) {
     app.polling = setInterval(pollRun, 1700);
@@ -213,32 +220,50 @@ async function selectRun(runId) {
 
 async function pollRun() {
   const runId = app.selectedRun;
+  const version = app.selectionVersion;
   if (!runId) return;
-  try {
-    const [summary, events, traces, files] = await Promise.all([
-      api(`/api/runs/${encodeURIComponent(runId)}`),
-      api(`/api/runs/${encodeURIComponent(runId)}/events?after=${app.eventOffset}&limit=1200`),
-      api(`/api/runs/${encodeURIComponent(runId)}/trace?after=${app.traceOffset}&limit=800`),
-      api(`/api/runs/${encodeURIComponent(runId)}/files`),
-    ]);
-    if (runId !== app.selectedRun) return;
-    app.summary = summary;
-    app.events.push(...(events.events || []));
-    app.eventOffset = events.last_event_id || app.eventOffset;
-    app.traces.push(...(traces.events || []));
-    app.traceOffset = traces.next_offset || app.traceOffset;
-    app.files = files.files || [];
-    renderRun();
-    const phase = summary.metadata?.phase;
-    if (["finished", "failed", "stopped", "blocked"].includes(phase)) {
-      clearInterval(app.polling);
-      app.polling = null;
-      await loadRuns();
-    }
-  } catch (error) {
-    $("errorPanel").classList.remove("hidden");
-    $("errorOutput").textContent = error.message;
+  const isCurrent = () => runId === app.selectedRun && version === app.selectionVersion;
+  if (app.pollFlight?.runId === runId && app.pollFlight.version === version) {
+    return app.pollFlight.promise;
   }
+  const flight = { runId, version };
+  app.pollFlight = flight;
+  flight.promise = (async () => {
+    try {
+      // Keep ownership until every sibling request settles, even on failure.
+      // Otherwise an early rejection lets the next tick overlap slow requests.
+      const results = await Promise.allSettled([
+        api(`/api/runs/${encodeURIComponent(runId)}`),
+        api(`/api/runs/${encodeURIComponent(runId)}/events?after=${app.eventOffset}&limit=1200`),
+        api(`/api/runs/${encodeURIComponent(runId)}/trace?after=${app.traceOffset}&limit=800`),
+        api(`/api/runs/${encodeURIComponent(runId)}/files`),
+      ]);
+      if (!isCurrent()) return;
+      const failure = results.find((result) => result.status === "rejected");
+      if (failure) throw failure.reason;
+      const [summary, events, traces, files] = results.map((result) => result.value);
+      app.summary = summary;
+      app.events.push(...(events.events || []));
+      app.eventOffset = Math.max(app.eventOffset, events.last_event_id || 0);
+      app.traces.push(...(traces.events || []));
+      app.traceOffset = Math.max(app.traceOffset, traces.next_offset || 0);
+      app.files = files.files || [];
+      renderRun();
+      const phase = summary.metadata?.phase;
+      if (["finished", "failed", "stopped", "blocked"].includes(phase)) {
+        clearInterval(app.polling);
+        app.polling = null;
+        await loadRuns();
+      }
+    } catch (error) {
+      if (!isCurrent()) return;
+      $("errorPanel").classList.remove("hidden");
+      $("errorOutput").textContent = error.message;
+    } finally {
+      if (app.pollFlight === flight) app.pollFlight = null;
+    }
+  })();
+  return flight.promise;
 }
 
 function contractData() {
