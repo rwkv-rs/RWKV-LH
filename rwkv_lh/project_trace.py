@@ -15,9 +15,10 @@ def role_boundaries(root, *, read_only=True):
             intent = pending['payload']
             role, source = intent['role'], intent['input']
             if role == 'planner':
-                payload = planner.build_input(state['request'], feedback=state['feedback'],
-                    protected_paths=state['protected_paths'], workspace=source['workspace'], materials=source['materials'], remaining=source['remaining'])
-                planner.validate_input(payload)
+                planner.validate_input(source)
+                payload = planner.build_input(state['request'],
+                    protected_paths=state['protected_paths'], workspace=source['workspace'], materials=source['materials'],
+                    remaining=source['remaining'], execution_capabilities=source['execution_capabilities'])
                 if digest(source['workspace']) != state['workspace_digest']:
                     raise ValueError('planner workspace digest mismatch')
             elif role == 'executor':

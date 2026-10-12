@@ -42,7 +42,7 @@ STRING = {'type': 'string', 'minLength': 1}
 def role_definitions(role, harness):
     if role == 'planner':
         return [definition('submit_plan', {'plan': deepcopy(planner.PLAN_SCHEMA)},
-            description='Submit the initial plan for autonomous RWKV execution, without online quality review.')]
+            description='Submit the initial executable plan for RWKV.')]
     if role != 'executor':
         raise ValueError('current project roles are planner and executor')
     register_project_check(harness)
@@ -103,9 +103,9 @@ class ProjectRuntime:
             role, lane = 'planner', 'planner'
             workspace, materials = capture_materials(s['workspace'], s['request'],
                 expected_digest=s['workspace_digest'])
-            payload = planner.build_input(s['request'], feedback=s['feedback'],
+            payload = planner.build_input(s['request'],
                 workspace=workspace, materials=materials, protected_paths=s['protected_paths'],
-                remaining=self.remaining())
+                remaining=self.remaining(), execution_capabilities=self.harness.planning_capabilities())
         else:
             role, lane = 'executor', s['active']['id']
             payload = executor.build_input(s['active'], project_state=s, remaining=self.remaining())

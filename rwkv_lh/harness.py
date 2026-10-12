@@ -921,6 +921,36 @@ class ActionHarness:
             definitions.append(definition.g1i_definition())
         return definitions
 
+    def planning_capabilities(self) -> list[dict[str, Any]]:
+        """Summarize the registered Executor catalog without exposing argument schemas.
+
+        Group ordinary workspace/process effects by their authoritative metadata.
+        Specialized capabilities retain their full registered descriptions, so an
+        extension's environment and limitations are not guessed from its name.
+        """
+        effects = {
+            "local.workspace_read": "Read and inspect workspace files.",
+            "local.workspace_mutation": "Create and modify workspace files within permitted write scopes.",
+            "local.process_read": "Run command checks in a disposable workspace; file changes are discarded.",
+            "local.process_mutation": "Run commands and retain permitted workspace changes.",
+        }
+        groups: dict[tuple[str, str, str], dict[str, Any]] = {}
+        for tool in self.g1i_tool_definitions():
+            definition = self.definition(tool["name"])
+            key = (definition.capability_class, definition.network_access, definition.data_boundary)
+            if key not in groups:
+                description = effects.get(definition.capability_class, "")
+                if definition.data_boundary == "workspace_process":
+                    description += (" Commands run in the workspace sandbox." if self.sandbox_commands
+                                    else " Command sandboxing is disabled in this runtime.")
+                groups[key] = {"capability_class": key[0], "tools": [], "description": description,
+                               "network_access": key[1], "data_boundary": key[2]}
+            group = groups[key]
+            group["tools"].append(tool["name"])
+            if definition.capability_class not in effects:
+                group["description"] += ("\n" if group["description"] else "") + tool["name"] + ": " + tool["description"]
+        return list(groups.values())
+
     def _validate_registry(self) -> None:
         definition_names = set(self._definitions)
         handler_names = set(self._handlers)
