@@ -175,6 +175,8 @@ def check_spec(
     workspace: Path,
     events: Sequence[Mapping[str, Any]],
     observations: Mapping[str, Any],
+    *,
+    evidence_dir: Path | None = None,
 ) -> CheckResult:
     """Evaluate one hidden acceptance rule against observable state only."""
 
@@ -199,30 +201,59 @@ def check_spec(
                     "PYTHONPATH": "/opt/verifier-site",
                     "PLAYWRIGHT_BROWSERS_PATH": "/opt/verifier-browsers",
                 })
-            process = subprocess.Popen(
-                [sys.executable, str(program_path.parent.parent / "project_driver.py"), str(program_path), str(workspace)],
-                cwd=workspace,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                start_new_session=True,
-                env=environment,
-            )
+            if evidence_dir is not None:
+                evidence_dir.mkdir(parents=True, exist_ok=False)
+                artifacts = evidence_dir / "artifacts"
+                artifacts.mkdir()
+                environment['RWKV_LH_VERIFIER_EVIDENCE'] = str(artifacts)
+            stdout_file = (evidence_dir / 'stdout.log').open('xb') if evidence_dir else None
+            stderr_file = (evidence_dir / 'stderr.log').open('xb') if evidence_dir else None
+            timed_out = False
+            process = None
             try:
-                stdout, stderr = process.communicate(timeout=float(spec.get("timeout", 120)))
-            except BaseException:
+                process = subprocess.Popen(
+                    [sys.executable, str(program_path.parent.parent / "project_driver.py"), str(program_path), str(workspace)],
+                    cwd=workspace,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    stdout=stdout_file if stdout_file else subprocess.PIPE,
+                    stderr=stderr_file if stderr_file else subprocess.PIPE,
+                    start_new_session=True,
+                    env=environment,
+                )
                 try:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                process.communicate()
-                raise
-            return CheckResult(kind, process.returncode == 0, {
+                    stdout, stderr = process.communicate(timeout=float(spec.get("timeout", 120)))
+                except subprocess.TimeoutExpired:
+                    timed_out = True
+                    try:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    stdout, stderr = process.communicate()
+                except BaseException:
+                    try:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    process.communicate()
+                    raise
+            finally:
+                if stdout_file:
+                    stdout_file.close()
+                if stderr_file:
+                    stderr_file.close()
+            if evidence_dir is not None:
+                stdout = (evidence_dir / 'stdout.log').read_text(encoding='utf-8', errors='replace')
+                stderr = (evidence_dir / 'stderr.log').read_text(encoding='utf-8', errors='replace')
+            output = stdout + stderr
+            return CheckResult(kind, process.returncode == 0 and not timed_out, {
                 "program_sha256": digest,
                 "actual_exit_code": process.returncode,
-                "output": (stdout + stderr)[:10_000],
+                "output": output[:10_000],
+                "output_truncated": len(output) > 10_000,
+                "timed_out": timed_out,
+                "evidence_path": str(Path('checks') / evidence_dir.name) if evidence_dir else None,
                 "browser": spec.get("browser") is True,
             })
         if kind == "file_content":
@@ -750,7 +781,7 @@ def check_spec(
         return CheckResult(kind, False, {}, f"{type(exc).__name__}: {exc}"[:2000])
 
 
-def verify_payload(payload: Mapping[str, Any], workspace: Path) -> IsolatedVerifierResult:
+def verify_payload(payload: Mapping[str, Any], workspace: Path, *, evidence_root: Path | None = None) -> IsolatedVerifierResult:
     acceptance = payload.get("acceptance")
     if not isinstance(acceptance, Mapping):
         raise ValueError("verifier payload has no acceptance object")
@@ -766,8 +797,9 @@ def verify_payload(payload: Mapping[str, Any], workspace: Path) -> IsolatedVerif
     ):
         raise ValueError("verifier acceptance requires a non-empty checks array")
     checks = tuple(
-        check_spec(spec, workspace, events, observations)
-        for spec in raw_checks
+        check_spec(spec, workspace, events, observations,
+                   evidence_dir=evidence_root / 'checks' / f'{index:04d}' if evidence_root else None)
+        for index, spec in enumerate(raw_checks)
     )
     return IsolatedVerifierResult(
         checks,
@@ -860,6 +892,7 @@ def _bubblewrap_worker_command(
     *,
     browser_mounts: Sequence[tuple[Path, str]] = (),
     candidate_python: Path | None = None,
+    evidence_dir: Path | None = None,
 ) -> list[str]:
     executable = Path(sys.executable).resolve(strict=True)
     runtime_root: Path | None = None
@@ -927,6 +960,9 @@ def _bubblewrap_worker_command(
             command.extend(["--ro-bind", str(source), target])
     if candidate_python is not None:
         command.extend(["--ro-bind", str(candidate_python), "/opt/candidate-python"])
+    if evidence_dir is not None:
+        command.extend(['--bind', str(evidence_dir), '/opt/verifier-evidence',
+                        '--setenv', 'RWKV_LH_VERIFIER_EVIDENCE', '/opt/verifier-evidence'])
     command.extend(
         [
             "--remount-ro",
@@ -958,21 +994,72 @@ def run_isolated_verifier(
     *,
     private_root: Path,
     timeout_seconds: float = 180.0,
+    evidence_dir: Path | None = None,
 ) -> IsolatedVerifierResult:
     """Run hidden checks in a fail-closed namespace after the Agent phase ends."""
 
     bubblewrap = shutil.which("bwrap")
     if not bubblewrap:
         raise RuntimeError("isolated E2E verification requires bubblewrap")
+    workspace_root = workspace.resolve(strict=True)
+    if private_root.resolve().is_relative_to(workspace_root):
+        raise ValueError('private verifier staging must be outside the Agent workspace')
+    if evidence_dir is not None:
+        evidence_dir = Path(evidence_dir).absolute()
+        if evidence_dir.is_symlink() or evidence_dir.exists():
+            raise FileExistsError(evidence_dir)
+        evidence_dir = evidence_dir.resolve()
+        if evidence_dir.is_relative_to(workspace_root) or workspace_root.is_relative_to(evidence_dir):
+            raise ValueError('verifier evidence must be outside the Agent workspace')
+        evidence_dir.mkdir(parents=True, mode=0o700)
+    metadata: dict[str, Any] = {}
+    evidence_context: dict[str, Any] = {'complete': False}
+    try:
+        result = _run_isolated_verifier(acceptance, workspace, events, observations,
+            private_root=private_root, timeout_seconds=timeout_seconds,
+            bubblewrap=bubblewrap, evidence_dir=evidence_dir, evidence_context=evidence_context)
+        metadata = result.metadata
+        evidence_context['complete'] = True
+        return result
+    finally:
+        if evidence_dir is not None:
+            metadata['evidence'] = _seal_verifier_evidence(evidence_dir, evidence_context)
+
+
+def _seal_verifier_evidence(root: Path, context: Mapping[str, Any]) -> dict[str, Any]:
+    files = []
+    for path in sorted(root.rglob('*')):
+        mode = path.lstat().st_mode
+        if stat.S_ISDIR(mode):
+            continue
+        if not stat.S_ISREG(mode) or path.stat().st_nlink != 1:
+            raise ValueError('verifier evidence contains a link or special file')
+        data = path.read_bytes()
+        files.append({'path': str(path.relative_to(root)), 'bytes': len(data),
+                      'sha256': hashlib.sha256(data).hexdigest()})
+    manifest = {'schema': 'rwkv-lh.verifier-evidence.v1', **context, 'files': files}
+    encoded = (json.dumps(manifest, ensure_ascii=False, indent=2) + '\n').encode('utf-8')
+    with (root / 'MANIFEST.json').open('xb') as stream:
+        stream.write(encoded)
+    return {'root': str(root), **manifest, 'manifest_sha256': hashlib.sha256(encoded).hexdigest()}
+
+
+def _run_isolated_verifier(acceptance, workspace, events, observations, *, private_root,
+                           timeout_seconds, bubblewrap, evidence_dir, evidence_context):
     private_root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="verifier-", dir=private_root) as directory:
         root = Path(directory)
         snapshot = root / "workspace"
         _secure_snapshot(workspace, snapshot)
+        if evidence_dir is not None:
+            evidence_context['workspace_files'] = {
+                str(path.relative_to(snapshot)): hashlib.sha256(path.read_bytes()).hexdigest()
+                for path in sorted(snapshot.rglob('*')) if path.is_file()}
         worker_directory = root / "worker"
         worker_directory.mkdir()
         worker = worker_directory / "worker.py"
         shutil.copy2(Path(__file__).resolve(strict=True), worker)
+        evidence_context['verifier_sha256'] = hashlib.sha256(worker.read_bytes()).hexdigest()
         browser_required = False
         for check in acceptance.get("checks") or ():
             if check.get("kind") != "project_behavior":
@@ -1002,6 +1089,8 @@ def run_isolated_verifier(
                        "--unshare-ipc", "--unshare-uts", "--new-session", "--bind", "/", "/",
                        "--bind", "/tmp", "/tmp", "--tmpfs", "/opt/verifier", "--proc", "/proc", "--dev", "/dev",
                        "--cap-drop", "ALL", str(sandbox_python)]
+            if evidence_dir is not None:
+                command[-1:-1] = ['--tmpfs', '/opt/verifier-evidence', '--unsetenv', 'RWKV_LH_VERIFIER_EVIDENCE']
             wrapper = candidate_python / "python"
             wrapper.write_text("#!/bin/sh\nexec " + shlex.join(command) + ' "$@"\n', encoding="utf-8")
             wrapper.chmod(0o755)
@@ -1020,25 +1109,37 @@ def run_isolated_verifier(
             },
             ensure_ascii=False,
         )
-        completed = subprocess.run(
+        evidence_context['payload_sha256'] = hashlib.sha256(payload.encode('utf-8')).hexdigest()
+        process = subprocess.Popen(
             _bubblewrap_worker_command(bubblewrap, snapshot, worker, browser_mounts=browser_mounts,
-                                      candidate_python=candidate_python),
-            input=payload,
+                                      candidate_python=candidate_python, evidence_dir=evidence_dir),
             text=True,
             encoding="utf-8",
             errors="replace",
-            capture_output=True,
-            timeout=max(1.0, float(timeout_seconds)),
-            check=False,
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             start_new_session=True,
             env={"LANG": os.environ.get("LANG", "C.UTF-8")},
         )
-        if completed.returncode != 0:
+        stdout, stderr = '', ''
+        try:
+            stdout, stderr = process.communicate(payload, timeout=max(1.0, float(timeout_seconds)))
+        except BaseException:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            stdout, stderr = process.communicate()
+            raise
+        finally:
+            if evidence_dir is not None:
+                (evidence_dir / 'worker.stdout.log').write_text(stdout, encoding='utf-8')
+                (evidence_dir / 'worker.stderr.log').write_text(stderr, encoding='utf-8')
+        if process.returncode != 0:
             raise RuntimeError(
                 "isolated verifier failed: "
-                + ((completed.stderr or completed.stdout or "unknown error")[:4000])
+                + ((stderr or stdout or "unknown error")[:4000])
             )
-        raw = json.loads(completed.stdout)
+        raw = json.loads(stdout)
         if not isinstance(raw, Mapping):
             raise RuntimeError("isolated verifier returned a non-object response")
         raw_checks = raw.get("checks")
@@ -1071,7 +1172,8 @@ def _worker_main() -> int:
         sys.stdin.close()
     except Exception:
         pass
-    result = verify_payload(payload, Path("/workspace"))
+    evidence = os.environ.get('RWKV_LH_VERIFIER_EVIDENCE')
+    result = verify_payload(payload, Path("/workspace"), evidence_root=Path(evidence) if evidence else None)
     print(
         json.dumps(
             {
