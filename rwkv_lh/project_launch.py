@@ -22,6 +22,7 @@ import uuid
 
 from .harness import ActionDefinition, ActionHarness, ActionResult, HarnessError
 from .project_preview import preview_server
+from .project_browser import BROWSER_STEPS_SCHEMA
 
 
 class LaunchError(RuntimeError):
@@ -34,7 +35,8 @@ PROJECT_CHECK = ActionDefinition(
         'static serves cwd/index.html; vite installs dependencies and requires build -> dist/index.html. '
         'argv runs with Python/Playwright available against a read-only served copy; '
         'RWKV_LH_PROJECT_URL is its actual temporary URL. Logs and failures return as evidence. '
-        'Omitting argv checks only HTTP readiness, not user behavior or project completion. '
+        'Optional browser_steps execute real Chromium actions and assertions with retained screenshots, DOM, console and network records. '
+        'Omitting both argv and browser_steps checks only HTTP readiness, not user behavior or project completion. '
         'The returned URL is no longer live after this call; use this for self-checks, not persistent preview. '
         'Dependency installs affect only the disposable copy, not the original workspace.'
     ), True, False, False, 120.0,
@@ -42,6 +44,7 @@ PROJECT_CHECK = ActionDefinition(
         'kind': {'type': 'string', 'enum': ['static', 'vite']},
         'cwd': {'type': 'string', 'default': '.', 'description': 'project root relative to the workspace'},
         'argv': {'type': 'array', 'items': {'type': 'string', 'minLength': 1}, 'default': []},
+        'browser_steps': BROWSER_STEPS_SCHEMA,
         'timeout': {'type': 'number', 'exclusiveMinimum': 0, 'maximum': 120.0, 'default': 120.0},
     },
     ('action_succeeded',), required_arguments=('kind',), capability_class='local.project_check',
@@ -169,7 +172,8 @@ class ProjectLaunch:
             self.port = probe.getsockname()[1]
 
     def _command(self, stage, argv, *, deadline, background=False,
-                 include_project_venv=False, read_only=False, environment_additions=None):
+                 include_project_venv=False, read_only=False, environment_additions=None,
+                 browser_spec=None, browser_artifacts=None):
         if time.monotonic() >= deadline:
             raise LaunchError('startup time budget exhausted before ' + stage)
         harness = ActionHarness()
@@ -185,6 +189,14 @@ class ProjectLaunch:
             if command[index + 1:index + 3] != [str(self.copy), '/workspace']:
                 raise LaunchError('unexpected checker workspace mount')
             command[index] = '--ro-bind'
+        if browser_spec is not None:
+            if browser_artifacts is None or not read_only:
+                raise LaunchError('browser worker requires separate evidence and a read-only project')
+            index = command.index('--remount-ro')
+            command[index:index] = [
+                '--ro-bind', str(Path(__file__).with_name('project_browser.py')), '/opt/project-browser/worker.py',
+                '--ro-bind', str(browser_spec), '/opt/project-browser/spec.json',
+                '--bind', str(browser_artifacts), '/opt/project-browser/evidence']
         # WSL's /etc/resolv.conf can point outside /etc. Mount that single
         # resolved file before making the namespace root read-only, keeping
         # the rest of /mnt and the host home absent.
@@ -350,7 +362,8 @@ def check_project(harness, goal, arguments):
     launch = ProjectLaunch(source, kind=arguments['kind'], output=output, port=0,
                            timeout=arguments['timeout'])
     deadline = time.monotonic() + arguments['timeout']
-    checker = None
+    checker = browser_checker = None
+    browser_record = {'status': 'not_run', 'steps': [], 'assertions_passed': 0, 'artifacts': []}
     behavior = {'status': 'not_run', 'argv': arguments['argv']}
     observed_url, error = None, None
     success = False
@@ -367,6 +380,22 @@ def check_project(harness, goal, arguments):
             if launch.status()['status'] != 'ready':
                 raise LaunchError('service exited during behavior check')
             behavior['status'] = 'passed'
+        if arguments.get('browser_steps'):
+            browser_checker = ProjectLaunch(source, kind='static', output=output / 'browser', port=0)
+            browser_checker.output.mkdir()
+            browser_checker.copy = launch.copy
+            artifacts = browser_checker.output / 'artifacts'
+            artifacts.mkdir()
+            spec = browser_checker.output / 'SPEC.json'
+            spec.write_text(json.dumps({'url': observed_url, 'steps': arguments['browser_steps'],
+                                       'timeout': max(.01, deadline - time.monotonic())}) + '\n')
+            browser_record.update(status='running', input_sha256=hashlib.sha256(spec.read_bytes()).hexdigest(),
+                worker_sha256=hashlib.sha256(Path(__file__).with_name('project_browser.py').read_bytes()).hexdigest())
+            browser_checker._command('browser', ['python', '-B', '/opt/project-browser/worker.py',
+                '/opt/project-browser/spec.json', '/opt/project-browser/evidence'], deadline=deadline,
+                include_project_venv=True, read_only=True, browser_spec=spec, browser_artifacts=artifacts)
+            if launch.status()['status'] != 'ready':
+                raise LaunchError('service exited during browser check')
         success = True
     except Exception as exc:
         error = {'type': type(exc).__name__, 'message': str(exc)}
@@ -374,16 +403,35 @@ def check_project(harness, goal, arguments):
         try:
             if checker is not None:
                 checker.stop()
+            if browser_checker is not None:
+                browser_checker.stop()
         finally:
             launch.stop()
+    if browser_checker is not None:
+        artifacts = browser_checker.output / 'artifacts'
+        journal = artifacts / 'JOURNAL.json'
+        if journal.is_file():
+            browser_record.update(json.loads(journal.read_text()))
+        if browser_record['status'] == 'running':
+            browser_record['status'] = 'interrupted'
+        for path in sorted(artifacts.iterdir()):
+            if path.is_symlink() or not path.is_file():
+                raise LaunchError('browser evidence requires regular files')
+            data = path.read_bytes()
+            browser_record['artifacts'].append({'path': str(path), 'bytes': len(data),
+                                                'sha256': hashlib.sha256(data).hexdigest()})
+        success = success and browser_record['status'] == 'passed'
     receipt = {'launch': launch.status(), 'observed_url': observed_url, 'behavior_check': behavior,
                'check_commands': checker.status()['commands'] if checker is not None else [],
+               'browser_commands': browser_checker.status()['commands'] if browser_checker is not None else [],
+               'browser_check': browser_record,
                'logs': [], 'source_modified': False, 'agent_completion_changed': False}
     summary = {'launch_status': receipt['launch']['status'], 'health': receipt['launch']['health'],
                'behavior_check': behavior, 'service_stopped': True,
+               'browser_check': browser_record,
                'observed_url': observed_url, 'url_is_currently_live': False, 'error': error}
     text = [json.dumps(summary, ensure_ascii=False)]
-    for row in [*receipt['launch']['commands'], *receipt['check_commands']]:
+    for row in [*receipt['launch']['commands'], *receipt['check_commands'], *receipt['browser_commands']]:
         log = Path(row['log'])
         if log.is_file():
             data = log.read_bytes()
