@@ -142,7 +142,12 @@ def build_review_packet(source_reference, operation_id, command, *, context_toke
     return _build(load_source(source_reference), operation_id, command, context_tokens, author, input_view=input_view)[0]
 
 
-def _review(registration, packet, reference):
+def verify_review(registration, packet, reference):
+    """Verify a sealed review, including negative judgments, without admitting a label.
+
+    This checks the wire and response against the supplied packet. Candidate
+    loaders additionally reconstruct that packet from its original source.
+    """
     core.require(registration.get('schema_version') == REVIEW_SCHEMA
                  and registration.get('guidance_sha256') == digest(review_guidance(packet))
                  and registration.get('max_requests') == 1,
@@ -204,14 +209,25 @@ def _review(registration, packet, reference):
     value = json.loads(calls[0]['function']['arguments'])
     fields = {'verdict', 'issues', 'source_operation_id', 'input_digest', 'target_digest', 'reviewed_action', 'rationale'}
     core.require(isinstance(value, dict) and set(value) == fields
-                 and value.get('verdict') == 'accept' and value.get('issues') == []
+                 and value.get('verdict') in ('accept', 'reject')
+                 and isinstance(value.get('issues'), list)
+                 and all(isinstance(issue, str) and issue.strip() for issue in value['issues'])
                  and isinstance(value.get('rationale'), str) and value['rationale'].strip(),
-                 'accepted independent review with rationale and no issues required')
+                 'independent review requires a valid verdict, issues and rationale')
     core.require(all(value[k] == packet[k] for k in ('source_operation_id', 'input_digest', 'target_digest')),
                  'review source/input/target binding differs')
     core.require(value['reviewed_action'] == review_action(packet['proposed_target']),
                  'review described a different action from the proposed target')
+    core.require(value['verdict'] != 'accept' or value['issues'] == [],
+                 'accepted independent review with rationale and no issues required')
     return value, start['call_id']
+
+
+def _review(registration, packet, reference):
+    value, call_id = verify_review(registration, packet, reference)
+    core.require(value['verdict'] == 'accept',
+                 'accepted independent review with rationale and no issues required')
+    return value, call_id
 
 
 def load_reviewed_candidate(reference):
