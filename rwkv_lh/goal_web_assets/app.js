@@ -13,6 +13,8 @@ const app = {
   polling: null,
   activeTab: "overview",
   auditMode: "trace",
+  selectedFile: "",
+  previewRequest: 0,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -162,7 +164,17 @@ async function submitGoal(event) {
   }
 }
 
+function resetFilePreview() {
+  app.previewRequest += 1;
+  app.selectedFile = "";
+  $("filePreviewName").textContent = "选择文件预览";
+  $("filePreviewMeta").textContent = "";
+  $("filePreview").textContent = "";
+  $("filePreview").setAttribute("aria-busy", "false");
+}
+
 function newGoal() {
+  resetFilePreview();
   clearInterval(app.polling);
   app.polling = null;
   app.selectedRun = "";
@@ -174,6 +186,7 @@ function newGoal() {
 }
 
 async function selectRun(runId) {
+  resetFilePreview();
   clearInterval(app.polling);
   app.polling = null;
   app.selectedRun = runId;
@@ -190,9 +203,6 @@ async function selectRun(runId) {
   // Clear every task projection before fetching the new identity. Otherwise
   // a slow response temporarily labels the previous answer as this task's.
   renderRun();
-  $("filePreviewName").textContent = "选择文件预览";
-  $("filePreviewMeta").textContent = "";
-  $("filePreview").textContent = "";
   renderRuns();
   await pollRun();
   const phase = app.summary?.metadata?.phase;
@@ -427,26 +437,37 @@ function renderEvidence(contract, events) {
 
 function renderFiles() {
   $("fileList").innerHTML = app.files.length ? app.files.map((item) => `
-    <button class="file-item" data-file-path="${escapeHtml(item.path)}" type="button"><strong>${escapeHtml(item.path)}</strong><span>${bytes(item.size_bytes)} · ${escapeHtml(item.sha256.slice(0, 12))}</span></button>`).join("") : '<p class="empty-copy">工作区尚无文件。</p>';
+    <button class="file-item ${item.path === app.selectedFile ? "active" : ""}" data-file-path="${escapeHtml(item.path)}" type="button"><strong>${escapeHtml(item.path)}</strong><span>${bytes(item.size_bytes)} · ${escapeHtml(item.sha256.slice(0, 12))}</span></button>`).join("") : '<p class="empty-copy">工作区尚无文件。</p>';
   document.querySelectorAll(".file-item").forEach((button) => button.addEventListener("click", () => previewFile(button.dataset.filePath, button)));
 }
 
 async function previewFile(path, button) {
+  const runId = app.selectedRun;
+  const requestId = ++app.previewRequest;
+  app.selectedFile = path;
+  const isCurrent = () => requestId === app.previewRequest
+    && runId === app.selectedRun && path === app.selectedFile;
   document.querySelectorAll(".file-item").forEach((item) => item.classList.remove("active"));
   button.classList.add("active");
   const metadata = app.files.find((item) => item.path === path);
   $("filePreviewName").textContent = path;
   $("filePreviewMeta").textContent = metadata ? `${bytes(metadata.size_bytes)} · ${metadata.media_type}` : "";
+  $("filePreview").textContent = "正在加载…";
+  $("filePreview").setAttribute("aria-busy", "true");
   try {
     const encoded = path.split("/").map(encodeURIComponent).join("/");
-    const response = await fetch(`/api/runs/${encodeURIComponent(app.selectedRun)}/file/${encoded}`);
+    const response = await fetch(`/api/runs/${encodeURIComponent(runId)}/file/${encoded}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const type = response.headers.get("content-type") || "";
-    $("filePreview").textContent = type.startsWith("text/") || /json|javascript|xml/.test(type)
+    const content = type.startsWith("text/") || /json|javascript|xml/.test(type)
       ? await response.text()
       : `二进制文件（${type}），请从审计包下载。`;
+    // The body can arrive after headers and after another file or run is chosen.
+    if (isCurrent()) $("filePreview").textContent = content;
   } catch (error) {
-    $("filePreview").textContent = error.message;
+    if (isCurrent()) $("filePreview").textContent = error.message;
+  } finally {
+    if (isCurrent()) $("filePreview").setAttribute("aria-busy", "false");
   }
 }
 
