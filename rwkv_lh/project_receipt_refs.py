@@ -71,7 +71,7 @@ def render_view(fields):
     inverse = {value: key for key, value in fields['receipt_bindings'].items()}
     receipt_fields = {'receipt_id', 'receipt_ids', 'evidence_id', 'evidence_ids', 'action_id', 'operation_id', 'usable_evidence_ids'}
     opaque = {'arguments', 'params', 'result', 'raw_result', 'output', 'raw_output',
-              'parameter_schema', 'plan', 'current_step', 'goal', 'task', 'requirements'}
+              'parameter_schema', 'plan', 'current_step', 'goal', 'task', 'requirements', 'initial_materials'}
 
     def visit(value, field=None):
         if field in opaque:

@@ -5,7 +5,7 @@ import json
 from pathlib import PurePosixPath
 
 PLAN_PROTOCOL = 'rwkv-lh.project-plan.v7'
-ASSIGNMENT_PROTOCOL = 'rwkv-lh.project-assignment.v7'
+ASSIGNMENT_PROTOCOL = 'rwkv-lh.project-assignment.v8'
 GOAL_PROTOCOL = 'rwkv-lh.project-user-goal.v1'
 GOAL_ID = 'original-goal'
 WORKSPACE_PATH_SCHEMA = {
@@ -176,10 +176,11 @@ def protected_paths(state):
     return list(dict.fromkeys(paths))
 
 
-def make_assignment(goal, *, assignment_id, plan_version, workspace_digest):
+def make_assignment(goal, *, assignment_id, plan_version, workspace_digest, materials_digest):
     # This stable project contract outlives step focus changes.
     task = make_task(GOAL_ID, 'project', goal['request'], [GOAL_ID], scope=goal['scope'],
                      completion=goal['request'])
     return {'protocol': ASSIGNMENT_PROTOCOL, 'id': assignment_id, 'task': task,
             'contract_digest': digest(task), 'plan_version': plan_version,
-            'workspace_digest': workspace_digest, 'protected_paths': list(goal['protected_paths'])}
+            'workspace_digest': workspace_digest, 'materials_digest': materials_digest,
+            'protected_paths': list(goal['protected_paths'])}

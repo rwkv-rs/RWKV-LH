@@ -10,8 +10,9 @@ from uuid import uuid4
 from .project_contracts import digest, make_assignment, validate_plan, text, strings, make_goal, validate_goal, work_map
 from .workspace_snapshot import tree_identity
 from .project_record_store import RecordStore
+from .project_materials import capture_materials, validate_initial_context
 
-PROTOCOL = 'rwkv-lh.project-ledger.v19'
+PROTOCOL = 'rwkv-lh.project-ledger.v20'
 
 
 class UncertainOperation(RuntimeError):
@@ -29,13 +30,22 @@ class ProjectLedger:
         if state.get('protocol') != PROTOCOL:
             raise ValueError('unsupported project ledger protocol; start a new run')
         validate_goal(state['goal'])
+        validate_initial_context(state['request'], state['initial_context'])
         if state['goal']['request'] != state['request'] or state['goal']['protected_paths'] != state['protected_paths']:
             raise ValueError('original goal differs from owner authority')
         if state['plan'] is not None:
             validate_plan(state['plan'])
+            if state['active']['materials_digest'] != digest(state['initial_context']['materials']):
+                raise ValueError('initial materials differ from project assignment')
 
     @classmethod
-    def create(cls, root, *, request, workspace, max_calls, max_seconds, protected_paths=()):
+    def create(cls, root, *, request, workspace, max_calls, max_seconds, protected_paths=(), original_context=None):
+        """Capture a new project, or preserve a verified source's task context.
+
+        Offline corrections supply the original context from their verified
+        source ledger: a generation snapshot may already contain edited files.
+        This does not resume a model State or create a model-generated trace.
+        """
         import math
         from .project_contracts import scope_path
         strings(list(protected_paths))
@@ -48,9 +58,16 @@ class ProjectLedger:
         if (type(max_calls) is not int or max_calls < 1 or type(max_seconds) not in (int, float)
                 or not math.isfinite(max_seconds) or max_seconds <= 0):
             raise ValueError('positive finite budgets required')
+        initial_digest = digest(tree_identity(workspace))
+        if original_context is None:
+            initial_workspace, materials = capture_materials(workspace, request, expected_digest=initial_digest)
+            initial_context = {'workspace': initial_workspace, 'materials': materials}
+        else:
+            initial_context = deepcopy(validate_initial_context(request, original_context))
         root.mkdir(parents=True, exist_ok=False)
         state = {'protocol': PROTOCOL, 'request': text(request), 'workspace': str(workspace),
-            'workspace_digest': digest(tree_identity(workspace)), 'plan': None, 'plan_version': 0,
+            'workspace_digest': initial_digest, 'plan': None, 'plan_version': 0,
+            'initial_context': initial_context,
             'goal': make_goal(request, protected_paths), 'active': None, 'current_step_id': None,
             'pending': None, 'evidence': {}, 'feedback': None, 'sessions': {},
             'calls': 0, 'elapsed': 0.0, 'max_calls': max_calls, 'max_seconds': max_seconds,
@@ -161,7 +178,10 @@ class ProjectLedger:
                 raise ValueError('project current state differs from event digest chain')
             store = RecordStore(connection)
             state = store.read(reference)
+            initial_context = deepcopy(state['initial_context'])
             mutate(state)
+            if state['initial_context'] != initial_context:
+                raise ValueError('initial material context is immutable')
             reference = store.write(state)
             body = json.dumps(reference, ensure_ascii=False, allow_nan=False)
             connection.execute('INSERT INTO events(kind,body,digest) VALUES (?,?,?)', (kind, body, digest([previous, kind, reference])))
@@ -190,7 +210,8 @@ class ProjectLedger:
             state['plan'] = plan
             state['plan_version'] = 1
             state['active'] = make_assignment(state['goal'], assignment_id='W-' + uuid4().hex,
-                plan_version=1, workspace_digest=state['workspace_digest'])
+                plan_version=1, workspace_digest=state['workspace_digest'],
+                materials_digest=digest(state['initial_context']['materials']))
             state['feedback'] = {'kind': 'plan_installed', 'authority': 'unreviewed_planner_plan'}
             state['inbox'] = None
         return self.update('plan_installed', change)

@@ -3,8 +3,9 @@ from copy import deepcopy
 from rwkv_lh.project_contracts import ASSIGNMENT_PROTOCOL, digest, fields, resource_budget, text, validate_plan
 from rwkv_lh.project_step_progress import build_step_progress, validate_step_progress
 from rwkv_lh.project_action_feedback import build_action_feedback, validate_action_feedback
+from rwkv_lh.project_materials import validate_initial_context, validate_bound_materials
 
-PROTOCOL = 'rwkv-lh.project-executor-input.v22'
+PROTOCOL = 'rwkv-lh.project-executor-input.v23'
 ACTION_PROTOCOL = 'rwkv-lh.project-executor-actions.v1'
 INSTRUCTION = 'Choose one next action. Return exactly one function/params JSON object.'
 RULES = (
@@ -55,6 +56,8 @@ def build_input(assignment, *, project_state, remaining=None):
     from rwkv_lh.project_receipt_refs import build_bindings
     if assignment.get('protocol') != ASSIGNMENT_PROTOCOL or assignment['contract_digest'] != digest(assignment['task']):
         raise ValueError('unsupported or changed project assignment')
+    initial = validate_initial_context(project_state['request'], project_state['initial_context'])
+    validate_bound_materials(project_state['request'], initial['materials'], assignment['materials_digest'])
     allowed = [key for key in project_state['evidence'] if key in executor_evidence_ids(project_state)]
     selected, updates = evidence_stream(project_state, assignment['id'])
     tasks = [task['id'] for task in project_state['plan']['tasks']]
@@ -64,6 +67,7 @@ def build_input(assignment, *, project_state, remaining=None):
                     if task['id'] == project_state['current_step_id']), None)
     return {'protocol': PROTOCOL, 'action_protocol': ACTION_PROTOCOL, 'assignment': deepcopy(assignment),
         'original_request': project_state['request'], 'plan': deepcopy(project_state['plan']),
+        'initial_materials': deepcopy(initial['materials']),
         'current_step': deepcopy(current),
         'remaining': resource_budget(remaining),
         'step_progress': build_step_progress(project_state),
@@ -76,7 +80,7 @@ def build_input(assignment, *, project_state, remaining=None):
 
 
 def validate_input(value):
-    fields(value, ('protocol', 'action_protocol', 'assignment', 'original_request', 'plan', 'current_step',
+    fields(value, ('protocol', 'action_protocol', 'assignment', 'original_request', 'plan', 'initial_materials', 'current_step',
         'remaining', 'step_progress', 'action_feedback', 'references', 'receipt_bindings',
         'selected_evidence', 'evidence_updates', 'observations', 'feedback', 'next_action'))
     if value['protocol'] != PROTOCOL or value['next_action'] != INSTRUCTION:
@@ -85,15 +89,16 @@ def validate_input(value):
         raise ValueError('unsupported Executor action protocol')
     assignment = value['assignment']
     fields(assignment, ('protocol', 'id', 'task', 'contract_digest', 'plan_version',
-                        'workspace_digest', 'protected_paths'))
+                        'workspace_digest', 'materials_digest', 'protected_paths'))
     if (assignment.get('protocol') != ASSIGNMENT_PROTOCOL
             or assignment['contract_digest'] != digest(assignment['task'])):
         raise ValueError('changed project assignment')
     text(value['original_request']); validate_plan(value['plan']); resource_budget(value['remaining'])
+    validate_bound_materials(value['original_request'], value['initial_materials'], assignment['materials_digest'])
     from rwkv_lh.project_contracts import GOAL_ID, make_goal, make_assignment
     expected_assignment = make_assignment(make_goal(value['original_request'], assignment['protected_paths']),
         assignment_id=assignment['id'], plan_version=assignment['plan_version'],
-        workspace_digest=assignment['workspace_digest'])
+        workspace_digest=assignment['workspace_digest'], materials_digest=digest(value['initial_materials']))
     if assignment != expected_assignment or assignment['task']['id'] != GOAL_ID or assignment['plan_version'] != 1:
         raise ValueError('assignment differs from original project authority')
     tasks = {t['id']: t for t in value['plan']['tasks']}

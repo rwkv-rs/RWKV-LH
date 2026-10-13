@@ -1,7 +1,7 @@
-"""Exact cited workspace material, captured before the initial plan.
+"""Exact cited workspace material, captured once at project creation.
 
 The request names existing relative paths. This layer copies those bytes into
-the planning context; it does not interpret requirements or choose write scopes.
+the original context; it does not interpret requirements or choose write scopes.
 """
 import hashlib
 from pathlib import Path
@@ -78,3 +78,27 @@ def capture_materials(root, request, *, expected_digest):
         raise ValueError('workspace changed during initial planning material capture')
     validate_materials(request, before, materials)
     return before, materials
+
+
+def validate_initial_context(request, context):
+    """The host retains the full initial inventory for completeness checks."""
+    fields(context, ('workspace', 'materials'))
+    validate_materials(request, context['workspace'], context['materials'])
+    return context
+
+
+def validate_bound_materials(request, materials, expected_digest):
+    """Validate the compact role view against its stable assignment binding.
+
+    The production builder checks completeness against the original inventory;
+    the role payload carries cited files, not the entire repository inventory.
+    Trace reconstruction verifies this view against the captured ledger context.
+    """
+    if not isinstance(materials, dict) or digest(materials) != expected_digest:
+        raise ValueError('initial material digest differs from project assignment')
+    if any(not isinstance(record, dict) for record in materials.values()):
+        raise ValueError('invalid initial material record')
+    inventory = {path: {'kind': 'file', 'sha256': record.get('sha256')}
+                 for path, record in materials.items()}
+    validate_materials(request, inventory, materials)
+    return materials

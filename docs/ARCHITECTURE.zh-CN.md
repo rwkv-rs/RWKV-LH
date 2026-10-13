@@ -23,7 +23,7 @@ flowchart LR
 
 宿主校验字段、唯一标识、需求引用、依赖结构与路径权限，不评价计划是否正确合理。不合规的初始返回结束为 `planner_protocol_error`，同一任务恢复时不会重新调用 Planner。
 
-计划安装后，宿主建立一个覆盖原目标的稳定 Executor lane，完整计划送入首次输入。每次工作区工具调用都由模型显式给出 `step_id`；工具 intent 与这次选择在同一事务持久化，权限和回执绑定该步骤。切换步骤不会更换 lane、重新委派或清空 State。依赖描述计划顺序，不构成已验证依赖门；模型可以选择和重访任意已声明步骤。
+项目创建时，账本冻结初始 workspace 身份与请求明确引用的完整材料；Planner 和 Executor 共用这份原始上下文。计划安装后，宿主建立一个覆盖原目标的稳定 Executor lane，完整计划及原始引用材料送入首次输入。材料摘要绑定 assignment，正文、字节数、SHA 和 non_utf8 状态保持原样；Executor 不重复接收整个仓库清单。后续工具修改、恢复和 Trace 重建均不会用新文件内容覆盖原始材料，Native 增量不重复追加未变化正文。每次工作区工具调用都由模型显式给出 `step_id`；工具 intent 与这次选择在同一事务持久化，权限和回执绑定该步骤。切换步骤不会更换 lane、重新委派或清空 State。依赖描述计划顺序，不构成已验证依赖门；模型可以选择和重访任意已声明步骤。
 
 ## 唯一入口与模块职责
 
@@ -35,7 +35,7 @@ CLI、批量 coding 和 Web 统一调用 `project_agent.run_project_job()`，恢
 |持久记录|`project_ledger.py`|单写者、事务、事件链、原始回执、动作步骤、结束声明与未决操作|
 |初始材料|`project_materials.py`|完整捕获被请求引用的文件；不解释需求或授予写权限|
 |初始 Planner|`project_protocols/planner.py::build_input`|一次规划；不执行工作区工具|
-|自主 Executor|`project_protocols/executor.py::build_input`|原始目标、完整计划、最近工具步骤、工具事实、回执与预算|
+|自主 Executor|`project_protocols/executor.py::build_input`|原始目标、完整引用材料和计划、最近工具步骤、工具事实、回执与预算|
 |动作合同|`project_protocols/executor.py::action_definitions`|执行工具、读取回执、结束；步骤与原始工具参数分离|
 |输入呈现|`project_markdown.py`、`project_model_io.py`|Markdown 工具目录、目标、计划、反馈和原始材料；唯一 bootstrap 与增量 renderer|
 |State 与实际传输|`project_sessions.py`|Native 增量、干净重试锚点、模型/协议/工具/采样身份绑定|
@@ -44,7 +44,7 @@ CLI、批量 coding 和 Web 统一调用 `project_agent.run_project_job()`，恢
 |工具合同|`harness.py::ActionDefinition`|菜单、schema、权限、回执与 decoder 共用定义|
 |项目自测工具|`project_launch.py`|Executor 可选的隔离启动、HTTP 与浏览器检查|
 
-当前版本：Goal v1、Plan v7、Assignment v7、Ledger v19、Executor v22、动作 v1、Planner v24、prompt v11、Planner chat v11、输入传输 v4、边界解码策略 v5、严格调用 v2。运行标签引用模块常量。旧协议、账本、prompt 和不兼容 State 一律拒绝恢复或改标签重用。
+当前版本：Goal v1、Plan v7、Assignment v8、Ledger v20、Executor v23、动作 v1、Planner v24、prompt v11、Planner chat v11、输入传输 v4、边界解码策略 v5、严格调用 v2。运行标签引用模块常量。旧协议、账本、prompt 和不兼容 State 一律拒绝恢复或改标签重用。
 
 底层只读工具与独立研究依赖不构成另一条编码产品入口。模型升级通过权重、tokenizer、State、上下文和传输配置适配，不自动改变角色协议。
 
@@ -84,7 +84,7 @@ SQLite 事件与内容寻址记录保留输入、输出、checkpoint、原始回
 
 内容记录在每个 RecordStore 内按 64 MiB 字节预算复用已校验节点，避免共享历史超过固定节点数量后反复读取与验真。预算计算节点对象、键与条目开销，超大节点不缓存；它不限制 SQLite 缓冲区、返回的完整历史或进程总内存。展开后的可变结果不共享，新读取事务重新校验，事件链检查仍覆盖全部历史；缓存不改变存储格式、模型输入或事实权限。
 
-Planner 材料与原始输入一同持久化；Trace 通过唯一 builder 重建并核对身份，不重读已变化的工作区。输入超出部署容量时记录完整输入与估算，按中断处理，不截断计划或材料。总预算耗尽、输出预算耗尽和超时均不能伪装成完成。
+初始材料随账本创建持久化，直接安装离线冻结计划也经过同一捕获入口；Trace 通过唯一 builder 从原始上下文重建并核对身份，不重读已变化的工作区。引用集合由初始清单校验，Executor 的材料视图由稳定 assignment 摘要绑定；未引用、间接引用及私有内容不会被自动注入。输入超出部署容量时记录完整输入与估算，按中断处理，不截断计划或材料。总预算耗尽、输出预算耗尽和超时均不能伪装成完成。
 
 ## 可观察输出与结果语义
 

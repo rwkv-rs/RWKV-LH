@@ -309,7 +309,8 @@ def verify_correction(reference):
     original = copy_verified_workspace(before, workspace, exclude_git=False, audit_path=directory/'COPY.json')
     plan = packet['input']['plan']
     db = ProjectLedger.create(directory/'execution', request=packet['input']['original_request'],
-        workspace=workspace, max_calls=1, max_seconds=180, protected_paths=plan['protected_paths'])
+        workspace=workspace, max_calls=1, max_seconds=180, protected_paths=plan['protected_paths'],
+        original_context=source['ledger'].state()['initial_context'])
     db.install_plan(plan)
     source_context = _import_control_context(db, source, packet) if control else None
     state = db.state()
