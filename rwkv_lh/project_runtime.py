@@ -9,7 +9,7 @@ from .project_contracts import digest, fields, text, work_map, protected_paths
 from .project_ledger import ProjectLedger, UncertainOperation
 from .project_protocols import planner, executor
 from .harness import ActionHarness, ActionResult, HarnessError
-from .project_launch import register_project_check
+from .project_tools import configure_project_tools
 from .project_workspace import explicit_write_targets, violations as write_violations, publish_workspace
 from .schema import GoalState, TaskAction
 from .workspace_snapshot import tree_identity, copy_verified_workspace
@@ -44,15 +44,14 @@ def role_definitions(role, harness):
             description='Submit the initial executable plan for RWKV.')]
     if role != 'executor':
         raise ValueError('current project roles are planner and executor')
-    register_project_check(harness)
+    configure_project_tools(harness)
     return executor.action_definitions(harness.g1i_tool_definitions())
 
 
 class ProjectRuntime:
     def __init__(self, ledger, roles, *, harness=None):
         self.db, self.roles = ledger, roles
-        self.harness = harness or ActionHarness()
-        register_project_check(self.harness)
+        self.harness = configure_project_tools(harness or ActionHarness())
         self.started = None
         self.initial_elapsed = 0.0
 
@@ -97,6 +96,7 @@ class ProjectRuntime:
         self.db.update('evidence_selected', select)
 
     def _request(self):
+        configure_project_tools(self.harness)
         s = self.db.state()
         if s['plan'] is None:
             role, lane = 'planner', 'planner'

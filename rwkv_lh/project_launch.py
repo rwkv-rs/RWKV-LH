@@ -1,7 +1,8 @@
-"""Explicit static/Vite launch lifecycle with isolated copies and real receipts.
+"""Explicit static/npm launch lifecycle with isolated copies and real receipts.
 
-Launch is a delivery operation. It neither edits the Agent workspace nor changes
-its completion decision. Vite installation and scripts run in bubblewrap; only
+Launch is an external delivery operation, outside the RWKV tool catalog.
+It neither edits the Agent workspace nor changes
+its completion decision. npm installation and scripts run in bubblewrap; only
 the launch copy, system toolchain and network are available to those processes.
 """
 from copy import deepcopy
@@ -31,17 +32,21 @@ class LaunchError(RuntimeError):
 
 PROJECT_CHECK = ActionDefinition(
     'check_project', (
-        'Launch a disposable static or standard Vite project, run optional argv checks, then stop it. '
-        'static serves cwd/index.html; vite installs dependencies and requires build -> dist/index.html. '
+        'Launch a disposable static or npm frontend, run optional argv checks, then stop it. '
+        'static serves cwd/index.html. npm installs locked dependencies with ci when a lockfile exists; '
+        'npm_script dev runs the declared dev script, while preview first runs build and requires dist/index.html. '
+        'npm scripts receive HOST=127.0.0.1, PORT and --host/--port arguments; no framework dependency is required. '
         'argv runs with Python/Playwright available against a read-only served copy; '
         'RWKV_LH_PROJECT_URL is its actual temporary URL. Logs and failures return as evidence. '
         'Optional browser_steps execute real Chromium actions and assertions with retained screenshots, DOM, console and network records. '
         'Omitting both argv and browser_steps checks only HTTP readiness, not user behavior or project completion. '
-        'The returned URL is no longer live after this call; use this for self-checks, not persistent preview. '
+        'The returned URL is no longer live after this call; this is an external check, not persistent preview. '
         'Dependency installs affect only the disposable copy, not the original workspace.'
     ), True, False, False, 120.0,
     {
-        'kind': {'type': 'string', 'enum': ['static', 'vite']},
+        'kind': {'type': 'string', 'enum': ['static', 'npm']},
+        'npm_script': {'type': 'string', 'enum': ['dev', 'preview'], 'default': 'preview',
+                       'description': 'Requested npm server script; used only for kind npm.'},
         'cwd': {'type': 'string', 'default': '.', 'description': 'project root relative to the workspace'},
         'argv': {'type': 'array', 'items': {'type': 'string', 'minLength': 1}, 'default': []},
         'browser_steps': BROWSER_STEPS_SCHEMA,
@@ -54,10 +59,7 @@ PROJECT_CHECK = ActionDefinition(
 
 
 def register_project_check(harness):
-    """The same registration serves Project execution, role schemas and replay.
-
-    Legacy read-only/research Harness menus keep their frozen action vocabulary.
-    """
+    """Explicitly register the external checker; Project actors exclude it."""
     try:
         existing = harness.definition(PROJECT_CHECK.name)
     except HarnessError:
@@ -106,21 +108,25 @@ def _public_proxy_environment():
 
 
 class ProjectLaunch:
-    def __init__(self, workspace, *, kind, output, port=8767, timeout=120):
-        if kind not in ('static', 'vite'):
-            raise ValueError('launch kind must be static or vite')
+    def __init__(self, workspace, *, kind, output, port=8767, timeout=120, npm_script='preview'):
+        if kind not in ('static', 'npm'):
+            raise ValueError('launch kind must be static or npm')
+        if npm_script not in ('dev', 'preview'):
+            raise ValueError('npm script must be dev or preview')
         if not 0 <= port <= 65535 or not 0 < timeout <= 3600:
             raise ValueError('invalid launch port or startup timeout')
         self.workspace = Path(workspace).resolve(strict=True)
         self.output = Path(output).resolve()
         if self.output.is_relative_to(self.workspace):
             raise ValueError('launch receipts must be outside the source workspace')
-        self.kind, self.port, self.timeout = kind, port, timeout
+        self.kind, self.port, self.timeout, self.npm_script = kind, port, timeout, npm_script
         self.process = self.server = self.thread = self.log = None
         self.copy = self.output / 'workspace'
         self.receipt = dict(kind=kind, source=str(self.workspace), status='new', url=None,
                             reason=None, commands=[], health=None, source_files={},
                             workspace_modified=False, agent_completion_changed=False)
+        if kind == 'npm':
+            self.receipt['npm_script'] = npm_script
 
     def _save(self):
         self.receipt['updated_at'] = time.time()
@@ -149,23 +155,22 @@ class ProjectLaunch:
                     self.receipt['source_files'][str(relative)] = hashlib.sha256(data).hexdigest()
 
     def _preflight(self):
-        if not (self.copy / 'index.html').is_file():
+        if self.kind == 'static' and not (self.copy / 'index.html').is_file():
             raise LaunchError('工作区根目录缺少 index.html，未执行安装或启动')
-        if self.kind == 'vite':
+        if self.kind == 'npm':
             path = self.copy / 'package.json'
             if not path.is_file():
-                raise LaunchError('Vite 启动需要 package.json')
+                raise LaunchError('npm 启动需要 package.json')
             package = json.loads(path.read_text())
             if not isinstance(package, dict):
                 raise LaunchError('package.json must be an object')
             scripts = package.get('scripts', {})
-            if not isinstance(scripts, dict) or not isinstance(scripts.get('build'), str) or not scripts['build'].strip():
-                raise LaunchError('package.json 缺少 build 脚本')
-            dependencies = [package.get(name, {}) for name in ('dependencies', 'devDependencies')]
-            if not any(isinstance(d, dict) and isinstance(d.get('vite'), str) for d in dependencies):
-                raise LaunchError('package.json 未声明 Vite 依赖')
+            required = ['build', 'preview'] if self.npm_script == 'preview' else ['dev']
+            for script in required:
+                if not isinstance(scripts, dict) or not isinstance(scripts.get(script), str) or not scripts[script].strip():
+                    raise LaunchError(f'package.json 缺少 {script} 脚本')
         with socket.socket() as probe:
-            # Match the actual HTTP/Vite listener's restart semantics. A closed
+            # Match the actual HTTP listener's restart semantics. A closed
             # connection in TIME_WAIT is not an occupied listening service.
             probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             probe.bind(('127.0.0.1', self.port))
@@ -262,6 +267,49 @@ class ProjectLaunch:
             self.log.close()
             self.log = None
 
+    def _owns_listener(self):
+        """Bind readiness to this launch's process descendants, including npm/bwrap.
+
+        A dev server can transform index.html, so byte equality is not an identity
+        check for that mode. The listener must belong to the started process tree.
+        """
+        if self.process is None or self.process.poll() is not None:
+            return False
+        inodes = set()
+        for name in ('tcp', 'tcp6'):
+            for line in (Path('/proc/net') / name).read_text().splitlines()[1:]:
+                fields = line.split()
+                if fields[3] == '0A' and int(fields[1].rsplit(':', 1)[1], 16) == self.port:
+                    inodes.add('socket:[' + fields[9] + ']')
+        if not inodes:
+            return False
+        parents = {}
+        for entry in Path('/proc').iterdir():
+            if not entry.name.isdecimal():
+                continue
+            try:
+                fields = (entry / 'stat').read_text().rsplit(')', 1)[1].split()
+                parents[int(entry.name)] = int(fields[1])
+            except (OSError, IndexError, ValueError):
+                continue
+        for pid in parents:
+            current, visited = pid, set()
+            while current in parents and current != self.process.pid and current not in visited:
+                visited.add(current)
+                current = parents[current]
+            if current != self.process.pid:
+                continue
+            try:
+                for descriptor in (Path('/proc') / str(pid) / 'fd').iterdir():
+                    try:
+                        if str(descriptor.readlink()) in inodes:
+                            return True
+                    except OSError:
+                        continue
+            except OSError:
+                continue
+        return False
+
     def start(self):
         if self.receipt['status'] != 'new':
             raise LaunchError('use a new launch directory for another start')
@@ -273,18 +321,21 @@ class ProjectLaunch:
             self._snapshot()
             self._preflight()
             root = self.copy
-            if self.kind == 'vite':
+            if self.kind == 'npm':
                 install = 'ci' if (self.copy / 'package-lock.json').is_file() else 'install'
                 self._command('install', ['npm', install, '--ignore-scripts', '--no-audit', '--no-fund'], deadline=deadline)
-                self._command('build', ['npm', 'run', 'build'], deadline=deadline)
-                root = self.copy / 'dist'
-                if not (root / 'index.html').is_file():
-                    raise LaunchError('build did not produce dist/index.html')
-                if root.is_symlink() or any(p.is_symlink() for p in root.rglob('*')):
-                    raise LaunchError('built output must contain regular files, not symbolic links')
-                expected = (root / 'index.html').read_bytes()
-                self._command('serve', ['node', 'node_modules/vite/bin/vite.js', 'preview', '--host', '127.0.0.1',
-                                       '--port', str(self.port), '--strictPort'], deadline=deadline, background=True)
+                expected = None
+                if self.npm_script == 'preview':
+                    self._command('build', ['npm', 'run', 'build'], deadline=deadline)
+                    root = self.copy / 'dist'
+                    if root.is_symlink() or any(p.is_symlink() for p in root.rglob('*')):
+                        raise LaunchError('built output must contain regular files, not symbolic links')
+                    if not (root / 'index.html').is_file():
+                        raise LaunchError('build did not produce dist/index.html')
+                    expected = (root / 'index.html').read_bytes()
+                self._command('serve', ['npm', 'run', self.npm_script, '--', '--host', '127.0.0.1',
+                                       '--port', str(self.port)], deadline=deadline, background=True,
+                              environment_additions={'HOST': '127.0.0.1', 'PORT': str(self.port)})
             else:
                 expected = (root / 'index.html').read_bytes()
                 self.server = preview_server(root, port=self.port)
@@ -298,10 +349,14 @@ class ProjectLaunch:
                     raise LaunchError(f'service exited before ready; see {self.output / "serve.log"}')
                 try:
                     with opener.open(url, timeout=min(1, max(.01, deadline - time.monotonic()))) as response:
-                        body = response.read(len(expected) + 1)
-                        if response.status == 200 and body == expected:
+                        limit = len(expected) if expected is not None else 1024 * 1024
+                        body = response.read(limit + 1)
+                        owned = self.process is None or self._owns_listener()
+                        matches = (body == expected if expected is not None else
+                                   bool(body) and len(body) <= limit and response.headers.get_content_type() == 'text/html')
+                        if response.status == 200 and owned and matches:
                             self.receipt['health'] = dict(status=200, body_sha256=hashlib.sha256(body).hexdigest(),
-                                                          matches_built_entry=True, checked_at=time.time())
+                                matches_built_entry=expected is not None, owned_listener=owned, checked_at=time.time())
                             break
                 except OSError:
                     pass
@@ -360,7 +415,7 @@ def check_project(harness, goal, arguments):
         raise ValueError('project cwd must be a directory')
     output = new_launch_output()
     launch = ProjectLaunch(source, kind=arguments['kind'], output=output, port=0,
-                           timeout=arguments['timeout'])
+                           timeout=arguments['timeout'], npm_script=arguments['npm_script'])
     deadline = time.monotonic() + arguments['timeout']
     checker = browser_checker = None
     browser_record = {'status': 'not_run', 'steps': [], 'assertions_passed': 0, 'artifacts': []}
@@ -445,8 +500,8 @@ def check_project(harness, goal, arguments):
     return result
 
 
-def serve_project(workspace, *, kind, output, port=8767, timeout=120):
-    launch = ProjectLaunch(workspace, kind=kind, output=output, port=port, timeout=timeout)
+def serve_project(workspace, *, kind, output, port=8767, timeout=120, npm_script='preview'):
+    launch = ProjectLaunch(workspace, kind=kind, output=output, port=port, timeout=timeout, npm_script=npm_script)
     try:
         result = launch.start()
         print(f'项目已就绪：{result["url"]}\n启动回执：{launch.output / "RECEIPT.json"}', flush=True)

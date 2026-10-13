@@ -39,8 +39,10 @@ def main(argv=None):
     parser.add_argument('--serve', action='store_true',
                         help='Preview generated index.html after a single task, preserving its outcome')
     parser.add_argument('--port', type=int, default=8767, help='Local static preview port (default: 8767)')
-    parser.add_argument('--launch-kind', choices=('static', 'vite'), default='static',
-                        help='Explicit delivery launcher; vite installs and builds in an isolated copy')
+    parser.add_argument('--launch-kind', choices=('static', 'npm'), default='static',
+                        help='Explicit delivery launcher; npm uses the declared package scripts')
+    parser.add_argument('--launch-script', choices=('dev', 'preview'), default='preview',
+                        help='npm server script; preview also builds dist in an isolated copy')
     parser.add_argument('--launch-timeout', type=float, default=120,
                         help='Total installation/build/readiness budget in seconds (default: 120)')
     for name in ('base-url', 'model', 'model-sha256'):
@@ -73,13 +75,13 @@ def main(argv=None):
         from rwkv_lh.project_launch import serve_project, new_launch_output, LaunchError
         try:
             serve_project(args.launch, kind=args.launch_kind, output=args.output_dir or new_launch_output(),
-                          port=args.port, timeout=args.launch_timeout)
+                          port=args.port, timeout=args.launch_timeout, npm_script=args.launch_script)
         except (OSError, ValueError, LaunchError) as exc:
             parser.error(str(exc))
         return 0
     if args.preview:
         if args.launch_kind != 'static':
-            parser.error('use --launch with --launch-kind vite')
+            parser.error('use --launch with --launch-kind npm')
         if args.request or args.output_dir or args.serve or args.protected_paths:
             parser.error('--preview only serves the existing workspace')
         from rwkv_lh.project_preview import serve_preview
@@ -156,10 +158,10 @@ def main(argv=None):
         from rwkv_lh.project_preview import serve_preview
         print(f'Agent termination: {results[0]["termination"]}; preview does not change task completion.', flush=True)
         try:
-            if args.launch_kind == 'vite':
+            if args.launch_kind == 'npm':
                 from rwkv_lh.project_launch import serve_project, new_launch_output
-                serve_project(Path(args.output_dir) / 'workspace', kind='vite', output=new_launch_output(),
-                              port=args.port, timeout=args.launch_timeout)
+                serve_project(Path(args.output_dir) / 'workspace', kind='npm', output=new_launch_output(),
+                              port=args.port, timeout=args.launch_timeout, npm_script=args.launch_script)
             else:
                 serve_preview(Path(args.output_dir) / 'workspace', port=args.port)
         except (OSError, ValueError, RuntimeError) as exc:

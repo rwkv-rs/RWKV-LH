@@ -1,6 +1,8 @@
 # RWKV-LH
 
-面向前端项目完整交付的 RWKV Harness 与编码 Agent。目标是从用户需求出发，完成项目规划、搭建、实现、浏览器自测、调试、生产构建与交付，并由独立检查验证视觉、功能、工程、数据和交付要求。强 Planner 生成一次初始步骤计划，RWKV Executor 使用同一个持续 State 自主选择步骤、读写文件、运行工具、接收反馈并结束。模型声明完成与实际工具事实分别记录，错误也会原样保留。职责、协议与执行边界见[当前架构](docs/ARCHITECTURE.zh-CN.md)。
+面向前端项目完整交付的 RWKV Harness 与编码 Agent。强 Planner 只生成一次初始计划，RWKV Executor 使用同一个持续 State 创建项目、生成和修改代码、运行命令，并根据实际报错调试、测试、构建和交付。当前 RWKV 没有视觉能力，浏览器操作、截图和视觉检查由 Codex 或独立验收器在执行链之外完成，不分配给 RWKV。模型声明、执行事实和外部检查结果分别记录。职责、协议与执行边界见[当前架构](docs/ARCHITECTURE.zh-CN.md)。
+
+默认工作区工具为 `list_directory`、`search_files`、`read_file`、`write_file`、`replace_text` 和 `run_shell`。命令执行保留权限范围内的文件变更，构建产物可由后续操作读取；模型另可读取已有回执或声明结束。没有 Decision RWKV、在线强模型复核或重新规划调用。
 
 在相同交付质量下降低强模型消耗是优化目标，当前尚未证明成本与完成率收益。项目仍处于实验阶段。
 
@@ -43,7 +45,7 @@ uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev
 .venv/bin/rwkv-lh --preview /absolute/path/to/workspace --port 8767
 ```
 
-标准 Vite 项目可用 `--launch /absolute/path/to/workspace --launch-kind vite` 安装、构建并预览，需要 Node/npm、bubblewrap 与依赖下载网络。当前支持根目录 `index.html`、`build` 脚本和 `dist/index.html`，不覆盖后端、SSR 或自定义输出。终端按 Ctrl+C 停止预览；页面能打开仍需另行验证功能。
+外部预览可用 `--launch /absolute/path/to/workspace --launch-kind npm --launch-script preview`，在隔离副本中安装依赖、运行 `build` 和 `preview`；需要 Node/npm、bubblewrap 与依赖下载网络。项目须声明这些 npm 脚本并构建 `dist/index.html`，不要求特定框架。使用 `--launch-script dev` 时只安装并运行 `dev`，不证明生产构建成功。服务脚本接收 `HOST=127.0.0.1`、`PORT` 及 `--host`/`--port` 参数；当前不覆盖后端、SSR 或自定义输出。终端按 Ctrl+C 停止预览。这些命令不调用模型，浏览器验收结果另行保存。
 
 任务管理 Web 界面使用 `.venv/bin/rwkv-lh-web --port 8766 --data-root data/frontend_runs` 启动。执行任务会调用已配置的真实模型，并保存原始输出和工具回执。
 

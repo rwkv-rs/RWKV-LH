@@ -130,9 +130,9 @@ class TerminalSession:
 
 
 class _LivePreview:
-    def __init__(self, port, *, kind='static', timeout=120):
+    def __init__(self, port, *, kind='static', timeout=120, npm_script='preview'):
         self.port = port
-        self.kind, self.timeout = kind, timeout
+        self.kind, self.timeout, self.npm_script = kind, timeout, npm_script
         self.launch = None
         self.server = None
         self.thread = None
@@ -149,10 +149,10 @@ class _LivePreview:
 
     def update(self, workspace):
         self.close()
-        if self.kind == 'vite' and workspace is not None:
+        if self.kind == 'npm' and workspace is not None:
             from .project_launch import ProjectLaunch, LaunchError, new_launch_output
-            self.launch = ProjectLaunch(workspace, kind='vite', output=new_launch_output(),
-                                        port=self.port, timeout=self.timeout)
+            self.launch = ProjectLaunch(workspace, kind='npm', output=new_launch_output(),
+                                        port=self.port, timeout=self.timeout, npm_script=self.npm_script)
             try:
                 result = self.launch.start()
                 print(f'项目已就绪：{result["url"]}（启动不代表任务验收通过）', flush=True)
@@ -186,7 +186,8 @@ def run_terminal(args):
                               source=args.source_workspace, output=args.output_dir, extra_args=extra)
     print('RWKV-LH · 项目终端\n输入需求即可执行；/help 查看命令，/exit 退出。', flush=True)
     print('源项目：' + (str(session.workspace) if session.workspace else '新建空项目'), flush=True)
-    preview = _LivePreview(args.port, kind=args.launch_kind, timeout=args.launch_timeout)
+    preview = _LivePreview(args.port, kind=args.launch_kind, timeout=args.launch_timeout,
+                           npm_script=args.launch_script)
     request = args.request_text or args.request
     try:
         while True:
@@ -225,10 +226,10 @@ def run_terminal(args):
                     if args.interactive:
                         preview.update(session.workspace)
                     else:
-                        if args.launch_kind == 'vite' and session.workspace is not None:
+                        if args.launch_kind == 'npm' and session.workspace is not None:
                             from .project_launch import serve_project, new_launch_output
-                            serve_project(session.workspace, kind='vite', output=new_launch_output(),
-                                          port=args.port, timeout=args.launch_timeout)
+                            serve_project(session.workspace, kind='npm', output=new_launch_output(),
+                                          port=args.port, timeout=args.launch_timeout, npm_script=args.launch_script)
                         else:
                             issue = preview_unavailable_reason(session.workspace)
                             if issue:

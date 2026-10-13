@@ -746,7 +746,7 @@ class ActionHarness:
                 'Use stdin for exact input text and env for environment variables. Omitted stdin supplies EOF. '
                 'Returns stdout, stderr and the whole script exit code; success means expected_exit_code matched. '
                 'Bash uses its normal final-command/pipeline status; use explicit && or pipefail when required. '
-                'A failed script may already have changed files. Use check_command to discard all writes.'
+                'A failed script may already have changed files.'
             ), False, True, False, 120.0,
             {
                 "command": {"type": "string", "minLength": 1},
@@ -877,6 +877,28 @@ class ActionHarness:
         if definition is None:
             raise HarnessError(f"unsupported action type: {normalized}")
         return definition
+
+    @classmethod
+    def builtin_action_names(cls) -> tuple[str, ...]:
+        """Names of the shared primitives, before product-specific registration."""
+        return tuple(cls._definitions)
+
+    def retain_actions(self, names: Sequence[str]) -> None:
+        """Restrict this instance's schemas, execution and recovery together.
+
+        The class registry and other Harness instances remain unchanged. Product
+        callers cannot advertise one catalog while executing a larger hidden one.
+        """
+        selected = tuple(names)
+        if len(set(selected)) != len(selected):
+            raise HarnessError('duplicate retained action')
+        for name in selected:
+            self.definition(name)
+        self._definitions = {name: self._definitions[name] for name in selected}
+        self._handlers = {name: self._handlers[name] for name in selected}
+        self._recovery_handlers = {name: handler for name, handler in self._recovery_handlers.items()
+                                   if name in self._definitions}
+        self._validate_registry()
 
     def action_contract(self) -> str:
         return json.dumps(
