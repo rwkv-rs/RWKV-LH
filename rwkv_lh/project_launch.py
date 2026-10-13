@@ -18,13 +18,13 @@ import threading
 import time
 from types import SimpleNamespace
 import urllib.request
-from urllib.parse import urlsplit
 import uuid
 
 from .harness import ActionDefinition, ActionHarness, ActionResult, HarnessError
 from .project_preview import preview_server
 from .project_browser import BROWSER_STEPS_SCHEMA
 from .workspace_snapshot import copy_verified_workspace, tree_identity
+from .process_network import command_network_environment
 
 
 class LaunchError(RuntimeError):
@@ -74,38 +74,6 @@ def register_project_check(harness):
 
 def new_launch_output():
     return Path(__file__).resolve().parents[1] / 'data/project_launches' / uuid.uuid4().hex
-
-
-def _public_proxy_environment():
-    """Carry explicit public network routing, never proxy credentials or host env.
-
-    Package managers need the same route as the caller on proxy-only networks.
-    Loopback checks must still reach the actual disposable project directly.
-    """
-    result = {}
-    for name in ('http_proxy', 'https_proxy'):
-        values = {os.environ[key].strip() for key in (name, name.upper())
-                  if os.environ.get(key, '').strip()}
-        if len(values) > 1:
-            raise LaunchError(f'{name}: conflicting public proxy URLs')
-        if not values:
-            continue
-        value = values.pop()
-        try:
-            parsed = urlsplit(value)
-            valid = (parsed.scheme in ('http', 'https') and bool(parsed.hostname)
-                     and parsed.username is None and parsed.password is None
-                     and parsed.path in ('', '/') and not parsed.query and not parsed.fragment
-                     and all(ord(char) > 32 for char in value))
-            parsed.port  # Validate malformed/out-of-range ports without printing the URL.
-        except ValueError:
-            valid = False
-        if not valid:
-            raise LaunchError(f'{name}: public proxy URL required; no credentials, path, query or fragment')
-        result[name] = result[name.upper()] = value
-    if result:
-        result['no_proxy'] = result['NO_PROXY'] = '127.0.0.1,localhost,::1'
-    return result
 
 
 class ProjectLaunch:
@@ -178,7 +146,8 @@ class ProjectLaunch:
         if include_project_venv and resolved[0] == 'python':
             resolved[0] = str(Path(sys.executable).resolve(strict=True))
         command, path = harness._bubblewrap_command(SimpleNamespace(workspace_root=str(self.copy)),
-            self.copy, resolved, workspace=self.copy, include_project_venv=include_project_venv)
+            self.copy, resolved, workspace=self.copy, include_project_venv=include_project_venv,
+            shared_network=True)
         if read_only:
             index = command.index('--bind')
             if command[index + 1:index + 3] != [str(self.copy), '/workspace']:
@@ -192,28 +161,14 @@ class ProjectLaunch:
                 '--ro-bind', str(Path(__file__).with_name('project_browser.py')), '/opt/project-browser/worker.py',
                 '--ro-bind', str(browser_spec), '/opt/project-browser/spec.json',
                 '--bind', str(browser_artifacts), '/opt/project-browser/evidence']
-        # WSL's /etc/resolv.conf can point outside /etc. Mount that single
-        # resolved file before making the namespace root read-only, keeping
-        # the rest of /mnt and the host home absent.
-        resolver = Path('/etc/resolv.conf').resolve(strict=True)
-        if not resolver.is_relative_to('/etc'):
-            index = command.index('--remount-ro')
-            command[index:index] = ['--ro-bind', str(resolver), str(resolver)]
-        # Serving on the requested loopback port and fetching dependencies are
-        # explicit parts of this launch mode. Host files and credentials stay
-        # outside the mount namespace; environment inheritance is allowlisted.
-        command.insert(command.index('--chdir'), '--share-net')
-        environment = dict(PATH=path, LANG='C.UTF-8', npm_config_cache='/tmp/npm-cache',
-                           npm_config_userconfig='/dev/null', npm_config_update_notifier='false')
-        proxies = _public_proxy_environment()
-        environment.update(proxies)
+        environment = dict(PATH=path, LANG='C.UTF-8', **command_network_environment())
         if include_project_venv:
             environment['PYTHONPATH'] = f'/opt/rwkv-lh-venv/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages'
         environment.update(environment_additions or {})
         log_path = self.output / (stage + '.log')
         row = dict(stage=stage, argv=argv, log=str(log_path), started_at=time.time(),
                    exit_code=None, timed_out=False, sandbox='bubblewrap', network='shared',
-                   network_proxy=bool(proxies))
+                   network_proxy=any(name in environment for name in ('http_proxy', 'https_proxy')))
         self.receipt['commands'].append(row)
         self._save()
         self.log = log_path.open('xb')

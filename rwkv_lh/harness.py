@@ -9,11 +9,12 @@ import mimetypes
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
@@ -29,6 +30,10 @@ class HarnessError(RuntimeError):
 
 class ScopeViolation(HarnessError):
     pass
+
+
+class UncertainToolOutcome(RuntimeError):
+    """A process has not been confirmed stopped; its workspace cannot publish."""
 
 
 @dataclass(frozen=True)
@@ -913,8 +918,21 @@ class ActionHarness:
             indent=2,
         )
 
-    @staticmethod
-    def runtime_capabilities() -> dict[str, Any]:
+    def configure_process_network(self, action_type: str, network_access: str) -> None:
+        """Bind process transport and advertised capabilities on this instance."""
+        definition = self.definition(action_type)
+        if action_type not in ('run_shell', 'check_command') or network_access not in ('none', 'public_web'):
+            raise HarnessError('unsupported process network configuration')
+        self._definitions[action_type] = replace(definition, network_access=network_access)
+
+    def runtime_capabilities(self) -> dict[str, Any]:
+        shared = [name for name in ('run_shell', 'check_command') if name in self._definitions
+                  and self.definition(name).network_access == 'public_web']
+        network = ('command sandbox uses shared network for ' + ', '.join(shared)
+                   + '; other commands retain an isolated network namespace' if shared
+                   else 'command sandbox uses an isolated network namespace')
+        if not self.sandbox_commands:
+            network = 'command sandboxing is disabled; commands use the shared host network'
         return {
             "command_execution": "run_shell: Bash command script; check_command: direct argv; workspace scoped",
             "python": {
@@ -923,7 +941,7 @@ class ActionHarness:
                 "python_alias_available": True,
                 "pytest_invocation": ["python", "-m", "pytest"],
             },
-            "network": "command sandbox uses an isolated network namespace",
+            "network": network,
         }
 
     def g1i_tool_definitions(
@@ -1687,6 +1705,8 @@ class ActionHarness:
                     error=result.error,
                 )
             return result
+        except UncertainToolOutcome:
+            raise
         except Exception as exc:
             return ActionResult(
                 action_type=normalized,
@@ -2784,6 +2804,15 @@ class ActionHarness:
         timeout = max(0.1, min(float(arguments.get("timeout", 120.0)), 3600.0))
         inherited_names = ("PATH", "LANG", "LC_ALL", "TZ", "TERM", "SYSTEMROOT")
         environment = {name: os.environ[name] for name in inherited_names if name in os.environ}
+        shared_network = self.definition(action_type).network_access == 'public_web'
+        network_environment = {}
+        if shared_network:
+            from .process_network import command_network_environment
+            try:
+                network_environment = command_network_environment()
+            except ValueError as exc:
+                raise HarnessError(str(exc)) from exc
+            environment.update(network_environment)
         explicit_environment = arguments.get("env") or {}
         if not isinstance(explicit_environment, Mapping):
             raise HarnessError("command env must be an object")
@@ -2901,6 +2930,7 @@ class ActionHarness:
                     ephemeral_overlay=ephemeral_workspace and ephemeral_copy is None,
                     literal_arguments=action_type == "run_shell",
                     resolve_host_executable="PATH" not in explicit_environment,
+                    shared_network=shared_network,
                 )
                 environment["PATH"] = (
                     self._rebase_search_path(str(explicit_environment["PATH"]), (
@@ -2966,6 +2996,8 @@ class ActionHarness:
                     },
                     "sandboxed": sandboxed,
                     "sandbox_backend": "bubblewrap" if sandboxed else "none",
+                    "network": "shared" if shared_network or not sandboxed else "isolated",
+                    "network_proxy": any(name in environment for name in ('http_proxy', 'HTTP_PROXY', 'https_proxy', 'HTTPS_PROXY')),
                     "expected_exit_code": expected_exit_code,
                     "exit_code_matched": exit_code_matched,
                 }
@@ -3001,45 +3033,45 @@ class ActionHarness:
                     error=error,
                 )
 
-            try:
-                completed = subprocess.run(
+            with subprocess.Popen(
                     command,
                     cwd=cwd,
                     env=environment,
                     shell=False,
-                    input=stdin,
                     text=True,
                     encoding="utf-8",
                     errors="replace",
-                    capture_output=True,
-                    timeout=timeout,
-                    check=False,
-                )
-            except subprocess.TimeoutExpired as exc:
-                # CPython attaches the bytes read before the kill; those partial
-                # streams are the only crash-site evidence the model gets.
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    start_new_session=True,
+                ) as process:
+                def stop():
+                    try:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    try:
+                        # Drain until the sandbox reaper and descendants close
+                        # their pipes. Waiting for just the outer bwrap PID can
+                        # return while a child still serves or mutates files.
+                        return process.communicate(timeout=5)
+                    except subprocess.TimeoutExpired as exc:
+                        raise UncertainToolOutcome('command cleanup did not finish; preserve pending operation') from exc
+                try:
+                    stdout, stderr = process.communicate(input=stdin, timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    stdout, stderr = stop()
+                    return command_result(stdout or '', stderr or '', None, timed_out=True)
+                except BaseException:
+                    stop()
+                    raise
                 return command_result(
-                    self._partial_stream(exc.stdout),
-                    self._partial_stream(exc.stderr),
-                    None,
-                    timed_out=True,
+                    stdout or '', stderr or '', process.returncode,
                 )
-            return command_result(
-                completed.stdout or "",
-                completed.stderr or "",
-                completed.returncode,
-            )
         finally:
             if ephemeral_copy is not None:
                 ephemeral_copy.cleanup()
-
-    @staticmethod
-    def _partial_stream(value: bytes | str | None) -> str:
-        if value is None:
-            return ""
-        if isinstance(value, bytes):
-            return value.decode("utf-8", errors="replace")
-        return value
 
     @staticmethod
     def _rebase_search_path(value: str, mounts: Sequence[tuple[Path, Path]]) -> str:
@@ -3135,6 +3167,7 @@ class ActionHarness:
         ephemeral_overlay: bool = False,
         literal_arguments: bool = False,
         resolve_host_executable: bool = True,
+        shared_network: bool = False,
     ) -> tuple[list[str], str]:
         """Build a read-isolated command sandbox with one writable workspace."""
 
@@ -3268,6 +3301,14 @@ class ActionHarness:
             )
         else:
             command.extend(["--bind", str(workspace), "/workspace"])
+        if shared_network:
+            # WSL can place the resolver outside /etc. Bind only that file,
+            # before the root becomes read-only; do not expose host drives.
+            resolver = Path('/etc/resolv.conf').resolve(strict=True)
+            if not resolver.is_relative_to('/etc'):
+                index = command.index('--remount-ro')
+                command[index:index] = ['--ro-bind', str(resolver), str(resolver)]
+            command.append('--share-net')
         sandbox_path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
         if include_project_venv:
             # System-Python venvs provide the unversioned python alias here.

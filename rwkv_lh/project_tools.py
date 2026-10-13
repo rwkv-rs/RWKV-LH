@@ -19,4 +19,5 @@ def configure_project_tools(harness):
                   and tool['name'] != 'check_project'
                   and harness.definition(tool['name']).capability_class != 'local.project_check']
     harness.retain_actions((*FRONTEND_TOOLS, *extensions))
+    harness.configure_process_network('run_shell', 'public_web')
     return harness
