@@ -828,29 +828,14 @@ def _disable_ptrace() -> None:
         raise RuntimeError(f"could not harden verifier process: {exc}") from exc
 
 
-def _secure_snapshot(source: Path, destination: Path) -> None:
-    """Copy only directories and regular files; reject symlink-based escapes."""
+def _secure_snapshot(source: Path, destination: Path) -> dict:
+    """Host-only copy of the exact candidate, including portable internal links.
 
-    root = source.resolve(strict=True)
-    destination.mkdir(parents=True, exist_ok=False)
-    for current, directory_names, file_names in os.walk(root, followlinks=False):
-        current_path = Path(current)
-        relative = current_path.relative_to(root)
-        target_directory = destination / relative
-        target_directory.mkdir(parents=True, exist_ok=True)
-        for name in list(directory_names):
-            child = current_path / name
-            mode = child.lstat().st_mode
-            if stat.S_ISLNK(mode):
-                raise ValueError(f"verifier snapshot rejects symlink directory: {child}")
-            if not stat.S_ISDIR(mode):
-                raise ValueError(f"verifier snapshot rejects special directory: {child}")
-        for name in file_names:
-            child = current_path / name
-            mode = child.lstat().st_mode
-            if not stat.S_ISREG(mode):
-                raise ValueError(f"verifier snapshot rejects non-regular file: {child}")
-            shutil.copy2(child, target_directory / name, follow_symlinks=False)
+    Keep this import local: the isolated verifier worker is a standalone file
+    and must not import or mount the repository.
+    """
+    from .workspace_snapshot import copy_verified_workspace
+    return copy_verified_workspace(source, destination, exclude_git=False)
 
 
 def _project_program(spec: Mapping[str, Any]) -> tuple[str, str]:
@@ -1050,11 +1035,13 @@ def _run_isolated_verifier(acceptance, workspace, events, observations, *, priva
     with tempfile.TemporaryDirectory(prefix="verifier-", dir=private_root) as directory:
         root = Path(directory)
         snapshot = root / "workspace"
-        _secure_snapshot(workspace, snapshot)
+        workspace_tree = _secure_snapshot(workspace, snapshot)
         if evidence_dir is not None:
+            from . import workspace_snapshot
+            evidence_context['workspace_tree'] = workspace_tree
+            evidence_context['snapshotter_sha256'] = hashlib.sha256(Path(workspace_snapshot.__file__).read_bytes()).hexdigest()
             evidence_context['workspace_files'] = {
-                str(path.relative_to(snapshot)): hashlib.sha256(path.read_bytes()).hexdigest()
-                for path in sorted(snapshot.rglob('*')) if path.is_file()}
+                path: entry['sha256'] for path, entry in workspace_tree.items() if entry['kind'] == 'file'}
         worker_directory = root / "worker"
         worker_directory.mkdir()
         worker = worker_directory / "worker.py"

@@ -24,6 +24,7 @@ import uuid
 from .harness import ActionDefinition, ActionHarness, ActionResult, HarnessError
 from .project_preview import preview_server
 from .project_browser import BROWSER_STEPS_SCHEMA
+from .workspace_snapshot import copy_verified_workspace, tree_identity
 
 
 class LaunchError(RuntimeError):
@@ -135,24 +136,13 @@ class ProjectLaunch:
         stage.replace(self.output / 'RECEIPT.json')
 
     def _snapshot(self):
-        self.copy.mkdir()
-        # Installed dependencies are recreated in the copy from package/lock
-        # files. Do not follow host links or copy repository administration.
-        for folder, directories, files in os.walk(self.workspace, followlinks=False):
-            directories[:] = sorted(name for name in directories if name not in ('.git', 'node_modules'))
-            for name in [*directories, *sorted(files)]:
-                source = Path(folder) / name
-                relative = source.relative_to(self.workspace)
-                if source.is_symlink() or not (source.is_dir() or source.is_file()):
-                    raise LaunchError(f'unsupported source entry: {relative}')
-                target = self.copy / relative
-                if source.is_dir():
-                    target.mkdir()
-                else:
-                    data = source.read_bytes()
-                    target.write_bytes(data)
-                    target.chmod(source.stat().st_mode & 0o777)
-                    self.receipt['source_files'][str(relative)] = hashlib.sha256(data).hexdigest()
+        # Share the same portable-link identity as Actor copies and snapshots.
+        # npm ci recreates installed dependencies in this disposable copy when
+        # a lockfile exists; the original workspace remains unchanged.
+        tree = copy_verified_workspace(self.workspace, self.copy, audit_path=self.output / 'COPY.json')
+        self.receipt['source_tree'] = tree
+        self.receipt['source_files'] = {path: record['sha256'] for path, record in tree.items()
+                                        if record['kind'] == 'file'}
 
     def _preflight(self):
         if self.kind == 'static' and not (self.copy / 'index.html').is_file():
@@ -328,8 +318,10 @@ class ProjectLaunch:
                 if self.npm_script == 'preview':
                     self._command('build', ['npm', 'run', 'build'], deadline=deadline)
                     root = self.copy / 'dist'
-                    if root.is_symlink() or any(p.is_symlink() for p in root.rglob('*')):
-                        raise LaunchError('built output must contain regular files, not symbolic links')
+                    # Validate links against the project, including output
+                    # directories that are themselves aliases. Preserve the
+                    # installed dependency tree and the actual build identity.
+                    self.receipt['built_tree'] = tree_identity(self.copy)
                     if not (root / 'index.html').is_file():
                         raise LaunchError('build did not produce dist/index.html')
                     expected = (root / 'index.html').read_bytes()

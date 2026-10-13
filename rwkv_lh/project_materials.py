@@ -4,14 +4,14 @@ The request names existing relative paths. This layer copies those bytes into
 the original context; it does not interpret requirements or choose write scopes.
 """
 import hashlib
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 
 from .project_contracts import digest, fields, relative_path
-from .workspace_snapshot import tree_identity
+from .workspace_snapshot import tree_identity, resolve_identity_path
 
 
-def referenced_paths(request, workspace):
+def referenced_files(request, workspace):
     """Match actual literal paths, including ./, without filename heuristics.
 
     A sentence-final period is punctuation; a following filename component is
@@ -20,14 +20,48 @@ def referenced_paths(request, workspace):
     """
     if not isinstance(workspace, dict):
         raise ValueError('workspace inventory required for referenced material')
-    return [path for path, record in sorted(workspace.items())
+    def mentioned(path, *, directory=False):
+        suffix = '/' if directory else r'(?![A-Za-z0-9_/\\+-]|\.[A-Za-z0-9_./\\+-])'
+        return re.search(r'(?<![A-Za-z0-9_./\\+-])(?:\./)?' + re.escape(path) + suffix, request)
+    found = {path: record for path, record in sorted(workspace.items())
             if isinstance(record, dict) and record.get('kind') == 'file'
-            and re.search(r'(?<![A-Za-z0-9_./\\+-])(?:\./)?' + re.escape(path)
-                          + r'(?![A-Za-z0-9_/\\+-]|\.[A-Za-z0-9_./\\+-])', request)]
+            and mentioned(path)}
+    links = [path for path, record in workspace.items()
+             if isinstance(record, dict) and record.get('kind') == 'symlink']
+    if not links:
+        return found
+    children = {}
+    for path in workspace:
+        if path != '.':
+            children.setdefault(str(PurePosixPath(path).parent), []).append(path)
+    pending, visited = [(path, path) for path in links], set()
+    while pending:
+        visible, physical = pending.pop()
+        if visible in visited:
+            continue
+        visited.add(visible)
+        if not (mentioned(visible) or mentioned(visible, directory=True)):
+            continue
+        target = resolve_identity_path(workspace, physical)
+        record = workspace[target]
+        if record['kind'] == 'file' and mentioned(visible):
+            found[visible] = record
+        elif record['kind'] == 'directory' and mentioned(visible, directory=True):
+            # Traverse only prefixes actually present in the request. Even a
+            # directory link to an ancestor has finite cited paths; expanding
+            # the whole alias tree could otherwise be infinite.
+            pending.extend((visible + '/' + PurePosixPath(child).name, child)
+                           for child in children.get(target, ()))
+    return dict(sorted(found.items()))
+
+
+def referenced_paths(request, workspace):
+    return list(referenced_files(request, workspace))
 
 
 def validate_materials(request, workspace, materials):
-    if not isinstance(materials, dict) or set(materials) != set(referenced_paths(request, workspace)):
+    files = referenced_files(request, workspace)
+    if not isinstance(materials, dict) or set(materials) != set(files):
         raise ValueError('referenced material set differs from the request and workspace')
     for path, record in materials.items():
         relative_path(path)
@@ -35,7 +69,7 @@ def validate_materials(request, workspace, materials):
         checksum = record['sha256']
         if (not isinstance(checksum, str) or len(checksum) != 64
                 or any(c not in '0123456789abcdef' for c in checksum)
-                or checksum != workspace[path].get('sha256')
+                or checksum != files[path].get('sha256')
                 or type(record['bytes']) is not int or record['bytes'] < 0):
             raise ValueError('referenced material identity differs from workspace')
         if record['status'] == 'text' and isinstance(record['text'], str):
@@ -63,11 +97,11 @@ def capture_materials(root, request, *, expected_digest):
     if digest(before) != expected_digest:
         raise ValueError('workspace changed before initial planning material capture')
     materials = {}
-    for path in referenced_paths(request, before):
+    for path, entry in referenced_files(request, before).items():
         relative_path(path)
         raw = (root / path).read_bytes()
         checksum = hashlib.sha256(raw).hexdigest()
-        if checksum != before[path]['sha256']:
+        if checksum != entry['sha256']:
             raise ValueError('workspace changed while reading referenced material: ' + path)
         try:
             content, status = raw.decode('utf-8'), 'text'

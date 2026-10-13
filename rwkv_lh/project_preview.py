@@ -23,7 +23,11 @@ def preview_unavailable_reason(workspace):
         return '尚无项目文件。'
     workspace = Path(workspace)
     entry = workspace / 'index.html'
-    if not entry.is_file() or entry.is_symlink():
+    try:
+        available = entry.is_file() and entry.resolve(strict=True).is_relative_to(workspace.resolve(strict=True))
+    except (OSError, RuntimeError):
+        available = False
+    if not available:
         reason = f'工作区根目录没有可直接预览的 index.html：{workspace}'
         if (workspace / 'package.json').is_file():
             reason += '。检测到 package.json；当前预览仅支持静态文件，未执行 npm 安装、构建或启动脚本'
@@ -48,7 +52,10 @@ class _ArtifactHandler(SimpleHTTPRequestHandler):
                 candidate = path / name
                 if candidate.is_symlink():
                     try:
-                        candidate.resolve().relative_to(root)
+                        target = candidate.resolve().relative_to(root)
+                        if any(part.startswith('.') for part in target.parts):
+                            self.send_error(404)
+                            return None
                     except (ValueError, OSError, RuntimeError):
                         self.send_error(404)
                         return None

@@ -33,6 +33,8 @@ uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev
 
 输出目录必须尚不存在，且不能与源目录重叠。Agent 在输出目录的 `workspace/` 副本中修改文件，执行记录位于 `execution/`；逐步命令与反馈见 `execution/PROGRESS.jsonl`，终态见 `DELIVERY.json`。工作区副本隔离文件变更，命令仍使用现有工具权限。
 
+工作区保留指向项目内部有效目标的相对符号链接，支持 npm 命令入口和项目内本地包随安装、构建及快照连续使用。绝对链接、越界、悬空或循环链接会报告具体错误；链接不能扩大写入权限。当前 Agent 命令仍隔离网络，也没有跨调用持久后台服务保证，依赖下载与服务生命周期尚待完善。
+
 退出码 0 表示 Executor 调用 `finish_work` 正常结束；`finished` 是模型声明，当前始终 `completed=false`、`acceptance=not_evaluated`，**不代表通过验收**。预算耗尽按中断处理；模型仍可能重复调用、遗漏修改或无依据提交。推理服务仍保有本次 State 时，可用 `rwkv-lh --resume /absolute/path/to/new-run` 沿原预算恢复；默认内存 State 在服务重启后失效，未知操作不会自动重放。
 
 不带参数启动 `rwkv-lh` 可进入交互终端，也可直接传入一句需求创建新项目。使用 `--jobs` 批量运行独立任务；全部参数见 `rwkv-lh --help`。

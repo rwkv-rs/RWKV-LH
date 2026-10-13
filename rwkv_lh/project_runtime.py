@@ -12,7 +12,7 @@ from .harness import ActionHarness, ActionResult, HarnessError
 from .project_tools import configure_project_tools
 from .project_workspace import explicit_write_targets, violations as write_violations, publish_workspace
 from .schema import GoalState, TaskAction
-from .workspace_snapshot import tree_identity, copy_verified_workspace
+from .workspace_snapshot import tree_identity, copy_verified_workspace, invalid_entries
 from .observation_funnel import project_action_result
 from .project_deadline import project_deadline
 from .model_session import InputBudgetError
@@ -192,7 +192,8 @@ class ProjectRuntime:
             if digest(before_tree) != s['workspace_digest']:
                 raise ValueError('workspace changed outside the recorded worker')
             policy = {'scope': task['scope'], 'protected': protected_paths(s)}
-            violations = write_violations(explicit_write_targets(self.harness, action), **policy)
+            violations = write_violations(explicit_write_targets(self.harness, action, identity=before_tree),
+                                          before=before_tree, **policy)
             identifier = self.db.begin_tool_operation({'assignment_id': lane, 'name': name,
                 'arguments': action.arguments, 'requested_arguments': params,
                 'before': s['workspace_digest'], 'step_id': task['id'],
@@ -213,12 +214,14 @@ class ProjectRuntime:
                 changed = [p for p in before_tree.keys() | staged_tree.keys()
                            if before_tree.get(p) != staged_tree.get(p)]
                 violations = write_violations(changed, before=before_tree, after=staged_tree, **policy)
-                violations = sorted(set(violations) | {p for p, value in staged_tree.items()
-                    if value['kind'] not in ('file', 'directory')})
+                entry_errors = invalid_entries(staged_tree)
+                violations = sorted(set(violations) | set(entry_errors))
                 if violations:
                     result = ActionResult(name, False, output=result.output, exit_code=result.exit_code,
-                        metadata={'isolated_result': result.to_dict(), 'workspace_committed': False},
-                        error={'type': 'ScopeViolation', 'message': 'Isolated changes rejected: ' + ', '.join(violations)})
+                        metadata={'isolated_result': result.to_dict(), 'workspace_committed': False,
+                                  'workspace_entry_errors': entry_errors},
+                        error={'type': 'ScopeViolation', 'message': 'Isolated changes rejected: ' + ', '.join(violations)
+                               + ('; ' + '; '.join(entry_errors.values()) if entry_errors else '')})
                 else:
                     if tree_identity(s['workspace']) != before_tree:
                         raise ValueError('workspace changed before isolated publication')
