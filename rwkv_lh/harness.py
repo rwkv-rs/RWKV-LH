@@ -925,6 +925,38 @@ class ActionHarness:
             raise HarnessError('unsupported process network configuration')
         self._definitions[action_type] = replace(definition, network_access=network_access)
 
+    def configure_frontend_file_tools(self) -> None:
+        """Use exact text matching for the product's transaction-owned edits.
+
+        The research Harness retains its provenance contract. The frontend has
+        one schema and handler with no model-supplied revision token, and an
+        uncertain replacement cannot be replayed as an idempotent operation.
+        """
+        definition = self.definition('replace_text')
+        self._definitions['replace_text'] = replace(definition,
+            description=('Replace exact text in an existing UTF-8 file. '
+                'The total number of old matches must equal count (default 1), unless all=true. '
+                'Missing or ambiguous matches fail without editing. '
+                'Use read_file to inspect the original text and include enough context to identify the edit.'),
+            argument_schema={key: value for key, value in definition.argument_schema.items() if key != 'base_sha256'},
+            required_arguments=tuple(key for key in definition.required_arguments if key != 'base_sha256'),
+            idempotent=False, recovery_policy='do_not_replay_unknown')
+        self._handlers['replace_text'] = self._replace_matching_text
+        self._recovery_handlers.pop('replace_text', None)
+        descriptions = {
+            'read_file': ('Read original UTF-8 file text. start_byte is a byte offset, not a line number; '
+                'the caller supplies no ending position. Continue from next_start_byte until complete. '
+                'EOF returns empty text and a missing file fails. Use the original text for targeted edits.'),
+            'write_file': ('Create or atomically replace the entire UTF-8 file with content, creating missing parents. '
+                'Use replace_text for a targeted edit; writing succeeds without proving the program works.'),
+            'search_files': ('Search local UTF-8 file contents, not file names or the web. Default mode is Python regex; '
+                'choose literal for exact text. Returns ordered match lines, source locations, skipped-file details '
+                'and next_cursor; use read_file to inspect surrounding source.'),
+        }
+        for name, description in descriptions.items():
+            self._definitions[name] = replace(self.definition(name), description=description)
+        self._validate_registry()
+
     def runtime_capabilities(self) -> dict[str, Any]:
         shared = [name for name in ('run_shell', 'check_command') if name in self._definitions
                   and self.definition(name).network_access == 'public_web']
@@ -1908,12 +1940,22 @@ class ActionHarness:
                     output="replacement already present; replay converged",
                 )
         base_sha256 = self._verify_base_snapshot(path, arguments)
+        return self._replace_matching_text(goal, arguments, base_sha256=base_sha256)
+
+    def _replace_matching_text(self, goal: GoalState, arguments: dict[str, Any],
+                               *, base_sha256: str | None = None) -> ActionResult:
+        """The shared text edit implementation; any revision binding is host-owned."""
+        path = self.resolve_path(goal, arguments.get("path", ""), must_exist=True)
+        old = str(arguments.get("old") or "")
+        new = str(arguments.get("new") or "")
+        if not old:
+            raise HarnessError("replace_text requires non-empty old text")
         content = path.read_bytes().decode("utf-8")
         replace_all = bool(arguments.get("all", False))
         expected = content.count(old) if replace_all else arguments.get("count", 1)
         if replace_all and expected == 0:
             raise HarnessError(
-                "replace_text base snapshot matches but old text is absent"
+                "replace_text old text is absent"
             )
         if isinstance(expected, bool) or not isinstance(expected, int) or expected < 1:
             raise HarnessError("replace_text count must be a positive integer")
@@ -1930,6 +1972,9 @@ class ActionHarness:
             )
         updated = content.replace(old, new, expected)
         self._atomic_write(path, updated)
+        if base_sha256 is None:
+            return self._file_result("replace_text", goal, path,
+                                     output=f"replaced {expected} occurrence(s)")
         return self._snapshot_transition_result(
             "replace_text",
             goal,

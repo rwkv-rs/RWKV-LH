@@ -3,6 +3,7 @@ from .project_markdown import section
 from .project_action_feedback import action_call, action_origin, render_result, render_action_feedback
 from .project_step_progress import render_step_progress
 from .project_receipt_refs import render_view
+from .project_tool_feedback import model_tool_result
 
 
 def render_fields(fields):
@@ -35,5 +36,6 @@ def render_fields(fields):
     for observation in fields.get('observations', []):
         # The full original body above includes the projected observation.
         if observation.get('evidence_id', observation.get('action_id')) not in delivered:
-            lines.append(section('Observation (data)', observation))
+            lines.append(section('Observation (data)', {
+                **observation, 'result': model_tool_result(observation['result'])}))
     return '\n\n'.join(lines)

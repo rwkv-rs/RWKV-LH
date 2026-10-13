@@ -47,7 +47,7 @@ CLI、批量 coding 和 Web 统一调用 `project_agent.run_project_job()`，恢
 |前端工具装配|`project_tools.py`|默认六项文件/命令工具；生产、Planner 能力、decoder 与离线入口共用|
 |外部预览与检查|`project_launch.py`、`project_browser.py`|由外部调用的隔离启动、HTTP 与浏览器检查；不属于 RWKV 工具|
 
-当前版本：Goal v1、Plan v7、Assignment v8、Ledger v20、Executor v23、动作 v1、Planner v24、prompt v11、Planner chat v11、输入传输 v4、边界解码策略 v5、严格调用 v2。运行标签引用模块常量。旧协议、账本、prompt 和不兼容 State 一律拒绝恢复或改标签重用。
+当前版本：Goal v1、Plan v7、Assignment v8、Ledger v20、Executor v23、动作 v1、Planner v24、prompt v12、Planner chat v11、输入传输 v4、边界解码策略 v5、严格调用 v2。运行标签引用模块常量。旧协议、账本、prompt 和不兼容 State 一律拒绝恢复或改标签重用。
 
 底层只读工具与独立研究依赖不构成另一条编码产品入口。模型升级通过权重、tokenizer、State、上下文和传输配置适配，不自动改变角色协议。
 
@@ -62,6 +62,10 @@ Executor 只产生一个严格的 `function/params` JSON 对象。动作参数�
 |`finish_work`|`outcome`、`summary`、`receipt_ids`|outcome 为 finished 或 blocked，保存模型原文并结束|
 
 默认工作区工具只有 `list_directory`、`search_files`、`read_file`、`write_file`、`replace_text`、`run_shell`。重复文件操作和丢弃写入的 `check_command` 不进入产品菜单。`project_tools.configure_project_tools` 同时限制 schema、执行和恢复注册表；显式注册的外部 `check_project` 及同类检查能力也被排除，不能借扩展重新进入 Planner 或 RWKV。共享研究 Harness 保留自身工具合同。
+
+产品 `replace_text` 仅接收路径、旧文本、新文本及匹配次数/全量替换选项，不接受模型填写文件 SHA 或其他版本令牌。它与研究 Harness 复用同一个文本替换实现；产品配置以精确内容匹配和现有隔离事务执行，缺失或歧义匹配返回真实失败且不写入。修改不声明幂等，未知执行结果不得自动重放。多任务并发应使用各自工作区，已确认写入的发布及恢复仍由工程事务负责，不由模型维护校验值。
+
+`project_tool_feedback.model_tool_result` 是 RWKV 提示和教师采集共用的模型可见回执视图。文件内容、命令输出和真实错误保持原文；文件哈希、修改版本校验、命令流摘要等工程元数据不展示。搜索结果只移除工具产生的摘要字段，实际命中文本、位置和分页游标保留。原始完整回执仍用于内部来源核验，不能直接重写成新模型实际收到的历史；旧 prompt/工具身份不得作为新格式恢复或重标。
 
 例如 `{"function":"execute_tool","params":{"step_id":"T2","tool":"read_file","arguments":{"path":"README.md"}}}`。旧工具直接调用、独立选步、步骤汇报、双绑定方式及兼容入口已删除。缺少步骤、未知工具、错误参数或多余字段一律拒绝，宿主不补齐、不丢弃字段。模型可以在没有自测或完成全部步骤时结束；finished 只代表模型声明。
 

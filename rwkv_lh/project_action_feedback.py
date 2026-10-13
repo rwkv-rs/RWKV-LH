@@ -47,12 +47,13 @@ def action_call(intent):
 def action_origin(intent):
     if 'name' not in intent or 'arguments' not in intent:
         return {}  # Verification intent is already shown intact as the action.
-    return {key: value for key, value in intent.items() if key not in ('name', 'arguments')}
+    return {key: value for key, value in intent.items() if key not in ('name', 'arguments', 'before')}
 
 
 def render_result(result):
     from .project_markdown import section, literal
-    body = deepcopy(result)
+    from .project_tool_feedback import model_tool_result
+    body = model_tool_result(result)
     output = body.pop('output', None)
     lines = [section('Observed result', body)]
     if output is not None:
