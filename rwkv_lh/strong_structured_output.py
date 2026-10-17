@@ -3,7 +3,7 @@ from copy import deepcopy
 from itertools import combinations
 from .model_io import canonical_digest, canonical_json
 
-PROTOCOL = 'rwkv-lh.strong-strict-tools.v4'
+PROTOCOL = 'rwkv-lh.coder.strong-strict-tools.v1'
 _KEYWORDS = {'type', 'properties', 'required', 'additionalProperties', 'items', 'anyOf',
              'enum', 'const', 'description', 'title', 'default', 'pattern', 'format',
              'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf',

@@ -7,9 +7,16 @@ from copy import deepcopy
 from .project_contracts import digest
 from .project_protocols import planner, executor
 from .schema import ModelEvent
+from .project_input_rendering import MODEL_VIEW_PROTOCOL
 
-INPUT_HANDOFF_VERSION = 'project-input-handoff.v4'
+INPUT_HANDOFF_VERSION = 'rwkv-lh.coder.input-handoff.v1'
 DELTA_EVENT_TYPE = 'project_role_input_delta'
+
+
+def view_base(payload):
+    """Only the old fields needed for sparse display; bound to the full base."""
+    return {key: deepcopy(payload[key]) for key in
+            ('receipt_bindings', 'references', 'step_progress') if key in payload}
 
 
 def _validate(payload):
@@ -30,15 +37,17 @@ def make_delta(previous, current):
     return {'base_digest':digest(previous), 'target_digest':digest(current),
             'set':{key:deepcopy(value) for key,value in current.items()
                    if key == 'receipt_bindings' or key not in previous or previous[key] != value},
-            'remove':sorted(set(previous)-set(current))}
+            'remove':sorted(set(previous)-set(current)), 'view_base': view_base(previous)}
 
 
 def apply_delta(previous, patch):
     _validate(previous)
-    if not isinstance(patch,dict) or set(patch) != {'base_digest','target_digest','set','remove'}:
+    if not isinstance(patch,dict) or set(patch) != {'base_digest','target_digest','set','remove','view_base'}:
         raise ValueError('invalid delta envelope')
     if patch['base_digest'] != digest(previous):
         raise ValueError('delta base differs; do not apply stale or repeated update')
+    if patch['view_base'] != view_base(previous):
+        raise ValueError('delta view base differs from the confirmed input')
     updates, removals = patch['set'], patch['remove']
     if (not isinstance(updates,dict) or not isinstance(removals,list)
             or any(not isinstance(k,str) for k in list(updates)+removals)
@@ -60,7 +69,7 @@ def apply_delta(previous, patch):
 
 def seal_input_state(payload, anchor_input, anchor_checkpoint, *, rejected):
     """Persist transport provenance outside the model-visible input."""
-    value = {'version': INPUT_HANDOFF_VERSION, 'payload': deepcopy(payload),
+    value = {'version': INPUT_HANDOFF_VERSION, 'view_protocol': MODEL_VIEW_PROTOCOL, 'payload': deepcopy(payload),
              'anchor_input': deepcopy(anchor_input),
              'anchor_checkpoint': deepcopy(anchor_checkpoint), 'rejected': rejected}
     return {**value, 'digest': digest(value)}
@@ -72,9 +81,10 @@ def input_update(role, lane, payload, checkpoint):
             or checkpoint.get('binding', {}).get('lane') != lane):
         raise ValueError('role checkpoint input identity mismatch')
     state = checkpoint.get('input_state')
-    expected = {'version', 'payload', 'anchor_input', 'anchor_checkpoint', 'rejected', 'digest'}
+    expected = {'version', 'view_protocol', 'payload', 'anchor_input', 'anchor_checkpoint', 'rejected', 'digest'}
     if (not isinstance(state, dict) or set(state) != expected
             or state['version'] != INPUT_HANDOFF_VERSION
+            or state['view_protocol'] != MODEL_VIEW_PROTOCOL
             or state['digest'] != digest({k: v for k, v in state.items() if k != 'digest'})
             or type(state['rejected']) is not bool):
         raise ValueError('checkpoint input state missing or inconsistent; start a new run')

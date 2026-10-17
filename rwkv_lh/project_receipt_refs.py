@@ -69,8 +69,9 @@ def render_view(fields):
     if 'receipt_bindings' not in fields:
         return deepcopy(fields)
     inverse = {value: key for key, value in fields['receipt_bindings'].items()}
-    receipt_fields = {'receipt_id', 'receipt_ids', 'evidence_id', 'evidence_ids', 'action_id', 'operation_id', 'usable_evidence_ids'}
-    opaque = {'arguments', 'params', 'result', 'raw_result', 'output', 'raw_output',
+    receipt_fields = {'receipt_id', 'receipt_ids', 'evidence_id', 'evidence_ids', 'action_id', 'operation_id', 'usable_evidence_ids',
+                      'previous_matching_receipt_id'}
+    opaque = {'arguments', 'requested_arguments', 'params', 'result', 'raw_result', 'output', 'raw_output',
               'parameter_schema', 'plan', 'current_step', 'goal', 'task', 'requirements', 'initial_materials'}
 
     def visit(value, field=None):
@@ -86,6 +87,24 @@ def render_view(fields):
             return visible_references({'references': value, 'receipt_bindings': fields['receipt_bindings']})
         return {(inverse.get(key, key) if field in ('evidence_updates', 'selected_evidence') else key):
                 visit(item, key) for key, item in value.items()
-                if key not in ('receipt_bindings', 'assignment_id') and not (field in ('assignment', 'active') and key == 'id')}
+                if key not in ('receipt_bindings', 'assignment_id', 'source_operation_id',
+                               'request_operation_id', 'rejected_operation_id', 'first_operation_id',
+                               'last_operation_id', 'identical_tail_first_operation_id')
+                and not (key == 'operation_id' and item not in inverse)
+                and not (field in ('assignment', 'active') and key == 'id')}
 
-    return visit(fields)
+    result = visit(fields)
+    result.pop('action_protocol', None)
+    if 'assignment' in result:
+        # The stable assignment repeats the original request twice. Its write
+        # scope is meaningful; the request and protected paths live in their
+        # original_request and complete plan sections respectively.
+        result['assignment'] = {'scope': result['assignment']['task']['scope']}
+    if isinstance(result.get('plan'), dict):
+        result['plan'].pop('protocol', None)
+    if isinstance(result.get('remaining'), dict) and result['remaining'].get('seconds') is not None:
+        result['remaining']['seconds'] = int(result['remaining']['seconds'])
+    if 'initial_materials' in result:
+        for material in result['initial_materials'].values():
+            material.pop('sha256', None)
+    return result

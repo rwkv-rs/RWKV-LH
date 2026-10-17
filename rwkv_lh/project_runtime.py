@@ -20,7 +20,7 @@ from .model_io import ModelCommand
 from .project_output_validation import validate_role_output
 from .project_evidence import record_delivery, executor_evidence_ids, select_evidence
 
-ARCHITECTURE = 'rwkv-lh.planned-autonomous-executor.v3'
+ARCHITECTURE = 'rwkv-lh.coder.architecture.v1'
 
 
 @dataclass(frozen=True)

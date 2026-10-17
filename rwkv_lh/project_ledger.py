@@ -12,7 +12,7 @@ from .workspace_snapshot import tree_identity
 from .project_record_store import RecordStore
 from .project_materials import capture_materials, validate_initial_context
 
-PROTOCOL = 'rwkv-lh.project-ledger.v20'
+PROTOCOL = 'rwkv-lh.coder.ledger.v1'
 
 
 class UncertainOperation(RuntimeError):

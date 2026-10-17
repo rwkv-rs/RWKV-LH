@@ -25,6 +25,9 @@ def model_tool_result(result):
         view['artifacts'] = _host_view(view['artifacts'])
     if 'metadata' in view:
         view['metadata'] = _host_view(view['metadata'])
+    for key in ('artifacts', 'evidence', 'metadata', 'exit_code', 'error'):
+        if key in view and (view[key] is None or view[key] == [] or view[key] == {}):
+            del view[key]
     # search_files.output is a host-generated envelope, unlike file/command text.
     # Preserve each actual match and the opaque pagination cursor verbatim.
     if view.get('action_type') == 'search_files' and view.get('success'):

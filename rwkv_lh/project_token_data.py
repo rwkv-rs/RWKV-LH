@@ -46,6 +46,9 @@ def replay_native_rows(rows):
         {'executor': executor}[role].validate_input(row['input'])
         definitions = role_definitions(role, ActionHarness())
         exported = row['checkpoint']
+        from .project_model_io import project_prompt_identity
+        if exported['binding'].get('prompt_identity') != project_prompt_identity(role):
+            raise ValueError('recorded prompt identity differs from current model view')
         if exported['binding'].get('action_protocol') != executor.ACTION_PROTOCOL:
             raise ValueError('recorded action protocol differs from the role input')
         if exported['binding']['tools_digest'] != digest(definitions):

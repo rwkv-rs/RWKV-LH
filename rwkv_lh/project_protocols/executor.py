@@ -5,8 +5,8 @@ from rwkv_lh.project_step_progress import build_step_progress, validate_step_pro
 from rwkv_lh.project_action_feedback import build_action_feedback, validate_action_feedback
 from rwkv_lh.project_materials import validate_initial_context, validate_bound_materials
 
-PROTOCOL = 'rwkv-lh.project-executor-input.v23'
-ACTION_PROTOCOL = 'rwkv-lh.project-executor-actions.v1'
+PROTOCOL = 'rwkv-lh.coder.executor-input.v1'
+ACTION_PROTOCOL = 'rwkv-lh.coder.executor-actions.v1'
 INSTRUCTION = 'Choose one next action. Return exactly one function/params JSON object.'
 RULES = (
     'Execute the complete original_request using the initial plan. You own implementation, '
@@ -116,6 +116,11 @@ def validate_input(value):
         raise ValueError('step references must preserve the whole plan')
     allowed = refs['read_receipt']['receipt_id']
     strings(allowed)
+    execution = value['action_feedback']['last_execution']
+    if execution is not None:
+        prior = execution['repetition']['previous_matching_receipt_id']
+        if prior is not None and prior not in allowed:
+            raise ValueError('repeated execution refers to an unavailable receipt')
     validate_bindings(value['receipt_bindings'], allowed)
     if refs['finish_work']['receipt_ids'] != allowed:
         raise ValueError('finish receipt scope differs')

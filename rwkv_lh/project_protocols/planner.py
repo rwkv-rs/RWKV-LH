@@ -2,8 +2,8 @@
 from copy import deepcopy
 from rwkv_lh.project_contracts import PLAN_PROTOCOL, WORKSPACE_PATH_SCHEMA, fields, resource_budget, text
 
-PROTOCOL = 'rwkv-lh.project-planner-input.v24'
-CHAT_LAYOUT_VERSION = 'project-planner-chat.v11'
+PROTOCOL = 'rwkv-lh.coder.planner-input.v1'
+CHAT_LAYOUT_VERSION = 'rwkv-lh.coder.planner-chat.v1'
 INSTRUCTION = (
     'Create one initial executable plan for the request. RWKV chooses tools and executes '
     'the plan using actual results. Ground the plan in the supplied workspace, materials '

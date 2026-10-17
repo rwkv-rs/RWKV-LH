@@ -4,9 +4,9 @@ import hashlib
 import json
 from pathlib import PurePosixPath
 
-PLAN_PROTOCOL = 'rwkv-lh.project-plan.v7'
-ASSIGNMENT_PROTOCOL = 'rwkv-lh.project-assignment.v8'
-GOAL_PROTOCOL = 'rwkv-lh.project-user-goal.v1'
+PLAN_PROTOCOL = 'rwkv-lh.coder.plan.v1'
+ASSIGNMENT_PROTOCOL = 'rwkv-lh.coder.assignment.v1'
+GOAL_PROTOCOL = 'rwkv-lh.coder.user-goal.v1'
 GOAL_ID = 'original-goal'
 WORKSPACE_PATH_SCHEMA = {
     'type': 'string', 'minLength': 1,

@@ -4,8 +4,8 @@ from .runtime.structured_output import build_decoder_contract
 from .project_protocols import executor
 from .project_receipt_refs import visible_references
 
-INPUT_FRAMING = 'project-decoder-json-fence.v1'
-BOUNDARY_POLICY = 'project-boundary-decoder.v5'
+INPUT_FRAMING = 'rwkv-lh.coder.decoder-json-fence.v1'
+BOUNDARY_POLICY = 'rwkv-lh.coder.boundary-decoder.v1'
 
 
 def _reference(schema, field, values):

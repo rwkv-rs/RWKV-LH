@@ -3,6 +3,39 @@ from copy import deepcopy
 from .project_evidence import executor_evidence_ids
 
 
+def execution_repetition(state, lane, allowed):
+    """Count only confirmed tool executions, using normalized actual arguments.
+
+    Compare the complete shared model result, including literal output/error.
+    Host receipt IDs and source hashes do not make otherwise equal results
+    different. Intervening changed executions break the consecutive tail.
+    """
+    from .project_contracts import digest
+    from .project_tool_feedback import model_tool_result
+    records = []
+    for identifier, receipt in state['evidence'].items():
+        if identifier not in allowed:
+            continue
+        selected = state['selected_evidence'].get(lane, {}).get(identifier, {}).get('evidence', {})
+        result = selected.get('raw_result', receipt['result'])
+        action = receipt['intent']
+        records.append((identifier, digest([action['name'], action['arguments']]),
+                        digest(model_tool_result(result))))
+    if not records:
+        return None
+    _, action, result = records[-1]
+    same_action = [row for row in records if row[1] == action]
+    same_result = [row for row in same_action if row[2] == result]
+    tail = 0
+    for row in reversed(records):
+        if row[1:] != (action, result):
+            break
+        tail += 1
+    return {'same_action_count': len(same_action), 'same_result_count': len(same_result),
+            'consecutive_same_result': tail,
+            'previous_matching_receipt_id': same_result[-2][0] if len(same_result) > 1 else None}
+
+
 def build_action_feedback(state, *, role, assignment=None, references=None):
     if role != 'executor':
         raise ValueError('only Executor receives action feedback')
@@ -16,6 +49,8 @@ def build_action_feedback(state, *, role, assignment=None, references=None):
         latest = {'evidence_id': identifier, 'kind': receipt['kind'],
             'action': deepcopy(receipt['intent']),
             'result': deepcopy(selected.get('raw_result', receipt['result']))}
+    if latest:
+        latest['repetition'] = execution_repetition(state, lane, allowed)
     rejected = None
     rejection = state['role_rejections'].get(lane)
     if rejection:
@@ -47,16 +82,18 @@ def action_call(intent):
 def action_origin(intent):
     if 'name' not in intent or 'arguments' not in intent:
         return {}  # Verification intent is already shown intact as the action.
-    return {key: value for key, value in intent.items() if key not in ('name', 'arguments', 'before')}
+    requested = intent.get('requested_arguments')
+    return ({'requested_arguments': deepcopy(requested)}
+            if requested is not None and requested != intent['arguments'] else {})
 
 
 def render_result(result):
-    from .project_markdown import section, literal
+    from .project_markdown import section
     from .project_tool_feedback import model_tool_result
     body = model_tool_result(result)
     output = body.pop('output', None)
     lines = [section('Observed result', body)]
-    if output is not None:
+    if output not in (None, ''):
         lines.append(section('Output (literal data)', output))
     return '\n\n'.join(lines)
 
@@ -69,11 +106,23 @@ def render_action_feedback(value):
         lines.append('No confirmed tool execution yet.')
     else:
         lines.extend([section('Receipt', execution['evidence_id']),
-            section('Executed action', action_call(execution['action'])),
-            section('Origin', action_origin(execution['action'])), render_result(execution['result'])])
+            section('Executed action', action_call(execution['action']))])
+        origin = action_origin(execution['action'])
+        if origin:
+            lines.append(section('Origin', origin))
+        repetition = execution['repetition']
+        if repetition['same_action_count'] > 1:
+            lines.append(section('Repeated execution (same tool and actual arguments)',
+                                 {k: v for k, v in repetition.items() if v is not None}))
+        lines.append(render_result(execution['result']))
     rejected = value['rejected_call']
     if rejected is not None:
-        lines.append(section('Rejected model call (no tool execution)', rejected))
+        from .project_markdown import render_contract
+        schema = rejected['parameter_schema']
+        shown = {key: item for key, item in rejected.items() if key != 'parameter_schema'}
+        lines.append(section('Rejected model call (no tool execution)', shown))
+        # The same decision-bearing contract view as the bootstrap catalog.
+        lines.append('### parameter contract\n' + (render_contract(schema) if schema else 'None.'))
     return '\n\n'.join(lines)
 
 
@@ -85,13 +134,23 @@ def validate_action_feedback(value):
         raise ValueError('unknown feedback receiver')
     execution = value['last_execution']
     if execution is not None:
-        fields(execution, ('evidence_id', 'kind', 'action', 'result'))
+        fields(execution, ('evidence_id', 'kind', 'action', 'result', 'repetition'))
         if (not isinstance(execution['evidence_id'], str) or not execution['evidence_id']
                 or not isinstance(execution['kind'], str) or not execution['kind']
                 or execution['kind'] == 'model'
                 or not isinstance(execution['action'], dict)
                 or not isinstance(execution['result'], dict)):
             raise ValueError('action feedback requires a confirmed non-model receipt')
+        repetition = execution['repetition']
+        fields(repetition, ('same_action_count', 'same_result_count', 'consecutive_same_result',
+                            'previous_matching_receipt_id'))
+        total, same, tail = (repetition[k] for k in
+                            ('same_action_count', 'same_result_count', 'consecutive_same_result'))
+        prior = repetition['previous_matching_receipt_id']
+        if (any(type(n) is not int for n in (total, same, tail)) or not 1 <= tail <= same <= total
+                or (same == 1 and prior is not None)
+                or (same > 1 and (not isinstance(prior, str) or not prior or prior == execution['evidence_id']))):
+            raise ValueError('invalid confirmed execution repetition')
     rejected = value['rejected_call']
     if rejected is not None:
         fields(rejected, ('operation_id', 'role', 'call', 'raw_output', 'error',

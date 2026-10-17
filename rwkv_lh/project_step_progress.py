@@ -21,9 +21,20 @@ def build_step_progress(state):
     return {'steps': steps}
 
 
-def render_step_progress(progress):
+def render_step_progress(progress, *, previous=None):
     from .project_markdown import section
-    return section('Observed plan steps (not verified completion)', progress['steps'])
+    def rows(value):
+        return {row['step_id']: {key: item for key, item in row.items()
+                if key not in ('step', 'step_id', 'evidence_ids')}
+                for row in value['steps'] if row['selected'] or row['tool_calls']}
+    current = rows(progress)
+    old = rows(previous) if previous is not None else {}
+    changed = {key: value for key, value in current.items() if old.get(key) != value}
+    lines = [section('Observed plan steps (updates by step_id; not verified completion)', changed)] if changed else []
+    removed = [key for key in old if key not in current]
+    if removed:
+        lines.append(section('Removed step observations', removed))
+    return '\n\n'.join(lines)
 
 
 def validate_step_progress(progress, *, tasks):

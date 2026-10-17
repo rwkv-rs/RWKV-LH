@@ -5,25 +5,25 @@ from collections.abc import Mapping
 from . import model_io
 from .model_io import ModelCommandNormalization, ModelIOError
 from .project_input_delta import DELTA_EVENT_TYPE
-from .project_input_rendering import render_fields
+from .project_input_rendering import render_fields, MODEL_VIEW_PROTOCOL
 from .project_markdown import section, render_tools
 
 
-CALL_PROTOCOL = 'project-strict-call.v2'
+CALL_PROTOCOL = 'rwkv-lh.coder.strict-call.v1'
 PROJECT_INPUT_PREFIX = (
     "\n\nUser: Controller role update: Follow the current payload instruction and "
     "its observed facts. Choose exactly one available function and return only "
     "its declared parameters inside a function/params JSON call. Role input: "
 )
 _GENERIC_INPUT_PREFIX = "\n\nUser: Function output: "
-PROMPT_LAYOUT_VERSION = 'project-role-prompt.v12'
+PROMPT_LAYOUT_VERSION = 'rwkv-lh.coder.role-prompt.v1'
 
 
 def project_prompt_identity(role):
     from .project_protocols import executor
     from .project_contracts import digest
     module = {'executor': executor}[role]
-    return digest({'layout': PROMPT_LAYOUT_VERSION, 'rules': module.RULES,
+    return digest({'layout': PROMPT_LAYOUT_VERSION, 'view': MODEL_VIEW_PROTOCOL, 'rules': module.RULES,
                    'question': module.INSTRUCTION})
 
 
@@ -62,14 +62,15 @@ def render_project_event_append(event, visible_definitions=(), *, tool_update=No
         if _GENERIC_INPUT_PREFIX not in rendered:
             raise ModelIOError('project delta lacked the generic event prefix')
         from .project_protocols.executor import INSTRUCTION
-        prefix = ('\n\nUser: Controller role update: Replace the named current sections below; '
+        prefix = ('\n\nUser: Controller role update: Update observed steps by step_id; '
+                  'add or remove the listed receipt handles. Replace other named sections; '
                   'keep unchanged facts and obligations. Input changes:\n')
         anchor = model_io.ASSISTANT_JSON_CONTINUATION_ANCHOR
         if not rendered.endswith(anchor):
             raise ModelIOError('project delta lacked the JSON output anchor')
         lead = rendered.split(_GENERIC_INPUT_PREFIX, 1)[0]
         removals = '\n' + section('Removed fields', event.payload['remove']) if event.payload['remove'] else ''
-        return lead + prefix + render_fields(event.payload['set']) + removals + '\n' + INSTRUCTION + anchor
+        return lead + prefix + render_fields(event.payload['set'], previous=event.payload['view_base']) + removals + '\n' + INSTRUCTION + anchor
     if event.event_type != 'project_role_input':
         return rendered
     if _GENERIC_INPUT_PREFIX not in rendered:

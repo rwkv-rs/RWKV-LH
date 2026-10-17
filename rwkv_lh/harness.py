@@ -1813,26 +1813,72 @@ class ActionHarness:
             text = text[2:]
         return text or "."
 
-    def _nearest_workspace_paths(self, root: Path, missing: Path, *, limit: int = 5) -> list[str]:
-        """List existing workspace paths closest to a missed target (evidence only)."""
+    @staticmethod
+    def _stem_tokens(name: str) -> set[str]:
+        """Split a name into the words a model actually retypes, minus its suffix.
+
+        `scrpt.js` must not match everything ending in `.js`, and `js/` must not
+        match `scrpt.js` — the extension carries no identity.
+        """
+        return {token for token in re.split(r"[.\-_ ]+", Path(name).stem.casefold()) if token}
+
+    def _nearest_workspace_paths(
+        self,
+        root: Path,
+        missing: Path,
+        *,
+        limit: int = 5,
+        walk_limit: int = 5000,
+    ) -> list[str]:
+        """List existing workspace paths that share structure with a missed target.
+
+        Ranking is evidence, never a correction: exact name first, then shared
+        path segments (`script.browser.mjs` finds `js/script.babel.js`), then
+        shared words. A parent-directory listing is the zero-hit fallback so a
+        miss still names what the model can call next.
+        """
         wanted = missing.name.casefold()
-        stem = missing.stem.casefold()
+        wanted_tokens = self._stem_tokens(missing.name)
+        wanted_dir = "" if str(missing.parent) in {"", "."} else missing.parent.as_posix()
         exact: list[str] = []
-        partial: list[str] = []
+        segmented: list[tuple[int, str]] = []
+        lexical: list[tuple[int, str]] = []
         seen = 0
+        exhausted = False
         for base, directories, files in os.walk(root):
             directories.sort()
             for name in sorted(files) + directories:
                 seen += 1
-                if seen > 5000:
-                    return sorted(exact)[:limit] or sorted(partial)[:limit]
+                if seen > walk_limit:
+                    exhausted = True
+                    break
                 relative = str((Path(base) / name).relative_to(root))
                 lowered = name.casefold()
                 if lowered == wanted:
                     exact.append(relative)
-                elif stem and stem in lowered:
-                    partial.append(relative)
-        return sorted(exact)[:limit] or sorted(partial)[:limit]
+                    continue
+                shared = len(wanted_tokens & self._stem_tokens(name))
+                if not shared:
+                    continue
+                rank = shared + (1 if wanted_dir and Path(relative).parent.as_posix() == wanted_dir else 0)
+                if wanted_dir and Path(relative).parent.as_posix() == wanted_dir:
+                    segmented.append((-rank, relative))
+                elif wanted_tokens & self._stem_tokens(str(Path(relative).parent)):
+                    lexical.append((-rank, relative))
+            if exhausted:
+                break
+        ordered = ([*exact][:limit]
+                   + [path for _, path in sorted(segmented) + sorted(lexical)
+                      if path not in exact][: max(0, limit - len(exact))])
+        if ordered:
+            return ordered
+        parent = root / missing.parent
+        try:
+            parent.resolve(strict=True).relative_to(root)
+            entries = sorted(parent.iterdir())[:20] if parent.is_dir() else []
+        except (OSError, ValueError, RuntimeError):
+            entries = []
+        return [f"{entry.name}/" if entry.is_dir() else entry.name for entry in entries]
 
     def resolve_path(
         self,
@@ -1852,13 +1898,23 @@ class ActionHarness:
         try:
             resolved = candidate.resolve(strict=must_exist)
         except FileNotFoundError as exc:
+            # A missing leaf must not bypass containment of its existing
+            # symlink parents, including the diagnostic directory listing.
+            try:
+                candidate.resolve(strict=False).relative_to(root)
+            except ValueError as escape:
+                raise ScopeViolation(f"path escapes goal workspace: {value}") from escape
             # Structured near-miss evidence: the repair feedback carries real
             # workspace literals to choose from. Never a silent correction.
             # The exception type is preserved so outcome classification stays
             # "not_found" for downstream repair routing.
             nearest = self._nearest_workspace_paths(root, raw)
-            hint = ("; nearest existing workspace paths: " + ", ".join(nearest)
-                    if nearest else "")
+            shares_token = any(
+                self._stem_tokens(raw.name) & self._stem_tokens(Path(item).name)
+                for item in nearest)
+            hint = (("; nearest existing workspace paths: " if shares_token
+                     else "; parent directory entries, no similar path exists: ")
+                    + ", ".join(nearest) if nearest else "")
             raise FileNotFoundError(f"path does not exist: {value}{hint}") from exc
         try:
             resolved.relative_to(root)
@@ -3221,18 +3277,25 @@ class ActionHarness:
         sandbox_cwd = Path("/workspace") / cwd.relative_to(workspace)
         child_argv = list(argv)
         executable = child_argv[0]
-        resolved_executable: Path | None = None
-        if Path(executable).is_absolute():
-            resolved_executable = Path(executable).resolve(strict=True)
-        elif "/" not in executable and resolve_host_executable:
-            located = shutil.which(executable)
-            if located:
-                resolved_executable = Path(located).resolve(strict=True)
-
         sandbox_runtime = Path("/opt/rwkv-lh-python")
         venv_root = Path(sys.prefix).resolve(strict=True)
         sandbox_venv = Path("/opt/rwkv-lh-venv")
         configured_runtime_root = Path(sys.executable).resolve(strict=True).parent.parent
+        system_path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        # Resolve names against precisely the toolchain mounted below. Ambient
+        # shell shims (npm, node, etc.) must not change a sandbox's tool identity.
+        lookup_path = system_path
+        if include_project_venv:
+            lookup_path = os.pathsep.join((str(configured_runtime_root / 'bin'),
+                                          str(venv_root / 'bin'), system_path))
+        resolved_executable: Path | None = None
+        if Path(executable).is_absolute():
+            resolved_executable = Path(executable).resolve(strict=True)
+        elif "/" not in executable and resolve_host_executable:
+            located = shutil.which(executable, path=lookup_path)
+            if located:
+                resolved_executable = Path(located).resolve(strict=True)
+
         # Project scripts using /usr/bin/env need the same runtime on PATH.
         runtime_root: Path | None = configured_runtime_root if include_project_venv else None
         if resolved_executable is not None:
@@ -3354,7 +3417,7 @@ class ActionHarness:
                 index = command.index('--remount-ro')
                 command[index:index] = ['--ro-bind', str(resolver), str(resolver)]
             command.append('--share-net')
-        sandbox_path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        sandbox_path = system_path
         if include_project_venv:
             # System-Python venvs provide the unversioned python alias here.
             sandbox_path = f"{sandbox_venv / 'bin'}:{sandbox_path}"
