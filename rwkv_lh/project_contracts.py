@@ -81,10 +81,10 @@ def scope_path(value, *, field=None):
 
 
 def make_task(task_id, stage, objective, requirements, *, dependencies=(), interfaces=(),
-              scope=('.',), completion='Deliver the stated objective'):
+              scope=('.',), completion='Deliver the stated objective', checks=()):
     return {'id': task_id, 'stage': stage, 'objective': objective, 'requirements': list(requirements),
         'dependencies': list(dependencies), 'interfaces': list(interfaces),
-        'scope': list(scope), 'completion': completion}
+        'scope': list(scope), 'completion': completion, 'checks': list(checks)}
 
 
 def make_plan(requirements, tasks, *, rationale, protected_paths=()):
@@ -112,13 +112,14 @@ def validate_plan(value):
         raise ValueError('tasks required')
     tasks, covered = {}, set()
     for task in value['tasks']:
-        fields(task, ('id', 'stage', 'objective', 'requirements', 'dependencies', 'interfaces', 'scope', 'completion'))
+        fields(task, ('id', 'stage', 'objective', 'requirements', 'dependencies', 'interfaces', 'scope',
+                      'completion', 'checks'))
         for key in ('id', 'stage', 'objective', 'completion'):
             text(task[key])
         if task['id'] in tasks or task['id'] == GOAL_ID:
             raise ValueError('duplicate or reserved task identity')
-        for key in ('requirements', 'dependencies', 'interfaces', 'scope'):
-            strings(task[key], empty=key in ('dependencies', 'interfaces', 'scope'))
+        for key in ('requirements', 'dependencies', 'interfaces', 'scope', 'checks'):
+            strings(task[key], empty=key in ('dependencies', 'interfaces', 'scope', 'checks'))
         if set(task['requirements']) - requirements.keys():
             raise ValueError('unknown requirement')
         covered.update(task['requirements'])

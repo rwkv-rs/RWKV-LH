@@ -29,7 +29,10 @@ TASK_SCHEMA = object_schema({'id': {**TEXT, 'description': 'Unique task identifi
     'dependencies': {**TEXTS, 'description': 'IDs of tasks declared in this plan. Intended order only; no cycles or self-dependencies.'},
     'interfaces': {**TEXTS, 'description': 'Public entrypoints or contracts this task preserves or establishes; distinguish planned interfaces from existing ones.'},
     'scope': {**PATHS, 'description': 'Permitted literal write paths. Empty means read-only; it grants no write authority.'},
-    'completion': {**TEXT, 'description': 'Observable expected deliverable or behavior to check, not a claim that work has already passed.'}})
+    'completion': {**TEXT, 'description': 'Observable expected deliverable or behavior to check, not a claim that work has already passed.'},
+    'checks': {**TEXTS, 'description': 'Literal run_shell commands, run from the workspace root, whose exit code 0 shows this task\'s '
+               'expected behavior once implemented; empty when no command check applies. The Executor decides whether and '
+               'when to run them; the host never runs or judges them.'}})
 PLAN_SCHEMA = object_schema({'protocol': {'type': 'string', 'enum': [PLAN_PROTOCOL]},
     'requirements': {'type': 'array', 'items': object_schema({
         'id': {**TEXT, 'description': 'Unique requirement identifier within this plan.'},

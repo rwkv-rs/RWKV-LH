@@ -14,7 +14,8 @@ RULES = (
     'arguments contains only that tool\'s declared parameters. You may choose or revisit any '
     'declared step. Its scope permits literal write paths; an empty scope is read-only. '
     'Protected paths remain read-only. Dependencies describe intended order, not verified '
-    'success. All actions preserve the same RWKV State. Tool receipts report observed facts '
+    'success. A step\'s checks are literal commands you may run with run_shell; step observations '
+    'report the latest exact run, not acceptance. All actions preserve the same RWKV State. Tool receipts report observed facts '
     'and arrive automatically; read_receipt retrieves an older receipt without rerunning a tool. '
     'Use material and actual tool output to choose the next action. A file describing tests '
     'does not prove tests ran. Failed actions and rejected calls are feedback, not completion. '
@@ -153,6 +154,9 @@ def validate_input(value):
         if set(step['evidence_ids']) - set(allowed):
             raise ValueError('step observations outside current receipt scope')
         all_step_receipts.extend(step['evidence_ids'])
+        if any(check['last_receipt_id'] is not None and check['last_receipt_id'] not in allowed
+               for check in step['checks']):
+            raise ValueError('check observation outside current receipt scope')
     strings(all_step_receipts)
     if set(all_step_receipts) != set(allowed):
         raise ValueError('step observations omit or duplicate tool receipts')

@@ -83,8 +83,13 @@ def action_origin(intent):
     if 'name' not in intent or 'arguments' not in intent:
         return {}  # Verification intent is already shown intact as the action.
     requested = intent.get('requested_arguments')
-    return ({'requested_arguments': deepcopy(requested)}
-            if requested is not None and requested != intent['arguments'] else {})
+    if not isinstance(requested, dict):
+        return {}
+    # Added declared defaults are already visible in the executed arguments;
+    # only a value the model supplied but the host executed differently is a fact.
+    executed = intent['arguments']
+    changed = any(key not in executed or executed[key] != value for key, value in requested.items())
+    return {'requested_arguments': deepcopy(requested)} if changed else {}
 
 
 def render_result(result):
