@@ -8,8 +8,9 @@ from torch.nn import functional as F
 from torch.utils.checkpoint import checkpoint
 from rwkv_lh.rwkv7_layout import RWKV7Layout
 
-def mix(x, weight):
-    previous = F.pad(x[:, :-1], (0, 0, 1, 0))
+def mix(x, weight, previous_token):
+    """Token shift; previous_token [B,C] is the carried last input of the preceding chunk."""
+    previous = torch.cat((previous_token.unsqueeze(1).to(x.dtype), x[:, :-1]), dim=1)
     return torch.addcmul(x.float(), previous.float() - x.float(), weight.float()).half()
 
 class Attention(nn.Module):
@@ -36,8 +37,8 @@ class ChannelMix(nn.Module):
         self.key = nn.Linear(width, intermediate, bias=False)
         self.value = nn.Linear(intermediate, width, bias=False)
 
-    def forward(self, x):
-        up = self.key(mix(x, self.x_k))
+    def forward(self, x, previous_token):
+        up = self.key(mix(x, self.x_k, previous_token))
         return self.value(F.relu(up.float()).square().half())
 
 class Block(nn.Module):
@@ -67,10 +68,10 @@ class NativeStateModel(nn.Module):
 def norm_float(x, module):
     return F.layer_norm(x.float(), (x.shape[-1],), module.weight.float(), module.bias.float(), module.eps)
 
-def pure_producer(x, first, att):
+def pure_producer(x, first, shift, att):
     batch, tokens, width = x.shape
     shape = (batch, tokens, att.heads, width // att.heads)
-    xr, xw, xk, xv, xa, xg = (mix(x, getattr(att, 'x_' + n)) for n in ('r', 'w', 'k', 'v', 'a', 'g'))
+    xr, xw, xk, xv, xa, xg = (mix(x, getattr(att, 'x_' + n), shift) for n in ('r', 'w', 'k', 'v', 'a', 'g'))
     r, k, v = (att.receptance(xr), att.key(xk), att.value(xv))
     w1, a1, g1 = (xw @ att.w1, xa @ att.a1, xg @ att.g1)
     fused = width >= 1024 and batch * tokens <= 4
@@ -89,7 +90,7 @@ def pure_producer(x, first, att):
     new_k = (k.float() * (1 + (gate - 1) * att.k_a.float())).half()
     return (r, w, new_k, v, (-kk).half(), (kk * gate).half(), g, first)
 
-def native_producer(x, first, att, native, pre_mix=None):
+def native_producer(x, first, shift, att, native, pre_mix=None):
     from vllm.model_executor.models.rwkv7 import select_path, use_tmix_mix6_3d
     batch, tokens, width = x.shape
     p = f'blocks.{att.index}.att.'
@@ -97,7 +98,8 @@ def native_producer(x, first, att, native, pre_mix=None):
     if pre_mix is None:
         ops = torch.ops.vllm_rwkv7_fast_ops_fp16
         op = ops.tmix_mix6_3d if use_tmix_mix6_3d(batch, tokens, width) else ops.tmix_mix6
-        pre_mix = op(batch, tokens, width, x.contiguous(), torch.zeros(batch, width, device=x.device, dtype=x.dtype), *(z[p + 'x_' + n] for n in ('r', 'w', 'k', 'v', 'a', 'g')))
+        # The kernel reads the carried token and overwrites its buffer in place.
+        pre_mix = op(batch, tokens, width, x.contiguous(), shift.clone().contiguous(), *(z[p + 'x_' + n] for n in ('r', 'w', 'k', 'v', 'a', 'g')))
     return native._project_tmix(att.index, *pre_mix, first, p, select_path(batch, tokens), batch_size=batch, time_steps=tokens)
 
 def differentiate(ctx, fn, upstream):
@@ -117,42 +119,47 @@ def differentiate(ctx, fn, upstream):
 class Producer(torch.autograd.Function):
 
     @staticmethod
-    def forward(ctx, x, first, att, native):
+    def forward(ctx, x, first, shift, att, native):
         ctx.set_materialize_grads(False)
-        ctx.save_for_backward(x, first)
+        ctx.save_for_backward(x, first, shift)
         ctx.att = att
-        return native_producer(x, first, att, native)
+        return native_producer(x, first, shift, att, native)
 
     @staticmethod
     def backward(ctx, *grads):
-        return (*differentiate(ctx, lambda x, f: pure_producer(x, f, ctx.att), grads), None, None)
+        return (*differentiate(ctx, lambda x, f, s: pure_producer(x, f, s, ctx.att), grads), None, None)
 
 class NextProducer(torch.autograd.Function):
 
     @staticmethod
-    def forward(ctx, x, ffn, first, block, native):
+    def forward(ctx, x, ffn, first, shift, block, native):
+        """Returns (residual, carried att shift, producer outputs)."""
         from vllm.model_executor.models.rwkv7 import use_ln1_tmix_fusion
         ctx.set_materialize_grads(False)
-        ctx.save_for_backward(x, ffn, first)
+        ctx.save_for_backward(x, ffn, first, shift)
         ctx.block = block
         batch, tokens, width = x.shape
         p = f'blocks.{block.att.index}.'
         z = native.z
         if use_ln1_tmix_fusion(batch, tokens):
-            values = torch.ops.rwkv7_v3a_ops.add_layer_norm_tmix_mix6_f16(x.contiguous(), ffn.contiguous(), torch.zeros(batch, width, device=x.device, dtype=x.dtype), z[p + 'ln1.weight'], z[p + 'ln1.bias'], *(z[p + 'att.x_' + n] for n in ('r', 'w', 'k', 'v', 'a', 'g')))
+            # The fused kernel writes the normalized last token into its shift buffer.
+            carried = shift.clone().contiguous()
+            values = torch.ops.rwkv7_v3a_ops.add_layer_norm_tmix_mix6_f16(x.contiguous(), ffn.contiguous(), carried, z[p + 'ln1.weight'], z[p + 'ln1.bias'], *(z[p + 'att.x_' + n] for n in ('r', 'w', 'k', 'v', 'a', 'g')))
             residual, pre_mix = (values[0], values[1:])
-            produced = native_producer(residual, first, block.att, native, pre_mix)
+            produced = native_producer(residual, first, shift, block.att, native, pre_mix)
         else:
             residual, normalized = native.add_ln(x, ffn, z[p + 'ln1.weight'], z[p + 'ln1.bias'])
-            produced = native_producer(normalized, first, block.att, native)
-        return (residual, *produced)
+            carried = normalized[:, -1].clone()
+            produced = native_producer(normalized, first, shift, block.att, native)
+        return (residual, carried, *produced)
 
     @staticmethod
     def backward(ctx, *grads):
 
-        def equation(x, ffn, first):
+        def equation(x, ffn, first, shift):
             summed = x.float() + ffn.float()
-            return (summed.half(), *pure_producer(norm_float(summed, ctx.block.ln1).half(), first, ctx.block.att))
+            normalized = norm_float(summed, ctx.block.ln1).half()
+            return (summed.half(), normalized[:, -1], *pure_producer(normalized, first, shift, ctx.block.att))
         return (*differentiate(ctx, equation, grads), None, None)
 
 class Post(torch.autograd.Function):
@@ -187,30 +194,35 @@ class Post(torch.autograd.Function):
 class ResidualFFN(torch.autograd.Function):
 
     @staticmethod
-    def forward(ctx, x, attention, block, native):
+    def forward(ctx, x, attention, shift, block, native):
+        """Returns (residual, channel-mix output, carried ffn shift)."""
         from vllm.model_executor.models.rwkv7 import select_path
         ctx.set_materialize_grads(False)
-        ctx.save_for_backward(x, attention)
+        ctx.save_for_backward(x, attention, shift)
         ctx.block = block
         batch, tokens, width = x.shape
         p = f'blocks.{block.att.index}.'
         z = native.z
-        shift = torch.zeros(2, batch, width, device=x.device, dtype=x.dtype)
         if tokens == 1:
-            residual, mixed = torch.ops.rwkv7_v3a_ops.add_layer_norm_cmix_mix_f16(x.contiguous(), attention.contiguous(), shift[1], z[p + 'ln2.weight'], z[p + 'ln2.bias'], z[p + 'ffn.x_k'])
+            # The fused kernel writes the normalized token into its shift buffer.
+            carried = shift.clone().contiguous()
+            residual, mixed = torch.ops.rwkv7_v3a_ops.add_layer_norm_cmix_mix_f16(x.contiguous(), attention.contiguous(), carried, z[p + 'ln2.weight'], z[p + 'ln2.bias'], z[p + 'ffn.x_k'])
             out = native.cmix_from_mixed(mixed, p + 'ffn.', select_path(batch, tokens))
         else:
             residual, normalized = native.add_ln(x, attention, z[p + 'ln2.weight'], z[p + 'ln2.bias'])
-            out = native.cmix(normalized, shift, p + 'ffn.', select_path(batch, tokens))
-        return (residual, out)
+            # Serving layout [att, ffn]; cmix reads and overwrites only index 1.
+            pair = torch.stack((torch.zeros_like(shift), shift)).contiguous()
+            out = native.cmix(normalized, pair, p + 'ffn.', select_path(batch, tokens))
+            carried = normalized[:, -1].clone()
+        return (residual, out, carried)
 
     @staticmethod
     def backward(ctx, *grads):
 
-        def equation(x, attention):
+        def equation(x, attention, shift):
             summed = x.float() + attention.float()
             normalized = norm_float(summed, ctx.block.ln2).half()
-            return (summed.half(), ctx.block.ffn(normalized))
+            return (summed.half(), ctx.block.ffn(normalized, shift), normalized[:, -1])
         return (*differentiate(ctx, equation, grads), None, None)
 
 class Head(torch.autograd.Function):
@@ -237,36 +249,59 @@ class Head(torch.autograd.Function):
 
 class NativeGradientModel(NativeStateModel):
 
-    def layer(self, x, previous_ffn, first, index):
+    def layer(self, x, previous_ffn, first, wkv, att_shift, ffn_shift, index):
+        """One block. wkv=None starts from this layer's trainable time_state.
+
+        Returns the block outputs and the layer's final serving State: FP32 wkv
+        [1,H,K,V] and the FP16 normalized last tokens consumed by the next chunk's
+        att and ffn token shift (serving shift_state[0] and [1]).
+        """
         from rwkv_lh.statetune_native_recurrence import recurrent
         block = self.blocks[index]
         native = self.native
         if index == 0:
             normalized = native.ln(x, native.z['blocks.0.ln1.weight'], native.z['blocks.0.ln1.bias'])
-            values = Producer.apply(normalized, first, block.att, native)
+            att_carried = normalized[:, -1].clone()
+            values = Producer.apply(normalized, first, att_shift, block.att, native)
         else:
-            values = NextProducer.apply(x, previous_ffn, first, block, native)
-            x, values = (values[0], values[1:])
+            values = NextProducer.apply(x, previous_ffn, first, att_shift, block, native)
+            x, att_carried, values = (values[0], values[1], values[2:])
         r, w, k, v, aa, b, g, first = values
         batch, tokens, width = r.shape
         shape = (batch, tokens, block.att.heads, width // block.att.heads)
-        state = block.att.time_state.transpose(-1, -2).unsqueeze(0).expand(batch, -1, -1, -1).contiguous()
-        y, _ = recurrent(*(value.reshape(shape).contiguous() for value in (r, w, k, v, aa, b)), initial_state=state, decay_bias=block.att.w0.reshape(shape[-2:]).contiguous())
+        if wkv is None:
+            wkv = block.att.time_state.transpose(-1, -2).unsqueeze(0).expand(batch, -1, -1, -1)
+        y, wkv_carried = recurrent(*(value.reshape(shape).contiguous() for value in (r, w, k, v, aa, b)), initial_state=wkv.contiguous(), decay_bias=block.att.w0.reshape(shape[-2:]).contiguous())
         attention = Post.apply(y.reshape_as(r), r, k, v, g, block.att, native)
-        x, ffn = ResidualFFN.apply(x, attention, block, native)
-        return (x, ffn, first)
+        x, ffn, ffn_carried = ResidualFFN.apply(x, attention, ffn_shift, block, native)
+        return (x, ffn, first, wkv_carried, att_carried, ffn_carried)
 
-    def forward(self, tokens):
+    def forward(self, tokens, state=None, *, return_state=False):
+        """Logits for one chunk. state=None is the episode start (time_state, zero shifts);
+        otherwise it is the previous chunk's returned per-layer (wkv, att_shift, ffn_shift)."""
         if (tokens.ndim != 2 or tokens.shape[0] != 1 or tokens.shape[1] < 1
                 or tokens.shape[1] > getattr(self, 'context_tokens', tokens.shape[1])):
-            raise ValueError('Native StateTune supports one complete independent sample per forward')
+            raise ValueError('Native StateTune supports one complete chunk of one sample per forward')
         x = self.native.embed(tokens)
+        width, heads = x.shape[-1], self.blocks[0].att.heads
+        if state is None:
+            zero = x.new_zeros(1, width)
+            state = [(None, zero, zero)] * len(self.blocks)
+        elif not (len(state) == len(self.blocks) and all(
+                len(layer) == 3 and layer[0].dtype == torch.float32
+                and tuple(layer[0].shape) == (1, heads, width // heads, width // heads)
+                and all(value.dtype == x.dtype and tuple(value.shape) == (1, width) for value in layer[1:])
+                for layer in state)):
+            raise ValueError('carried State must be one FP32 wkv and two token shifts per layer')
         first = x
         ffn = torch.zeros_like(x)
+        carried = []
         for i in range(len(self.blocks)):
-            function = lambda x, ffn, first, i=i: self.layer(x, ffn, first, i)
-            x, ffn, first = checkpoint(function, x, ffn, first, use_reentrant=False) if torch.is_grad_enabled() else function(x, ffn, first)
-        return Head.apply(x, ffn, self, self.native)
+            function = lambda x, ffn, first, *layer_state, i=i: self.layer(x, ffn, first, *layer_state, i)
+            x, ffn, first, *final = checkpoint(function, x, ffn, first, *state[i], use_reentrant=False) if torch.is_grad_enabled() else function(x, ffn, first, *state[i])
+            carried.append(tuple(final))
+        logits = Head.apply(x, ffn, self, self.native)
+        return (logits, tuple(carried)) if return_state else logits
 
 def build(spec):
     from rwkv_lh import statetune_core as a

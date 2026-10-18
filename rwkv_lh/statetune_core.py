@@ -69,15 +69,18 @@ def collate_samples(samples: Sequence[Mapping[str, Any]], *, context_tokens: int
     return {"input_ids": tokens, "labels": labels, "sample_ids": [row["sample_id"] for row in samples]}
 
 
-def target_cross_entropy(logits, labels):
+def target_cross_entropy(logits, labels, *, reduction: str = "mean"):
     """No L2Wrap: prompt/pad logits have no direct loss or regularizer gradient."""
     import torch
+    require(reduction in ("mean", "sum"), "reduction must be mean or sum")
     require(tuple(logits.shape[:-1]) == tuple(labels.shape), "logit/label shape differs")
     require(bool(labels.ne(-100).any()), "batch contains no supervised target tokens")
     selected = labels.ne(-100)
     # Prompt logits have no direct loss. Select before the FP32 conversion so
     # long bootstraps do not allocate another full [T,V] floating point buffer.
-    return torch.nn.functional.cross_entropy(logits[selected].float(), labels[selected])
+    values = logits[selected]
+    return torch.nn.functional.cross_entropy(values if values.dtype == torch.float64 else values.float(),
+                                             labels[selected], reduction=reduction)
 
 
 def state_parameters(model, *, layers: int) -> dict[str, Any]:
