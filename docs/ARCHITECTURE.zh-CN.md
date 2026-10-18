@@ -158,7 +158,9 @@ Executor 训练标签的文本就是边界解码器实际生成的文本：紧�
 
 整条轨迹按 target 总数统一归一 loss。最后一个有 target 的块之后的块不计算。
 
-`NativeGradientModel.forward(tokens, state, return_state=True)` 与 serving 逐块的 logits 和 State 一致。显存约为单块峰值，不随块数增长。
+授权教师轨迹的训练视图由 `statetune_episodes.py` 冻结：绑定原集合、tokenizer、模型、当前协议、来源审计、去重规则和逐目标监督掩码；被屏蔽的目标仍保留在原位置作为上下文。冻结只生成 train split，不重新生成固定角色回归。`statetune_training.optimize_state` 共用同一 State-only AdamW 实现，对同组轨迹按监督 token 数加权，每条轨迹独立从可训练初始 State 开始。训练入口 `scripts/run_statetune.py` 只执行已冻结的授权、预算、来源、数值验证与评测登记。候选导出使用生产 State loader 验证；训练结束不代表角色或 Agent 验收通过。
+
+`NativeGradientModel.forward(tokens, state, return_state=True)` 与 serving 逐块的 logits 和 State 一致。预填充的未用 logits 立即释放。激活显存由单块大小控制，边界 State 存储随块数线性增加；不能把总显存写成与块数无关。
 
 离线纠错复核使用 `project_training_labels.py::build_review_input` 构造 Markdown 材料：完整原始输入只出现一次，末尾单列本次纠正目标；当前错误输出留在来源记录中，不与目标并列投递。复核通过唯一命名的严格函数 submit_correction_review 返回，生产端与验收端共用 review_tool_definitions；除来源、输入与完整目标摘要外，还必须逐字段绑定实际审查的动作、步骤与工具（或回执/结束类型）。当前复核合同将这些既定身份字段限制为单值枚举，并在材料中显式展示完整绑定对象；判词、问题列表和理由由复核模型独立给出，原始响应仍须验证，不能在返回后改写绑定或判词。最近活动步骤不构成不可回退的阶段门；旧版复核记录不能直接作为新版标签准入。
 

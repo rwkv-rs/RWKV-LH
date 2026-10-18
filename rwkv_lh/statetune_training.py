@@ -17,6 +17,55 @@ from rwkv_lh.statetune_data import admit_dataset, sealed, _protocol
 RUN_SCHEMA = "rwkv-lh.statetune-run.v1"
 
 
+def validate_episode_compatibility(registration, plan, result, *, registration_sha256):
+    """Bind the exact carry validator's required stages and numerical limits."""
+    from rwkv_lh.statetune_native_validation import validate_carry_plan
+    validate_carry_plan(plan)
+    core.require(result.get('passed') is True and result.get('optimizer_steps') == 0 and 'error' not in result
+                 and result.get('registration_sha256') == registration_sha256
+                 and result.get('runtime_sha256') == registration['runtime']['sha256']
+                 and all(plan[key] == registration[key] for key in ('base_sha256', 'context_tokens', 'source_manifest_sha256'))
+                 and 0 <= result['elapsed_seconds'] <= plan['max_seconds'], 'State-carry compatibility identity differs')
+    stages = result['stages']
+    core.require(stages[-1]['stage'] == 'complete' and stages[-1].get('binary_inventory_verified') is True,
+                 'State-carry compatibility did not finish')
+    for kind, plans, multiplier in (('chunked_serving_alignment', plan['alignment_plans'], 2),
+                                    ('chunked_gradient', plan['gradient_plans'], 1),
+                                    ('long_chunked_backward', plan['long_backward_plans'], 1)):
+        rows = [s for s in stages if s['stage'] == kind]
+        core.require(len(rows) == len(plans) * multiplier and all(r.get('comparison_passed') is True for r in rows),
+                     'State-carry validation coverage differs')
+        expected = sorted((p['tokens'], tuple(b - a for a, b in
+            zip(p['chunk_starts'], p['chunk_starts'][1:] + [p['tokens']])), state)
+            for p in plans for state in (('zero', 'nonzero') if multiplier == 2 else ('',)))
+        actual = sorted((r['tokens'], tuple(r['chunk_sizes']), r.get('state', '') if multiplier == 2 else '') for r in rows)
+        core.require(actual == expected, 'State-carry validation membership differs')
+        for row in rows:
+            core.require(any(row['tokens'] == p['tokens'] and row['chunk_sizes'] ==
+                [b - a for a, b in zip(p['chunk_starts'], p['chunk_starts'][1:] + [p['tokens']])] for p in plans),
+                'State-carry validation geometry differs')
+            if kind == 'chunked_serving_alignment':
+                core.require(max(row['chunk_max_logit_errors'] + row['chunk_max_state_errors']) <= plan['max_logit_error'],
+                             'State-carry alignment failed')
+            elif kind == 'chunked_gradient':
+                core.require(row['gradient_relative_error'] <= plan['max_gradient_relative_error']
+                             and row['loss_relative_error'] <= plan['max_loss_relative_error'], 'State-carry gradient failed')
+            else:
+                core.require(row['recompute_equal'] and row['all_layer_gradients_finite_nonzero']
+                             and row['base_unchanged'] and row['state_unchanged']
+                             and row['peak_allocated_bytes'] <= plan['max_allocated_bytes'], 'State-carry long backward failed')
+    core.require(plan.get('episode_dataset') == registration['dataset'], 'real episode validation dataset differs')
+    probes = [row for row in stages if row['stage'] == 'real_episode_backward']
+    core.require(bool(plan.get('episode_probe_ids'))
+                 and sorted(row['episode_id'] for row in probes) == sorted(plan['episode_probe_ids']),
+                 'real episode validation coverage differs')
+    core.require(all(row.get('comparison_passed') is True and row['optimizer_steps'] == 0
+                 and row['dataset_sha256'] == registration['dataset']['sha256'] and row['recompute_equal']
+                 and row['all_layer_gradients_finite_nonzero'] and row['base_unchanged'] and row['state_unchanged']
+                 and row['peak_allocated_bytes'] <= plan['max_allocated_bytes'] for row in probes),
+                 'real episode validation failed')
+
+
 def production_model_identity(role: str, manifest: Mapping) -> str:
     """Direct native serving identifies the source checkpoint, not its container.
 
@@ -86,13 +135,15 @@ def initialize_state(model, reference: Mapping | None) -> None:
 
 def optimize_state(model, samples: Sequence[Mapping], config: Mapping, *, context_tokens: int,
                    record: Callable[[dict], None], clock: Callable[[], float] = time.monotonic,
-                   started_at: float | None = None) -> dict:
+                   started_at: float | None = None, episode_mode: bool = False) -> dict:
     """Independent batch-one samples; token-weighted accumulation, State-only AdamW.
 
     Time/resource budgets stop before the next optimizer step. They never imply
     that the registered epochs, role validation or Agent acceptance completed.
     """
     import torch
+    from rwkv_lh.statetune_episodes import validate_row
+    from rwkv_lh.statetune_state_carry import episode_chunks, state_carry_backward
     validate_optimizer(config)
     core.require(bool(samples), "empty training set")
     started = clock() if started_at is None else started_at
@@ -130,7 +181,16 @@ def optimize_state(model, samples: Sequence[Mapping], config: Mapping, *, contex
     try:
         # Validate the complete train split before any forward or update.
         for sample in samples:
-            core.collate_samples([sample], context_tokens=context_tokens)
+            if episode_mode:
+                # Dataset admission binds the actual tokenizer; this rechecks
+                # spans, booleans and all boundaries for direct optimizer users.
+                validate_row(sample, context_tokens=context_tokens,
+                             vocab_size=getattr(model.layout, 'vocab', 65536), bos_token_id=0)
+            else:
+                core.collate_samples([sample], context_tokens=context_tokens)
+        def targets(sample):
+            return (sum(count for (_, count), mark in zip(sample['target_spans'], sample['supervised']) if mark)
+                    if episode_mode else len(sample['target_token_ids']))
         for epoch in range(config["epochs"]):
             order = list(range(len(samples)))
             generator.shuffle(order)
@@ -139,7 +199,7 @@ def optimize_state(model, samples: Sequence[Mapping], config: Mapping, *, contex
                 if reason:
                     return stopped("interrupted", reason)
                 group = [samples[i] for i in order[offset:offset + config["gradient_accumulation"]]]
-                target_count = sum(len(row["target_token_ids"]) for row in group)
+                target_count = sum(targets(row) for row in group)
                 optimizer.zero_grad(set_to_none=True)
                 weighted_loss = 0.0
                 current_samples = []
@@ -147,18 +207,31 @@ def optimize_state(model, samples: Sequence[Mapping], config: Mapping, *, contex
                     reason = stop_reason()
                     if reason:
                         return stopped("interrupted", reason)
-                    batch = core.collate_samples([sample], context_tokens=context_tokens)
-                    logits = model(batch["input_ids"].to(device))
-                    loss = core.target_cross_entropy(logits, batch["labels"].to(device))
-                    core.require(bool(torch.isfinite(loss)), "nonfinite target loss")
-                    weight = len(sample["target_token_ids"]) / target_count
-                    (loss * weight).backward()
-                    weighted_loss += float(loss.detach()) * weight
-                    current_samples.append({"sample_id": sample["sample_id"], "loss": float(loss.detach()),
-                                            "target_tokens": len(sample["target_token_ids"])})
+                    sample_targets = targets(sample)
+                    weight = sample_targets / target_count
+                    if episode_mode:
+                        chunks = episode_chunks(sample['token_ids'], sample['target_spans'], sample['chunk_starts'],
+                                                context_tokens=context_tokens, supervised=sample['supervised'])
+                        carried = state_carry_backward(model, chunks, weight=weight)
+                        core.require(carried['recompute_equal'], 'chunk boundary recomputation differs')
+                        loss_value = carried['loss']
+                        sample_id = sample['episode_id']
+                        record({'event': 'episode_backward_completed', 'episode_id': sample_id,
+                                'chunks': carried['chunks'], 'targets': carried['targets'], 'loss': loss_value})
+                        del chunks
+                    else:
+                        batch = core.collate_samples([sample], context_tokens=context_tokens)
+                        logits = model(batch["input_ids"].to(device))
+                        loss = core.target_cross_entropy(logits, batch["labels"].to(device))
+                        core.require(bool(torch.isfinite(loss)), "nonfinite target loss")
+                        (loss * weight).backward()
+                        loss_value, sample_id = float(loss.detach()), sample['sample_id']
+                        del logits, loss
+                    core.require(math.isfinite(loss_value), 'nonfinite target loss')
+                    weighted_loss += loss_value * weight
+                    current_samples.append({"sample_id": sample_id, "loss": loss_value, "target_tokens": sample_targets})
                     result["samples_seen"] += 1
-                    result["target_tokens_seen"] += len(sample["target_token_ids"])
-                    del logits, loss
+                    result["target_tokens_seen"] += sample_targets
                 bad_gradients = {name: "missing" if p.grad is None else "nonfinite"
                                  for name, p in parameters.items()
                                  if p.grad is None or not bool(torch.isfinite(p.grad).all())}
@@ -261,6 +334,9 @@ def run_training(registration_reference: Mapping, output: Path, *, source_root: 
     registration = sealed(registration_reference)
     core.require(registration.get("schema_version") == RUN_SCHEMA, "unknown StateTune run registration")
     role = registration["role"]
+    episode_mode = registration.get('dataset_kind') == 'executor_episodes'
+    core.require(registration.get('dataset_kind') in (None, 'executor_episodes'), 'unknown dataset kind')
+    core.require(not episode_mode or role == 'project_executor', 'episode training supports only Executor')
     protocol, protocol_sha = _protocol(role)
     from rwkv_lh.inference.vllm_rwkv_state_profiles_v1 import _PROFILE_ID_PATTERN
     core.require(registration["input_protocol"] == protocol and registration["protocol_sha256"] == protocol_sha,
@@ -321,10 +397,14 @@ def run_training(registration_reference: Mapping, output: Path, *, source_root: 
                                         source_manifest_sha256=registration["source_manifest_sha256"])
         compatibility_ref = registration["compatibility_registration"]
         compatibility_result = sealed(registration["compatibility_result"])
-        validate_compatibility(registration, sealed(compatibility_ref), compatibility_result,
-                               registration_sha256=compatibility_ref["sha256"])
-        from .inference.native_weight_identity import identity_from_validation
-        report['serving_weight_identity'] = identity_from_validation(compatibility_result)
+        if episode_mode:
+            validate_episode_compatibility(registration, sealed(compatibility_ref), compatibility_result,
+                                           registration_sha256=compatibility_ref['sha256'])
+        else:
+            validate_compatibility(registration, sealed(compatibility_ref), compatibility_result,
+                                   registration_sha256=compatibility_ref["sha256"])
+            from .inference.native_weight_identity import identity_from_validation
+            report['serving_weight_identity'] = identity_from_validation(compatibility_result)
         load_native_runtime(runtime)
         import torch
         from rwkv_lh.statetune_native_model import build
@@ -337,9 +417,17 @@ def run_training(registration_reference: Mapping, output: Path, *, source_root: 
         core.verify_file(artifact / "model.safetensors", manifest["output"]["weights_sha256"])
         tokenizer = RWKVTokenizer.from_pretrained(artifact)
         production_model_sha = production_model_identity(role, manifest)
-        dataset, samples = admit_dataset(registration["dataset"], role=role,
-            expected_regression=registration["regression_fingerprint"], model_sha256=production_model_sha,
-            context_tokens=registration["context_tokens"], vocab_size=int(tokenizer.vocab_size), bos_token_id=int(tokenizer.bos_token_id))
+        if episode_mode:
+            from rwkv_lh.statetune_episodes import load_split
+            core.verify_file(artifact / 'rwkv_vocab_v20230424.txt', manifest['output']['vocab_sha256'])
+            dataset, samples = load_split(registration['dataset']['path'], registration['dataset']['sha256'], 'TRAIN.jsonl',
+                context_tokens=registration['context_tokens'], vocab_size=int(tokenizer.vocab_size),
+                bos_token_id=int(tokenizer.bos_token_id), model_sha256=production_model_sha,
+                tokenizer_sha256=manifest['output']['vocab_sha256'])
+        else:
+            dataset, samples = admit_dataset(registration["dataset"], role=role,
+                expected_regression=registration["regression_fingerprint"], model_sha256=production_model_sha,
+                context_tokens=registration["context_tokens"], vocab_size=int(tokenizer.vocab_size), bos_token_id=int(tokenizer.bos_token_id))
         model = build({"model_artifact": str(artifact), "context_tokens": registration["context_tokens"],
                        "base": {"path": manifest["source"]["path"], "sha256": registration["base_sha256"]}})
         initial = registration["initial_state"]
@@ -352,9 +440,9 @@ def run_training(registration_reference: Mapping, output: Path, *, source_root: 
         record({"event": "identity_admitted", "model_sha256": production_model_sha,
                 "weights_container_sha256": manifest["output"]["weights_sha256"],
                 "dataset_sha256": registration["dataset"]["sha256"], "train_samples": len(samples),
-                "regression_fingerprint": dataset["regression"]["fingerprint"], "layout": vars(model.layout)})
+                "regression_fingerprint": registration['regression_fingerprint'], "layout": vars(model.layout)})
         result = optimize_state(model, samples, registration["optimizer"], context_tokens=registration["context_tokens"],
-                                record=record, started_at=started)
+                                record=record, started_at=started, episode_mode=episode_mode)
         if result["optimizer_steps"]:
             published = publish_state(model, output, profile_id=registration["run_id"], model_artifact=str(artifact),
                                       engine_revision=runtime["engine"]["revision"])

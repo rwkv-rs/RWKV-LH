@@ -9,7 +9,8 @@ same prefix State that inference would.
 Gradients are exact across chunks. A no-grad pass stores each boundary State;
 chunks are then recomputed in reverse order with the boundary as a leaf, and
 one backward per chunk sends its own target loss plus the gradient arriving
-at its final State from the next chunk. Peak memory is that of one chunk.
+at its final State from the next chunk. Activation memory is bounded by one
+chunk; stored boundary States additionally grow with the number of chunks.
 """
 import torch
 
@@ -76,7 +77,10 @@ def state_carry_backward(model, chunks, *, weight):
     with torch.no_grad():
         state = None
         for chunk in used[:-1]:
-            _, state = model(chunk["input_ids"].to(device), state, return_state=True)
+            unused_logits, state = model(chunk["input_ids"].to(device), state, return_state=True)
+            # Even `_` is a strong reference. A [24576, 65536] FP32 tensor
+            # would otherwise stay live throughout every reverse chunk.
+            del unused_logits
             boundaries.append(state)
     scale = weight / total
     loss_sum = 0.0
@@ -104,7 +108,19 @@ def state_carry_backward(model, chunks, *, weight):
         del final
         if roots:
             torch.autograd.backward(roots, grads)
-        upstream = None if initial is None else [value.grad for value in _flatten(initial)]
+        upstream = None
+        if initial is not None:
+            upstream = []
+            for value in _flatten(initial):
+                # A contiguous [B,C] shift gradient can still be a view into
+                # an entire [B,T,C] allocation. `contiguous()` will not copy
+                # that view. Carry only its actual values into the next block,
+                # and clear the leaf's original gradient even if an autograd
+                # node still holds the leaf alive.
+                upstream.append(None if value.grad is None else value.grad.detach().clone())
+                value.grad = None
+        if counts[index]:
+            del loss
         del roots, grads, initial
     return {"loss": loss_sum / total, "targets": total, "chunks": len(used),
             "recompute_equal": bool(recompute_equal)}

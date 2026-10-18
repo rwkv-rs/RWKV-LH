@@ -242,6 +242,40 @@ def main() -> int:
                    peak_allocated_bytes=peak, base_unchanged=True, state_unchanged=True, comparison_passed=passed)
             failures += [] if passed else [f"long backward {row['tokens']}"]
             model.zero_grad(set_to_none=True)
+        if 'episode_dataset' in registration:
+            from rwkv_lh.statetune_episodes import load_split
+            reference = registration['episode_dataset']
+            _, episodes = load_split(reference['path'], reference['sha256'], 'TRAIN.jsonl',
+                context_tokens=registration['context_tokens'], vocab_size=int(tokenizer.vocab_size),
+                bos_token_id=int(tokenizer.bos_token_id), model_sha256=registration['base_sha256'],
+                tokenizer_sha256=manifest['output']['vocab_sha256'])
+            requested = registration['episode_probe_ids']
+            core.require(bool(requested) and len(set(requested)) == len(requested), 'episode probe identities differ')
+            by_id = {row['episode_id']: row for row in episodes}
+            core.require(set(requested) <= set(by_id), 'unknown episode probe')
+            for episode_id in requested:
+                row = by_id[episode_id]
+                chunks = episode_chunks(row['token_ids'], row['target_spans'], row['chunk_starts'],
+                    context_tokens=registration['context_tokens'], supervised=row['supervised'])
+                model.zero_grad(set_to_none=True)
+                torch.cuda.reset_peak_memory_stats()
+                begun = time.monotonic()
+                result = state_carry_backward(model, chunks, weight=1.0)
+                torch.cuda.synchronize()
+                peak = torch.cuda.max_memory_allocated()
+                check_untouched()
+                valid_gradient = all(p.grad is not None and bool(torch.isfinite(p.grad).all())
+                                     and bool(torch.count_nonzero(p.grad)) for p in params.values())
+                passed = result['recompute_equal'] and valid_gradient and peak <= registration['max_allocated_bytes']
+                report['role_samples'] += 1
+                record('real_episode_backward', episode_id=episode_id, dataset_sha256=reference['sha256'],
+                       tokens=len(row['token_ids']), chunks=result['chunks'], targets=result['targets'],
+                       loss=result['loss'], recompute_equal=result['recompute_equal'],
+                       all_layer_gradients_finite_nonzero=valid_gradient, peak_allocated_bytes=peak,
+                       base_unchanged=True, state_unchanged=True, optimizer_steps=0,
+                       seconds=time.monotonic() - begun, comparison_passed=passed)
+                failures += [] if passed else [f'real episode {episode_id}']
+            model.zero_grad(set_to_none=True)
         # Every comparison is recorded before failing, so one mismatch cannot hide the other evidence.
         core.require(not failures, 'State-carry comparisons failed: ' + ', '.join(failures))
         verify_loaded_libraries(runtime)
