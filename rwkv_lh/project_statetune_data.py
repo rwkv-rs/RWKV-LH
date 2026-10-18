@@ -5,7 +5,7 @@ from .project_contracts import digest
 from .project_protocols import executor
 from .project_output_validation import validate_role_output
 from .project_runtime import role_definitions
-from .model_io import JSON_CALL_STOP_SUFFIXES
+from .project_decoder import render_role_target
 from .harness import ActionHarness
 from .token_budget import tokenizer, VOCAB_PATH
 
@@ -42,14 +42,16 @@ def _normalize_project_row(row, *, role, row_schema, protocol, model_sha256, con
     core.require(input_text == row.get('input_text') and target_text == row.get('target_text'),
                  'project token/text mismatch')
     core.require(row.get('loss_mask') == [0] * len(source) + [1] * len(target), 'target-only mask differs')
-    core.require(row.get('target_text', '').endswith(JSON_CALL_STOP_SUFFIXES[0]), 'production stop required')
-    text = row['target_text'][:-len(JSON_CALL_STOP_SUFFIXES[0])]
+    text = row.get('target_text')
     wire = json.loads(text)
-    core.require(set(wire) == {'function', 'params'}, 'exact training call envelope required')
+    core.require(isinstance(wire, dict) and set(wire) == {'function', 'params'}, 'exact training call envelope required')
     from .project_model_io import parse_role_call
     native_role = 'executor'
+    definitions = role_definitions(native_role, ActionHarness())
     command, _ = parse_role_call(text, role=native_role, payload=row['input'])
-    validate_role_output(native_role, row['input'], command, role_definitions(native_role, ActionHarness()))
+    validate_role_output(native_role, row['input'], command, definitions)
+    core.require(text == render_role_target(definitions, wire, role=native_role, payload=row['input']),
+                 'target must be the boundary decoder text without a stop suffix')
     core.require(row.get('review', {}).get('verdict') == 'accept'
                  and row['review'].get('issues') == [] and row.get('review_sha256') == digest(row['review']),
                  'accepted independently recorded review required')

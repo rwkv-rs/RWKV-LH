@@ -4,14 +4,15 @@ from .project_contracts import digest
 from .project_trace import role_boundaries
 from .project_runtime import role_definitions
 from .project_output_validation import validate_role_output
-from .model_io import canonical_json, JSON_CALL_STOP_SUFFIXES
+from .model_io import JSON_CALL_STOP_SUFFIXES
 from .project_model_io import render_project_bootstrap
 from .project_model_io import render_project_event_append, render_project_assignment
 from .schema import ModelEvent
 from .harness import ActionHarness
 from .token_budget import tokenizer, VOCAB_PATH
 from .project_input_delta import INPUT_HANDOFF_VERSION, input_update
-from .project_decoder import build_role_decoder, available_definitions, tool_menu_update, INPUT_FRAMING, BOUNDARY_POLICY
+from .project_decoder import build_role_decoder, available_definitions, tool_menu_update, render_role_target
+from .project_decoder import INPUT_FRAMING, BOUNDARY_POLICY
 from .project_protocols import executor
 from .runtime.structured_output import decoder_receipt, state_output_token_ids
 
@@ -159,11 +160,13 @@ def _pack_project_candidate(replayed, command, *, role, context_tokens):
     row = replayed['row']
     if row['role'] != role:
         raise ValueError(f'{role} source required')
-    target_command = canonical_json(command)
+    definitions = role_definitions(role, ActionHarness())
+    # The label is the text the boundary grammar generates. Its terminal EOS is
+    # decoder-forced and excluded from State, so it is not supervised either.
+    target = render_role_target(definitions, command, role=role, payload=row['input'])
     from .project_model_io import parse_role_call
-    parsed, _ = parse_role_call(target_command, role=role, payload=row['input'])
-    validate_role_output(role, row['input'], parsed, role_definitions(role, ActionHarness()))
-    target = target_command + JSON_CALL_STOP_SUFFIXES[0]
+    parsed, _ = parse_role_call(target, role=role, payload=row['input'])
+    validate_role_output(role, row['input'], parsed, definitions)
     target_ids = tokenizer().encode(target)
     if tokenizer().decode_bytes(target_ids).decode('utf-8') != target:
         raise ValueError('target tokenizer round trip differs')
@@ -175,7 +178,7 @@ def _pack_project_candidate(replayed, command, *, role, context_tokens):
         'tokenizer_sha256': hashlib.sha256(VOCAB_PATH.read_bytes()).hexdigest(),
         'target_text': target, 'target_token_ids': target_ids,
         'token_ids': inputs + target_ids, 'loss_mask': [0] * len(inputs) + [1] * len(target_ids),
-        'mask_alignment': 'unshifted token positions; trainer must apply next-token shift',
+        'mask_alignment': 'unshifted token positions; trainer must apply next-token shift; decoder-forced EOS excluded',
         'context_tokens': context_tokens, 'fits_context': fits, 'truncated': False,
         'training_eligible': False, 'split': 'unassigned',
         'admission_gaps': ['independent source coverage', 'fixed regression admission']

@@ -1,5 +1,6 @@
 """Constrain current role choices without choosing an action or resetting State."""
 from copy import deepcopy
+import json
 from .runtime.structured_output import build_decoder_contract
 from .project_protocols import executor
 from .project_receipt_refs import visible_references
@@ -75,6 +76,45 @@ def tool_menu_update(definitions, *, role, payload, checkpoint, retry):
         return None
     return {'available': list(current), 'set': [item for name, item in current.items() if old.get(name) != item],
             'remove': [name for name in old if name not in current]}
+
+
+_REJECTED = object()
+
+
+def _schema_ordered(value, schema):
+    """Arrange one value in the property order the boundary grammar emits."""
+    if 'anyOf' in schema:
+        for branch in schema['anyOf']:
+            ordered = _schema_ordered(value, branch)
+            if ordered is not _REJECTED:
+                return ordered
+        return _REJECTED
+    if 'const' in schema and value != schema['const'] or 'enum' in schema and value not in schema['enum']:
+        return _REJECTED
+    if isinstance(value, list):
+        if len(value) > schema.get('maxItems', len(value)):
+            return _REJECTED
+        items = [_schema_ordered(item, schema.get('items', {})) for item in value]
+        return _REJECTED if any(item is _REJECTED for item in items) else items
+    if not isinstance(value, dict) or 'properties' not in schema:
+        return value
+    properties = schema['properties']
+    if (any(key not in properties for key in value) and schema.get('additionalProperties') is False
+            or any(key not in value for key in schema.get('required', ()))):
+        return _REJECTED
+    ordered = {key: _schema_ordered(value[key], properties[key]) for key in properties if key in value}
+    if any(item is _REJECTED for item in ordered.values()):
+        return _REJECTED
+    return ordered | {key: item for key, item in value.items() if key not in properties}
+
+
+def render_role_target(definitions, command, *, role, payload):
+    """Compact call text in grammar property order; the decoder supplies the EOS."""
+    schema = build_role_decoder(definitions, role=role, payload=payload)['generation_schema']
+    ordered = _schema_ordered(command, schema)
+    if ordered is _REJECTED:
+        raise ValueError('target is not admitted by the boundary decoder')
+    return json.dumps(ordered, ensure_ascii=False, separators=(',', ':'))
 
 
 def build_role_decoder(definitions, *, role=None, payload=None):

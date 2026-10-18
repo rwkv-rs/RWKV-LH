@@ -234,7 +234,7 @@ def evaluate_arm(cases, client, *, plan, run_id, arm, record, clock=time.monoton
                             entry.update(status='contract_rejected', error_type=type(exc).__name__, error=str(exc))
                         else:
                             correct = _reference_identity(command, row['role']) == _reference_identity(
-                                _validated(row['target_text'][:-len(JSON_CALL_STOP_SUFFIXES[0])], row), row['role'])
+                                _validated(row['target_text'], row), row['role'])
                             result['contract_valid'] += 1; result['reference_correct'] += int(correct)
                             result['contract_correctness'][sample] = True; result['reference_correctness'][sample] = correct
                             entry.update(status='contract_valid', command=command, reference_match=correct)

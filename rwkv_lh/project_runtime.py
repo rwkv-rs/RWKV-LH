@@ -36,6 +36,24 @@ def definition(name, properties, *, description):
 
 
 STRING = {'type': 'string', 'minLength': 1}
+SCOPE_VIOLATION_LIMIT = 20
+
+
+def violation_summary(paths, limit=SCOPE_VIOLATION_LIMIT):
+    """Bounded model view of rejected paths; the raw receipt keeps every path.
+
+    One install can create thousands of entries. Past the limit, group by the
+    top-level segment with a count so the observation stays within one input.
+    """
+    paths = sorted(paths)
+    if len(paths) <= limit:
+        return paths
+    groups = {}
+    for path in paths:
+        groups.setdefault(path.split('/', 1)[0], []).append(path)
+    items = [members[0] if len(members) == 1 else f'{top}/** ({len(members)} paths)'
+             for top, members in groups.items()]
+    return items if len(items) <= limit else [*items[:limit], f'... {len(items) - limit} more top-level paths']
 
 
 def role_definitions(role, harness):
@@ -202,8 +220,9 @@ class ProjectRuntime:
             transaction.mkdir(parents=True)
             staged = transaction / 'workspace'
             if violations:
-                result = ActionResult(name, False, error={'type': 'ScopeViolation',
-                    'message': 'Write rejected before execution: ' + ', '.join(violations)})
+                result = ActionResult(name, False, metadata={'scope_violation_paths': violations},
+                    error={'type': 'ScopeViolation',
+                    'message': 'Write rejected before execution: ' + ', '.join(violation_summary(violations))})
             else:
                 copy_verified_workspace(s['workspace'], staged, exclude_git=False)
                 isolated = GoalState.create(request=goal.request, workspace_root=str(staged),
@@ -219,9 +238,10 @@ class ProjectRuntime:
                 if violations:
                     result = ActionResult(name, False, output=result.output, exit_code=result.exit_code,
                         metadata={'isolated_result': result.to_dict(), 'workspace_committed': False,
-                                  'workspace_entry_errors': entry_errors},
-                        error={'type': 'ScopeViolation', 'message': 'Isolated changes rejected: ' + ', '.join(violations)
-                               + ('; ' + '; '.join(entry_errors.values()) if entry_errors else '')})
+                                  'workspace_entry_errors': entry_errors, 'scope_violation_paths': violations},
+                        error={'type': 'ScopeViolation', 'message': 'Isolated changes rejected: '
+                               + ', '.join(violation_summary(violations))
+                               + ('; ' + '; '.join(violation_summary(entry_errors.values())) if entry_errors else '')})
                 else:
                     if tree_identity(s['workspace']) != before_tree:
                         raise ValueError('workspace changed before isolated publication')
@@ -236,7 +256,7 @@ class ProjectRuntime:
                 if before_tree.get(p) != after_tree.get(p))
             projected = project_action_result(raw, operation=name, arguments=action.arguments,
                                               focus_text=goal.request)
-            projected['scope_violation'] = violations
+            projected['scope_violation'] = violation_summary(violations)
             def change(state):
                 self.db.invalidate(state, current)
                 state['inbox'] = None

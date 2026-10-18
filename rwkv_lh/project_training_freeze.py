@@ -14,7 +14,6 @@ import tempfile
 
 from . import statetune_core as core
 from .goal_state_protocols.role_trace_dataset_v1 import _source_path
-from .model_io import JSON_CALL_STOP_SUFFIXES
 from .project_contracts import digest
 from .project_training_labels import load_reviewed_candidates
 from .project_training_sources import read_reference, SOURCE_SCHEMA
@@ -42,7 +41,7 @@ def _write(path, value):
 
 def _action(row):
     from .project_protocols.executor import action_key
-    return action_key(json.loads(row['target_text'][:-len(JSON_CALL_STOP_SUFFIXES[0])]))
+    return action_key(json.loads(row['target_text']))
 
 
 def _member(row):
