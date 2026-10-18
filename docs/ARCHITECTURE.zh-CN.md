@@ -95,7 +95,7 @@ Executor 只产生一个严格的 `function/params` JSON 对象。动作参数�
 
 工作区支持能随副本迁移的相对符号链接：每段解析均留在工作区内，最终目标存在，且没有解析循环。npm 的命令入口、项目内本地包、文件和目录别名遵循同一规则，没有 node_modules 或题目特判。绝对链接、越界、悬空和循环链接以及特殊节点不发布；绝对链接即使指向原目录内部，也不能在目录复制及事务交换后维持相同目标。身份记录保留链接目标的原始拼写，并分别绑定实际文件 SHA；复制、材料捕获、生成前快照、来源封存、离线纠正及外部验收共用这一身份规则，不展开目录别名树。写权限仍按实际变更路径检查，链接不能授予新范围；受保护路径同时保护实际目标及到达它的中间链接。
 
-越界写入被拒绝时，模型视图中的路径列表有上限：不超过 20 条时原样列出；超过后按顶层路径段汇总为 `段/** (N paths)`，并最多保留 20 组。完整路径列表只写入原始回执的 `scope_violation_paths`。这样一次 npm 安装产生的上千个路径不会让下一轮输入超出 Native 单次增量上限。
+越界写入被拒绝时，模型视图中的路径列表有上限：不超过 20 条时原样列出；超过后按顶层路径段汇总为 `段/** (N paths)`，并最多保留 20 组。原始回执正文同样会投递给 Executor，所以它也只带同一份摘要、`scope_violation_count` 和最多 20 条 `workspace_entry_errors`。完整路径与条目错误写入 `tool_transactions/<id>/scope_violation_paths.json`，回执的 `scope_violation_record` 指向该文件，不进入模型输入。这样一次 npm 安装产生的上千个路径不会让下一轮输入超出 Native 单次增量上限。
 
 外部检查器可显式注册 `check_project`，使用 `project_browser.py` 的参数合同操作真实 Chromium。它在工作区外保留逐动作状态、DOM/布局、截图、HAR、trace、console/pageerror 和网络事实及 SHA；失败或超时保留证据并清理进程。检查使用只读项目副本和新浏览器上下文，只允许本次项目源的 HTTP/WebSocket 请求。外部结果不自动进入 RWKV 回执、State 或完成声明；无浏览器动作时仅验证 HTTP readiness。外部 npm 预览按项目声明的 `dev` 或 `build`/`preview` 脚本启动，生产预览要求 `dist/index.html`，不再要求 Vite 依赖。
 

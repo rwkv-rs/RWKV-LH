@@ -40,7 +40,7 @@ SCOPE_VIOLATION_LIMIT = 20
 
 
 def violation_summary(paths, limit=SCOPE_VIOLATION_LIMIT):
-    """Bounded model view of rejected paths; the raw receipt keeps every path.
+    """Bounded view of rejected paths; the transaction directory keeps every path.
 
     One install can create thousands of entries. Past the limit, group by the
     top-level segment with a count so the observation stays within one input.
@@ -54,6 +54,21 @@ def violation_summary(paths, limit=SCOPE_VIOLATION_LIMIT):
     items = [members[0] if len(members) == 1 else f'{top}/** ({len(members)} paths)'
              for top, members in groups.items()]
     return items if len(items) <= limit else [*items[:limit], f'... {len(items) - limit} more top-level paths']
+
+
+def violation_record(transaction, violations, entry_errors=None):
+    """Receipt metadata for a rejected write; full lists go to a sidecar file.
+
+    Raw receipt bodies are delivered to the Executor, so they carry only the
+    bounded summary and a count, never the unbounded path list.
+    """
+    entry_errors = entry_errors or {}
+    sidecar = transaction / 'scope_violation_paths.json'
+    sidecar.write_text(json.dumps({'paths': violations, 'entry_errors': entry_errors},
+                                  ensure_ascii=False, indent=2) + '\n')
+    return {'scope_violation': violation_summary(violations), 'scope_violation_count': len(violations),
+            'workspace_entry_errors': dict(sorted(entry_errors.items())[:SCOPE_VIOLATION_LIMIT]),
+            'scope_violation_record': '/'.join(sidecar.parts[-3:])}
 
 
 def role_definitions(role, harness):
@@ -220,7 +235,7 @@ class ProjectRuntime:
             transaction.mkdir(parents=True)
             staged = transaction / 'workspace'
             if violations:
-                result = ActionResult(name, False, metadata={'scope_violation_paths': violations},
+                result = ActionResult(name, False, metadata=violation_record(transaction, violations),
                     error={'type': 'ScopeViolation',
                     'message': 'Write rejected before execution: ' + ', '.join(violation_summary(violations))})
             else:
@@ -238,7 +253,7 @@ class ProjectRuntime:
                 if violations:
                     result = ActionResult(name, False, output=result.output, exit_code=result.exit_code,
                         metadata={'isolated_result': result.to_dict(), 'workspace_committed': False,
-                                  'workspace_entry_errors': entry_errors, 'scope_violation_paths': violations},
+                                  **violation_record(transaction, violations, entry_errors)},
                         error={'type': 'ScopeViolation', 'message': 'Isolated changes rejected: '
                                + ', '.join(violation_summary(violations))
                                + ('; ' + '; '.join(violation_summary(entry_errors.values())) if entry_errors else '')})
