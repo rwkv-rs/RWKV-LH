@@ -57,18 +57,17 @@ def violation_summary(paths, limit=SCOPE_VIOLATION_LIMIT):
 
 
 def violation_record(transaction, violations, entry_errors=None):
-    """Receipt metadata for a rejected write; full lists go to a sidecar file.
+    """Receipt metadata for a rejected write; full lists go to the transaction directory.
 
     Raw receipt bodies are delivered to the Executor, so they carry only the
-    bounded summary and a count, never the unbounded path list.
+    bounded summary and a count, never the unbounded path list nor the
+    operation-specific location of the full record.
     """
     entry_errors = entry_errors or {}
-    sidecar = transaction / 'scope_violation_paths.json'
-    sidecar.write_text(json.dumps({'paths': violations, 'entry_errors': entry_errors},
-                                  ensure_ascii=False, indent=2) + '\n')
+    (transaction / 'scope_violation_paths.json').write_text(
+        json.dumps({'paths': violations, 'entry_errors': entry_errors}, ensure_ascii=False, indent=2) + '\n')
     return {'scope_violation': violation_summary(violations), 'scope_violation_count': len(violations),
-            'workspace_entry_errors': dict(sorted(entry_errors.items())[:SCOPE_VIOLATION_LIMIT]),
-            'scope_violation_record': '/'.join(sidecar.parts[-3:])}
+            'workspace_entry_errors': dict(sorted(entry_errors.items())[:SCOPE_VIOLATION_LIMIT])}
 
 
 def role_definitions(role, harness):
