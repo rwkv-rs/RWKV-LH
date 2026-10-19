@@ -14,6 +14,45 @@ from .project_preview import preview_server, preview_unavailable_reason, serve_p
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _display_text(value, limit=180):
+    """Bound untrusted terminal text without changing the recorded model output."""
+    text = ''.join(char if char.isprintable() else ' ' for char in str(value))
+    return text if len(text) <= limit else text[:limit] + '…'
+
+
+def _request_summaries(value):
+    """Describe raw model requests for display, without validating or executing them."""
+    if not isinstance(value, dict):
+        return []
+    calls = value.get('tool_calls')
+    if isinstance(calls, list):
+        names = []
+        for call in calls:
+            function = call.get('function') if isinstance(call, dict) else None
+            if isinstance(function, dict) and isinstance(function.get('name'), str):
+                names.append(_display_text(function['name']))
+        return names
+    name = value.get('function')
+    if not isinstance(name, str) or not name:
+        return []
+    params = value.get('params')
+    params = params if isinstance(params, dict) else {}
+    arguments = params
+    step = ''
+    if name == 'execute_tool':
+        tool = params.get('tool')
+        if isinstance(tool, str) and tool:
+            name = tool
+        arguments = params.get('arguments')
+        arguments = arguments if isinstance(arguments, dict) else {}
+        if isinstance(params.get('step_id'), str):
+            step = '（步骤 ' + _display_text(params['step_id'], 40) + '）'
+    details = [str(arguments[key]) for key in ('path', 'command', 'pattern', 'receipt_id', 'outcome')
+               if isinstance(arguments.get(key), (str, int, float))]
+    detail = (' ' + _display_text(' · '.join(details))) if details else ''
+    return [_display_text(name, 60) + detail + step]
+
+
 def _progress(trace, offset):
     if not trace.exists():
         return offset
@@ -28,21 +67,25 @@ def _progress(trace, offset):
                 event = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            role = event.get('project_role', '')
+            if not isinstance(event, dict):
+                continue
+            role = _display_text(event.get('project_role', ''), 40)
             if event.get('type') == 'model_session_generation_started':
                 print(f'  [{role}] 正在生成…', flush=True)
             elif event.get('type') == 'model_session_generation_returned':
                 if event.get('finish_reason') == 'length':
                     print(f'  [{role}] 输出被截断；本次不完整调用未执行，原文保留在 trace。', flush=True)
                     continue
-                # Display the raw request only; this does not parse/authorize an action.
+                # Presentation only: this neither validates nor authorizes an action.
                 try:
                     value = json.loads(event.get('raw_output', ''))
-                    name = value.get('function', '返回')
-                    params = value.get('params', {})
-                    detail = params.get('path', '') if isinstance(params, dict) else ''
-                    print(f'  [{role}] 模型请求 {name} {detail}', flush=True)
-                except (ValueError, AttributeError):
+                    summaries = _request_summaries(value)
+                except (ValueError, TypeError):
+                    summaries = []
+                if summaries:
+                    for summary in summaries:
+                        print(f'  [{role}] 模型请求 {summary}', flush=True)
+                else:
                     print(f'  [{role}] 已返回，原文保留在 trace', flush=True)
 
 
