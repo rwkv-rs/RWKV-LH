@@ -10,6 +10,14 @@ from .project_markdown import section
 
 PROTOCOL = 'rwkv-lh.coder.cc-view.v1'
 THINK_LIMIT = 512
+# Shared with the generation grammar. Final summaries are literal prose: no
+# markup opener (including incomplete/misspelled tags), chat-role headers or
+# role glyphs. This applies only after think, outside schema-valid tool calls;
+# file contents, command arguments and incoming tool results remain literal.
+SUMMARY_FORBIDDEN_PATTERN = (
+    r'(?s:.*)(?:<|🐱|🤖)(?s:.*)|'
+    r'(?s:.*[^A-Za-z0-9_])?(?i:User|Assistant|System|Developer|Tool|Function)\s*[:：](?s:.*)'
+)
 TOOL_NAMES = {'read_file': 'Read', 'write_file': 'Write', 'replace_text': 'Edit',
               'run_shell': 'Bash', 'list_directory': 'Glob', 'search_files': 'Grep'}
 ALIASES = {'read_file': {'path': 'file_path', 'start_byte': 'offset', 'max_tokens': 'limit'},
@@ -170,8 +178,8 @@ def parse_output(raw, definitions, *, thinking=True):
             validate_parameters(params, catalog[function['name']])
             parsed.append((function['name'], params))
         return ParsedTurn(thought, tuple(parsed), None)
-    if re.search(r'</?(?:think|tool_calls|tool_result)>', body):
-        raise ValueError('Unexpected or malformed reserved segment')
+    if re.fullmatch(SUMMARY_FORBIDDEN_PATTERN, body):
+        raise ValueError('Final summary contains markup or a chat-role header')
     return ParsedTurn(thought, (), body)
 
 

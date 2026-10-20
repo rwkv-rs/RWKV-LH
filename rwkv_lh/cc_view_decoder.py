@@ -4,7 +4,7 @@ import math
 import re
 from re import _parser as regex_parser, _constants as rc
 
-from .cc_view_experiment import PROTOCOL, THINK_LIMIT
+from .cc_view_experiment import PROTOCOL, THINK_LIMIT, SUMMARY_FORBIDDEN_PATTERN
 from .runtime.structured_output import build_decoder_contract, validate_decoder_contract
 
 EXTENSION = 'x-rwkv-lh-cc-view'
@@ -189,7 +189,7 @@ def build_decoder(definitions):
                'thought[suffix="</think>"]: /(?s:.*)/\n'
                'after: WS? tools WS? | SUMMARY\n'
                'WS: /[ \\t\\r\\n]+/\n'
-               'SUMMARY: /(?s:.*\\S.*)/ & ~/(?s:.*)<\\/?(think|tool_calls|tool_result)>(?s:.*)/\n'
+               'SUMMARY: /(?s:.*\\S.*)/ & ~/(?:' + SUMMARY_FORBIDDEN_PATTERN + ')/\n'
                'tools: "<tool_calls>" %json ' + compact(schema) + ' "</tool_calls>"\n')
     carrier = {'type': 'object', EXTENSION: {'protocol': PROTOCOL, 'grammar': grammar,
                 'definitions': definitions, 'think_limit': THINK_LIMIT}, 'additionalProperties': False}
