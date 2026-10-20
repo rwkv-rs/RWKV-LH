@@ -1,7 +1,7 @@
 """Explicit B-only vLLM plugins; never registered by the product entry point."""
 from copy import copy
 
-from .cc_view_decoder import EXTENSION, extract_grammar, forced_think_suffix, token_continues_suffix
+from .cc_view_decoder import EXTENSION, extract_grammar, forced_think_suffix, token_continues_suffix, think_limited_prefix
 from .cc_view_experiment import PROTOCOL, THINK_LIMIT
 
 
@@ -41,10 +41,20 @@ def install_decoder_backend():
             self.cc_masks = {}
 
         def accept_tokens(self, request_id, tokens):
+            allowed=think_limited_prefix([self.cc_vocab[token] for token in self.cc_tokens],
+                                         [self.cc_vocab[token] for token in tokens])
+            if allowed!=len(tokens):
+                return False
             accepted = super().accept_tokens(request_id, tokens)
             if accepted:
                 self.cc_tokens.extend(tokens)
             return accepted
+
+        def validate_tokens(self, tokens):
+            valid=super().validate_tokens(tokens)
+            count=think_limited_prefix([self.cc_vocab[token] for token in self.cc_tokens],
+                                       [self.cc_vocab[token] for token in valid])
+            return valid[:count]
 
         def rollback(self, count):
             super().rollback(count)

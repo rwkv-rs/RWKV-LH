@@ -129,7 +129,8 @@ def parameter_regex(schema):
     Unsupported schemas fail rather than silently dropping constraints.
     """
     allowed = {'type', 'properties', 'required', 'additionalProperties', 'minLength', 'maxLength',
-               'pattern', 'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'enum', 'const', 'default'}
+               'pattern', 'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'enum', 'const', 'default',
+               'items', 'minItems', 'maxItems'}
     if set(schema) - allowed:
         raise ValueError('Unsupported CC schema keywords: ' + str(set(schema) - allowed))
     if 'const' in schema or 'enum' in schema:
@@ -139,6 +140,17 @@ def parameter_regex(schema):
         return _string(schema)
     if kind == 'boolean':
         return '(?:true|false)'
+    if kind == 'array':
+        item = parameter_regex(schema['items'])
+        minimum, maximum = schema.get('minItems', 0), schema.get('maxItems')
+        if maximum is not None and maximum < max(1, minimum):
+            if maximum == 0:
+                return r'\[\]'
+            raise ValueError('Invalid array bounds')
+        tail_min = max(0, minimum - 1)
+        tail_max = '' if maximum is None else str(maximum - 1)
+        body = item + '(?:,' + item + '){' + str(tail_min) + ',' + tail_max + '}'
+        return r'\[' + ('(?:' + body + ')?' if minimum == 0 else body) + r'\]'
     if kind == 'integer':
         low = max(0, math.ceil(schema.get('minimum', 0)), math.floor(schema.get('exclusiveMinimum', -1)) + 1)
         high = schema.get('maximum')
@@ -148,10 +160,12 @@ def parameter_regex(schema):
     if kind == 'number':
         # All current number fields have integer upper bounds and a positive domain.
         high = schema.get('maximum')
-        if schema.get('exclusiveMinimum') != 0 or high is None or high != int(high) or high < 1:
+        zero_allowed=schema.get('minimum')==0 and 'exclusiveMinimum' not in schema
+        if not (schema.get('exclusiveMinimum')==0 or zero_allowed) or high is None or high != int(high) or high < 1:
             raise ValueError('Unsupported number bounds in CC schema')
-        return ('(?:0\\.0*[1-9][0-9]*|' + integer_range(1, int(high) - 1) + '(?:\\.[0-9]+)?|'
-                + str(int(high)) + '(?:\\.0+)?)')
+        return ('(?:'+('0(?:\\.0+)?|' if zero_allowed else '')+'0\\.0*[1-9][0-9]*|'
+                + (integer_range(1,int(high)-1)+'(?:\\.[0-9]+)?|' if high>1 else '')
+                + str(int(high))+'(?:\\.0+)?)')
     if kind != 'object':
         raise ValueError('Unsupported CC schema type')
     props, required = list(schema.get('properties', {}).items()), set(schema.get('required', ()))
@@ -185,12 +199,12 @@ def build_decoder(definitions):
     schema = {'type': 'array', 'items': {'anyOf': calls}, 'minItems': 1,
               'x-guidance': {'whitespace_flexible': False}}
     grammar = ('%llguidance {}\n// ' + PROTOCOL + '\n'
-               'start: "<think>" thought after\n'
+               'start: ("<think>" thought)? after\n'
                'thought[suffix="</think>"]: /(?s:.*)/\n'
-               'after: WS? tools WS? | SUMMARY\n'
-               'WS: /[ \\t\\r\\n]+/\n'
+               'after: before_tools tools | SUMMARY\n'
+               'before_tools[suffix="<tool_calls>"]: /(?s:.*)/ & ~/(?:' + SUMMARY_FORBIDDEN_PATTERN + ')/\n'
                'SUMMARY: /(?s:.*\\S.*)/ & ~/(?:' + SUMMARY_FORBIDDEN_PATTERN + ')/\n'
-               'tools: "<tool_calls>" %json ' + compact(schema) + ' "</tool_calls>"\n')
+               'tools: %json ' + compact(schema) + ' "</tool_calls>"\n')
     carrier = {'type': 'object', EXTENSION: {'protocol': PROTOCOL, 'grammar': grammar,
                 'definitions': definitions, 'think_limit': THINK_LIMIT}, 'additionalProperties': False}
     return build_decoder_contract(carrier)
@@ -229,3 +243,14 @@ def forced_think_suffix(token_bytes, *, limit=THINK_LIMIT):
 
 def token_continues_suffix(token, suffix):
     return bool(token) and (suffix.startswith(token) or token.startswith(suffix))
+
+
+def think_limited_prefix(history, candidates, *, limit=THINK_LIMIT):
+    """Validate speculative batches against the same cap as one-token sampling."""
+    current=list(history)
+    for index,token in enumerate(candidates):
+        suffix=forced_think_suffix(current,limit=limit)
+        if suffix is not None and not token_continues_suffix(token,suffix):
+            return index
+        current.append(token)
+    return len(candidates)

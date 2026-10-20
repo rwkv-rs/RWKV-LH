@@ -19,7 +19,8 @@ from .token_budget import get_token_count
 
 def turn_command(turn):
     return {'function': 'cc_view_turn', 'params': {'think': turn.think,
-            'calls': [[name, args] for name, args in turn.calls], 'summary': turn.summary}}
+            'calls': [[name, args] for name, args in turn.calls], 'summary': turn.summary,
+            **({'narration':turn.narration} if turn.narration.strip() else {})}}
 
 
 class CCViewSessions:
@@ -102,7 +103,7 @@ class _UnionScopeLedger:
 
 class CCViewRuntime(ProjectRuntime):
     """Reuse the production loop, isolation, transaction ledger and real receipts."""
-    def __init__(self, ledger, roles, *, harness=None):
+    def __init__(self, ledger, roles, *, harness=None, background=True):
         super().__init__(ledger, roles, harness=harness)
         state = ledger.state()
         if state['plan'] is None or state['calls'] or state['sessions']:
@@ -110,7 +111,18 @@ class CCViewRuntime(ProjectRuntime):
         self.todos = cc.Todos(state['plan']['tasks'])
         self.results_to_deliver = []
         self.bootstrap_pending = True
-        self.definitions = cc.tool_definitions(self.harness.g1i_tool_definitions())
+        self.definitions = cc.tool_definitions(self.harness.g1i_tool_definitions(),background=background)
+        from .cc_view_tools import install
+        from .cc_view_jobs import Jobs
+        self.jobs=Jobs(self.db.root/'cc_jobs') if background else None
+        install(self.harness,jobs=self.jobs)
+
+    def run(self, **kwargs):
+        try:
+            return super().run(**kwargs)
+        finally:
+            if self.jobs is not None:
+                self.jobs.close()
 
     def _request(self):
         state = self.db.state()
@@ -150,7 +162,11 @@ class CCViewRuntime(ProjectRuntime):
         original = self.db
         try:
             self.db = _UnionScopeLedger(original)
-            return super()._tool(name, params, lane, step_id)
+            # Native transaction permissions use the union scope. The model's
+            # todo attribution is recorded independently and never gates a tool.
+            actual = self.db.state()['plan']['tasks']
+            permitted_step = step_id if any(t['id']==step_id for t in actual) else actual[0]['id']
+            return super()._tool(name, params, lane, permitted_step)
         finally:
             self.db = original
 
@@ -175,10 +191,32 @@ class CCViewRuntime(ProjectRuntime):
                     self.db.update('cc_todo_result', lambda s: s.update(feedback={
                         'kind': 'cc_todo_result', 'source_operation_id': source, 'call_index': index,
                         'name': name, 'arguments': arguments, 'result': result}))
+                elif name=='Read' and 'receipt_id' in arguments:
+                    if set(arguments)!={'receipt_id'}:
+                        raise ValueError('Read selects either a file or a receipt, not both')
+                    from .project_receipt_refs import build_bindings
+                    from .project_evidence import executor_evidence_ids
+                    current=self.db.state()
+                    bindings=build_bindings(current,executor_evidence_ids(current))
+                    if arguments['receipt_id'] not in bindings:
+                        raise ValueError('Unknown receipt for this run')
+                    identifier=bindings[arguments['receipt_id']]
+                    self.expand_evidence(identifier,executor_lane=inbox['lane'])
+                    reference=self.db.state()['evidence'][identifier]['result']['raw_receipt']
+                    body=json.loads((self.db.root/reference['path']).read_text())
+                    if digest(body)!=reference['content_digest']:
+                        raise ValueError('Receipt content changed')
+                    result=render_result(body)
                 else:
-                    command = cc.cc_to_native(name, arguments, step_id=self.todos.active_step())
+                    from .cc_view_tools import native_call
+                    attribution=self.todos.active_step()
+                    execution_step=(self.db.state()['plan']['tasks'][0]['id']
+                                    if attribution=='unassigned' else attribution)
+                    command = native_call(name, arguments, execution_step,
+                        job_authority=cc.union_scope(self.db.state()['plan'])[0])
                     def select(s):
                         s['inbox'] = {**inbox, 'command': command, 'cc_call_index': index}
+                        s['inbox']['cc_todo_attribution']=attribution
                     self.db.update('cc_call_selected', select)
                     params = command['params']
                     self._tool(params['tool'], params['arguments'], inbox['lane'], params['step_id'])
