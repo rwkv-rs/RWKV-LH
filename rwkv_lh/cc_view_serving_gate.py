@@ -55,9 +55,15 @@ def _record(output):
 
 
 def metrics(actual,reference):
+    """Compare matching floating tensors, including [H,K,V] WKV State."""
     import torch
+    core.require(actual.shape==reference.shape and actual.numel()>0
+                 and actual.is_floating_point() and reference.is_floating_point()
+                 and actual.device==reference.device,'serving comparison tensor geometry differs')
+    core.require(bool(torch.isfinite(actual).all()) and bool(torch.isfinite(reference).all()),
+                 'serving comparison tensor finiteness differs')
     difference=actual.float()-reference.float()
-    return dict(max_abs=core.max_logit_difference(actual.float(),reference.float()) if actual.ndim==3 else float(difference.abs().max()),
+    return dict(max_abs=float(difference.abs().max()),
                 relative_l2=float(torch.linalg.vector_norm(difference)/torch.linalg.vector_norm(reference.float()).clamp_min(1e-30)))
 
 
