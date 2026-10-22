@@ -32,7 +32,8 @@ METHODS=('statetune','lora')
 
 
 def identity(model):
-    return dict(base=model['base'],peft_source=model['peft_source'],context_tokens=model['context_tokens'],precision=model['precision'])
+    return dict(base=model['base'],peft_source=model['peft_source'],context_tokens=model['context_tokens'],
+                precision=model['precision'],merge_target_dtype=model.get('merge_target_dtype','base'))
 
 
 def read_registration(path,sha256):
@@ -42,6 +43,8 @@ def read_registration(path,sha256):
     if source['kind']=='test':
         field='state_scale' if registration['method']=='statetune' else 'lora_b_std'
         core.require(type(source.get('seed')) is int and type(source.get(field)) in (int,float) and source[field]>0,'nonzero test value needs seed and scale')
+    core.require(registration['model'].get('merge_target_dtype','base') in ('base','float16','bfloat16','float32'),
+                 'unsupported LoRA merge target dtype')
     core.require(type(registration.get('min_effect_ratio')) in (int,float) and registration['min_effect_ratio']>1,'effect ratio must exceed one')
     return registration
 
@@ -173,8 +176,9 @@ def reference(registration_path,registration_sha256,output):
     if method=='lora':
         del logits,zero,states,payload;gc.collect()
         artifact['merged']=backend.merge_checkpoint(model,output/'merged.pth',base_path=registration['model']['base']['path'],
-                                                    base_sha256=registration['model']['base']['sha256'])
-        record(dict(event='lora_merged_in_base_precision',merged=artifact['merged']))
+                                                    base_sha256=registration['model']['base']['sha256'],
+                                                    target_dtype=registration['model'].get('merge_target_dtype','base'))
+        record(dict(event='lora_merged_in_registered_precision',merged=artifact['merged']))
     result=dict(status='reference_ready',method=method,registration_sha256=registration_sha256,precision=model.precision,model=identity(registration['model']),
         reference=dict(path=str(path),sha256=core.sha256_file(path)),artifact=artifact,peft_effect=effect,optimizer_steps=0)
     with (output/'REFERENCE.json').open('x') as stream:json.dump(result,stream,indent=2);stream.write('\n')

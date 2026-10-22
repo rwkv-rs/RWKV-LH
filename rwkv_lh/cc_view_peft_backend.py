@@ -179,27 +179,36 @@ def save_adapter(model,path):
     return {p.name:dict(path=str(p),sha256=core.sha256_file(p)) for p in sorted(path.iterdir()) if p.is_file()}
 
 
-def merge_checkpoint(model,output,*,base_path,base_sha256):
-    """Delegate merging to PEFT and export one checkpoint in the base precision.
+def merge_checkpoint(model,output,*,base_path,base_sha256,target_dtype='base'):
+    """Merge with PEFT and round adapted weights once to the serving precision.
 
-    The serving converter keeps names, dtypes and values; an FP32 training
-    model would otherwise yield a different artifact from the frozen base.
-    Every non-adapted tensor must remain bitwise equal to the frozen base.
+    The native loader consumes FP16 weights. Rounding a merged FP32 update
+    back to BF16 first can erase an update that FP16 serving can represent.
+    The registered target dtype applies only to
+    adapted matrices; every non-adapted tensor stays bitwise equal to the base.
     """
+    core.require(target_dtype in ('base','float16','bfloat16','float32'),'unsupported LoRA merge target dtype')
     path=Path(output);core.require(not path.exists(),'merged output already exists')
     targets={name.removeprefix('base_model.model.')+'.weight' for name,module in model.named_modules()
              if hasattr(module,'lora_A') and name.rsplit('.',1)[-1] in TARGET_SUFFIXES}
     core.require(len(targets)==model.layout.layers*6,'incomplete LoRA merge targets')
     base=torch.load(core.verify_file(base_path,base_sha256),map_location='cpu',weights_only=True,mmap=True)
+    # PEFT otherwise rounds delta to the base dtype before adding it. Promote
+    # first so a half-base adapter is added in FP32 and rounded only at export.
+    base_dtype=next(model.parameters()).dtype
+    model.float()
     merged=model.merge_and_unload(safe_merge=True)
     core.require(all(bool(torch.count_nonzero(block.att.time_state)==0) for block in merged.blocks),'LoRA initial State changed')
     values=merged.state_dict();state={}
     core.require(set(values)-{n for n in values if n.endswith('.time_state')}==set(base),'merged key set differs from base')
     for name,original in base.items():
-        value=values[name].detach().to(device='cpu',dtype=original.dtype)
+        dtype=getattr(torch,target_dtype) if name in targets and target_dtype!='base' else original.dtype
+        value=values[name].detach().to(device='cpu',dtype=dtype) if name in targets else original.clone()
         core.require(value.shape==original.shape and bool(torch.isfinite(value).all()),'merged tensor differs: '+name)
-        core.require(name in targets or torch.equal(value,original),'non-adapted tensor changed: '+name)
+        core.require(name in targets or torch.equal(values[name].detach().cpu(),original.to(base_dtype).float()),
+                     'non-adapted tensor changed: '+name)
         state[name]=value
     core.require(any(not torch.equal(state[name],base[name]) for name in targets),'merged LoRA changes no target weight')
     with path.open('xb') as stream:torch.save(state,stream);stream.flush();os.fsync(stream.fileno())
-    return dict(path=str(path),sha256=core.sha256_file(path),base_sha256=base_sha256,changed_tensors=sorted(targets))
+    return dict(path=str(path),sha256=core.sha256_file(path),base_sha256=base_sha256,
+                changed_tensors=sorted(targets),target_dtype=target_dtype)

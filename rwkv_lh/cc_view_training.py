@@ -1,7 +1,8 @@
 """Separate, sealed CC-view StateTune/LoRA entry; never a Project default.
 
-Both methods run only through the qualified RWKV-PEFT layers and Hugging Face
-PEFT (cc_view_peft_backend), after their serving gate has passed.
+Both methods use RWKV-PEFT layers and Hugging Face PEFT. Experimental LoRA
+may defer serving qualification with an explicit sealed owner authorization;
+that admission does not qualify a checkpoint for serving or product adoption.
 """
 import argparse
 from collections import Counter,defaultdict
@@ -21,6 +22,22 @@ from .statetune_state_carry import episode_chunks,state_carry_backward
 from .statetune_training import publish_state
 
 RUN_SCHEMA='rwkv-lh.cc-view-peft-training-run.v1'
+
+
+def admit_training(registration):
+    """Keep owner-authorized SFT training separate from serving qualification."""
+    reference=registration.get('serving_gate_deferral')
+    if reference is None:
+        return require_passed(registration['serving_gate'],method=registration['arm'],model=registration['model'])
+    authority=core.read_sealed_json(reference['path'],reference['sha256'])
+    core.require(registration['arm']=='lora' and reference in registration['authorization_references']
+                 and registration.get('serving_gate') is None,'serving deferral needs explicit LoRA-only authorization')
+    core.require(authority.get('schema')=='rwkv-lh.cc-view-sft-serving-deferral.v1'
+                 and authority.get('method')=='lora' and authority.get('product_adoption') is False
+                 and authority.get('model')==identity(registration['model'])
+                 and all(isinstance(authority.get(k),str) and authority[k].strip() for k in ('owner_instruction','reason')),
+                 'serving deferral authorization scope differs')
+    return dict(status='deferred_by_owner',serving_qualified=False,authorization=reference)
 
 
 def target_count(row):return sum(n for (_,n),mark in zip(row['target_spans'],row['supervised']) if mark)
@@ -233,16 +250,16 @@ def run(reference,expected_sha,output,*,resume=None):
         source=core.read_sealed_json(registration['project_source']['path'],registration['project_source']['sha256'])
         root=Path(__file__).resolve().parents[1]
         for row in source['files']:core.verify_file(root/row['path'],row['sha256'])
-        gate=require_passed(registration['serving_gate'],method=registration['arm'],model=registration['model'])
+        gate=admit_training(registration)
         import torch
         from . import cc_view_peft_backend as backend
         core.require(torch.cuda.device_count()==1 and core.device_uuid_matches(str(torch.cuda.get_device_properties(0).uuid),registration['gpu_uuid']),
                      'CC-view training GPU UUID differs')
         context=registration['model']['context_tokens']
         train,manifest=load_split(registration['dataset']['path'],registration['dataset']['sha256'],'train',context_tokens=context)
-        validation,_=load_split(registration['dataset']['path'],registration['dataset']['sha256'],'validation',context_tokens=context)
         core.require(manifest['model_sha256']==registration['model']['base']['sha256'],'CC-view training data base identity differs')
         if registration['phase']=='pilot':
+            validation,_=load_split(registration['dataset']['path'],registration['dataset']['sha256'],'validation',context_tokens=context)
             by_id={row['episode_id']:row for row in train};selected=[by_id[key] for key in registration['pilot_ids']]
             core.require(len(selected)==30 and len(set(registration['pilot_ids']))==30,'pilot requires exactly thirty frozen unique trajectories')
         else:selected=source_order(train,registration['optimizer']['seed'])
@@ -257,6 +274,7 @@ def run(reference,expected_sha,output,*,resume=None):
         trainable=backend.trainable_parameters(model)
         record(dict(event='identity_admitted',gpu_uuid=registration['gpu_uuid'],dataset_sha256=registration['dataset']['sha256'],
                     model_sha256=registration['model']['base']['sha256'],precision=model.precision,serving_gate=registration['serving_gate'],
+                    training_admission=gate,
                     trainable_tensors=len(trainable),trainable_scalars=sum(p.numel() for p in trainable.values()),
                     train_episodes=len(train),selected_episodes=len(ordered),selected_supervised_tokens=exposure,initial_state='zero',
                     source_counts=dict(Counter(row['source'] for row in ordered))))
