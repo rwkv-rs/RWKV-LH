@@ -13,6 +13,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
@@ -3134,45 +3135,94 @@ class ActionHarness:
                     error=error,
                 )
 
-            with subprocess.Popen(
-                    command,
-                    cwd=cwd,
-                    env=environment,
-                    shell=False,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    start_new_session=True,
-                ) as process:
-                def stop():
+            # bwrap reports the host PID of the sandbox PID-namespace init.
+            # Its pipes close before the kernel kills the other namespace
+            # members, so pipe EOF alone can precede a detached child's exit.
+            info_read, info_write = os.pipe() if sandboxed else (None, None)
+            if sandboxed:
+                command = [command[0], "--info-fd", str(info_write), *command[1:]]
+            try:
+                with subprocess.Popen(
+                        command,
+                        cwd=cwd,
+                        env=environment,
+                        shell=False,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        start_new_session=True,
+                        pass_fds=(info_write,) if sandboxed else (),
+                    ) as process:
+                    if sandboxed:
+                        os.close(info_write)
+                        info_write = None
+                    def reap_sandbox():
+                        if info_read is not None:
+                            self._await_sandbox_exit(info_read)
+                    def stop():
+                        try:
+                            os.killpg(process.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                        try:
+                            # Drain until the sandbox reaper and descendants close
+                            # their pipes. Waiting for just the outer bwrap PID can
+                            # return while a child still serves or mutates files.
+                            output = process.communicate(timeout=5)
+                        except subprocess.TimeoutExpired as exc:
+                            raise UncertainToolOutcome('command cleanup did not finish; preserve pending operation') from exc
+                        reap_sandbox()
+                        return output
                     try:
-                        os.killpg(process.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
-                    try:
-                        # Drain until the sandbox reaper and descendants close
-                        # their pipes. Waiting for just the outer bwrap PID can
-                        # return while a child still serves or mutates files.
-                        return process.communicate(timeout=5)
-                    except subprocess.TimeoutExpired as exc:
-                        raise UncertainToolOutcome('command cleanup did not finish; preserve pending operation') from exc
-                try:
-                    stdout, stderr = process.communicate(input=stdin, timeout=timeout)
-                except subprocess.TimeoutExpired:
-                    stdout, stderr = stop()
-                    return command_result(stdout or '', stderr or '', None, timed_out=True)
-                except BaseException:
-                    stop()
-                    raise
-                return command_result(
-                    stdout or '', stderr or '', process.returncode,
-                )
+                        stdout, stderr = process.communicate(input=stdin, timeout=timeout)
+                    except subprocess.TimeoutExpired:
+                        stdout, stderr = stop()
+                        return command_result(stdout or '', stderr or '', None, timed_out=True)
+                    except BaseException:
+                        stop()
+                        raise
+                    reap_sandbox()
+                    return command_result(
+                        stdout or '', stderr or '', process.returncode,
+                    )
+            finally:
+                for descriptor in (info_read, info_write):
+                    if descriptor is not None:
+                        os.close(descriptor)
         finally:
             if ephemeral_copy is not None:
                 ephemeral_copy.cleanup()
+
+    @staticmethod
+    def _await_sandbox_exit(info_read: int, timeout: float = 5.0) -> None:
+        """Return only after every process of the sandbox PID namespace exited.
+
+        The namespace init exits (becomes a zombie or disappears) only after
+        the kernel has killed and waited for all remaining namespace members.
+        """
+        os.set_blocking(info_read, False)
+        try:
+            raw = os.read(info_read, 65536)
+        except BlockingIOError:
+            raw = b""
+        if not raw:
+            return  # bwrap failed before creating the namespace
+        pid = int(json.loads(raw.decode("utf-8").split("\n\n")[0])["child-pid"])
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                stat = Path(f"/proc/{pid}/stat").read_text()
+            except (FileNotFoundError, ProcessLookupError):
+                return
+            name, _, rest = stat.partition("(")[2].rpartition(")")
+            if name != "bwrap" or rest.split()[0] in ("Z", "X"):
+                return  # exited, or the PID now belongs to another process
+            if time.monotonic() >= deadline:
+                raise UncertainToolOutcome('sandbox processes did not exit; preserve pending operation')
+            time.sleep(0.001)
 
     @staticmethod
     def _rebase_search_path(value: str, mounts: Sequence[tuple[Path, Path]]) -> str:
