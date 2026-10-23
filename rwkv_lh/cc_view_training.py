@@ -103,19 +103,35 @@ def loss_audit(model,rows,*,context_tokens,record=None):
 
 OPTIMIZER_FIELDS={'seed','gradient_accumulation','learning_rate','betas','eps','weight_decay','max_grad_norm',
                   'max_seconds','max_allocated_bytes','checkpoint_every_steps'}
+OPTIONAL_OPTIMIZER_FIELDS={'warmup_steps','execution_chunk_tokens','checkpoint_milestones','loss_warning'}
 
 
 def validate_registration(registration):
     core.require(registration['phase'] in ('pilot','formal') and registration['arm'] in ('statetune','lora'),'unknown CC-view training phase/arm')
-    config=registration['optimizer'];core.require(set(config)==OPTIMIZER_FIELDS,'CC-view optimizer registration fields differ')
+    config=registration['optimizer'];core.require(OPTIMIZER_FIELDS<=set(config)<=OPTIMIZER_FIELDS|OPTIONAL_OPTIMIZER_FIELDS,
+                                                'CC-view optimizer registration fields differ')
+    core.require(registration['model']['precision']['base']=='float32','SFT optimizer currently requires FP32; unmanaged low precision is unqualified')
     for name in ('seed','gradient_accumulation','max_allocated_bytes','checkpoint_every_steps'):
         core.require(type(config[name]) is int and config[name]>(-1 if name=='seed' else 0),'invalid registered '+name)
     for name in ('learning_rate','eps','max_grad_norm','max_seconds','weight_decay'):
+        if name=='max_seconds' and config[name] is None:continue
         value=config[name];core.require(type(value) in (int,float) and math.isfinite(value) and (value>=0 if name=='weight_decay' else value>0),
                                         'invalid registered '+name)
     core.require(isinstance(config['betas'],list) and len(config['betas'])==2 and all(type(v) in (int,float) and 0<=v<1 for v in config['betas']),
                  'invalid registered betas')
     core.require(type(registration['supervised_token_cap']) is int and registration['supervised_token_cap']>0,'invalid supervised token cap')
+    for name in ('warmup_steps','execution_chunk_tokens'):
+        if name in config:core.require(type(config[name]) is int and config[name]>=(0 if name=='warmup_steps' else 1),'invalid '+name)
+    if 'execution_chunk_tokens' in config:
+        core.require(config['execution_chunk_tokens']<=registration['model']['context_tokens'],'execution chunk exceeds model context')
+    milestones=config.get('checkpoint_milestones',[])
+    core.require(isinstance(milestones,list) and all(type(v) is int and v>=0 for v in milestones)
+                 and milestones==sorted(set(milestones)),'invalid checkpoint milestones')
+    warning=config.get('loss_warning')
+    if warning is not None:
+        core.require(set(warning)=={'window','ratio','minimum'} and type(warning['window']) is int and warning['window']>0
+                     and all(type(warning[k]) in (float,int) and math.isfinite(warning[k]) and warning[k]>0 for k in ('ratio','minimum')),
+                     'invalid loss warning configuration')
 
 
 def checkpoint_identity(registration,ordered):
@@ -136,7 +152,7 @@ def optimize(model,ordered,config,*,context_tokens,record,last,resume=None,deadl
     """
     import torch
     from . import cc_view_peft_backend as backend
-    from .cc_view_checkpoint import save_last,load_last
+    from .cc_view_checkpoint import save_last,load_last,retain_milestone
     parameters=backend.trainable_parameters(model)
     frozen={name:value._version for name,value in model.named_parameters() if name not in parameters}
     optimizer=torch.optim.AdamW(parameters.values(),lr=config['learning_rate'],betas=config['betas'],eps=config['eps'],
@@ -145,15 +161,18 @@ def optimize(model,ordered,config,*,context_tokens,record,last,resume=None,deadl
     if resume is not None:
         progress.update(load_last(resume['path'],model,optimizer,identity=last['identity']))
         record(dict(event='resumed',checkpoint=resume,**progress))
-    core.require(progress['next_episode']%config['gradient_accumulation']==0,'checkpoint is not at a step boundary')
-    started=time.monotonic()-progress['elapsed_seconds'];saved=None;stepping=False
+    core.require(0<=progress['next_episode']<=len(ordered) and
+                 (progress['next_episode']==len(ordered) or progress['next_episode']%config['gradient_accumulation']==0),
+                 'checkpoint is not at a step boundary')
+    saved=None if resume is None else dict(path=str(resume['path']),sha256=core.sha256_file(resume['path']),progress=dict(progress))
+    started=time.monotonic()-progress['elapsed_seconds'];stepping=False
     result=dict(status='running',stop_reason=None);device=next(iter(parameters.values())).device
     model.eval()
     if device.type=='cuda':torch.cuda.reset_peak_memory_stats(device)
     def peak():return torch.cuda.max_memory_allocated(device) if device.type=='cuda' else 0
     def elapsed():return time.monotonic()-started
     def reason():
-        if elapsed()>=config['max_seconds']:return 'wall_time_budget'
+        if config['max_seconds'] is not None and elapsed()>=config['max_seconds']:return 'wall_time_budget'
         if deadline is not None and time.time()>=deadline:return 'hard_deadline'
         if peak()>config['max_allocated_bytes']:return 'gpu_memory_budget'
         return None
@@ -162,37 +181,64 @@ def optimize(model,ordered,config,*,context_tokens,record,last,resume=None,deadl
         progress['elapsed_seconds']=elapsed()
         saved=save_last(last['path'],model,optimizer,identity=last['identity'],progress=progress)
         record(dict(event='last_checkpoint_saved',**saved))
+        if progress['optimizer_steps'] in config.get('checkpoint_milestones',[]):
+            record(dict(event='checkpoint_milestone_saved',**retain_milestone(saved)))
     try:
+        if saved is None and 0 in config.get('checkpoint_milestones',[]):checkpoint()
         for start in range(progress['next_episode'],len(ordered),config['gradient_accumulation']):
             if reason():break
             group=ordered[start:start+config['gradient_accumulation']];targets=sum(target_count(row) for row in group)
             optimizer.zero_grad(set_to_none=True);weighted=0.
             for row in group:
                 if reason():break
-                chunks=episode_chunks(row['token_ids'],row['target_spans'],row['chunk_starts'],context_tokens=context_tokens,supervised=row['supervised'])
-                outcome=state_carry_backward(model,chunks,weight=target_count(row)/targets)
+                record(dict(event='episode_backward_started',episode_id=row['episode_id'],source=row['source'],
+                            next_step=progress['optimizer_steps']+1,input_tokens=len(row['token_ids'])-1))
+                starts=row['chunk_starts']
+                if 'execution_chunk_tokens' in config:
+                    starts=list(range(0,len(row['token_ids'])-1,config['execution_chunk_tokens']))
+                chunks=episode_chunks(row['token_ids'],row['target_spans'],starts,context_tokens=context_tokens,supervised=row['supervised'])
+                def chunk_record(value):record(dict(value,episode_id=row['episode_id'],source=row['source']))
+                try:outcome=state_carry_backward(model,chunks,weight=target_count(row)/targets,record=chunk_record)
+                except BaseException as error:
+                    record(dict(event='episode_backward_failed',episode_id=row['episode_id'],source=row['source'],error=repr(error)))
+                    raise
                 core.require(outcome['recompute_equal'],'chunk boundary recomputation differs')
                 core.require(math.isfinite(outcome['loss']),'nonfinite target loss')
                 weighted+=outcome['loss']*target_count(row)/targets
                 record(dict(event='episode_backward_completed',episode_id=row['episode_id'],source=row['source'],**outcome))
                 del chunks
             else:
-                core.require(all(p.grad is not None and bool(torch.isfinite(p.grad).all()) for p in parameters.values()),'trainable gradient missing/nonfinite')
+                bad=[n for n,p in parameters.items() if p.grad is None or not bool(torch.isfinite(p.grad).all())]
+                if bad:record(dict(event='gradient_failed',parameters=bad))
+                core.require(not bad,'trainable gradient missing/nonfinite')
                 core.require(any(bool(p.grad.ne(0).any()) for p in parameters.values()),'all trainable gradients are zero')
                 core.require(all(not p.requires_grad and p.grad is None and p._version==frozen[name]
                                  for name,p in model.named_parameters() if name in frozen),'frozen base was mutated')
                 norm=torch.nn.utils.clip_grad_norm_(list(parameters.values()),config['max_grad_norm'],error_if_nonfinite=True)
                 if reason():break
-                record(dict(event='optimizer_step_started',next_step=progress['optimizer_steps']+1,**progress))
+                warmup=config.get('warmup_steps',0)
+                rate=config['learning_rate']*min(1.,(progress['optimizer_steps']+1)/max(1,warmup))
+                for parameter_group in optimizer.param_groups:parameter_group['lr']=rate
+                record(dict(event='optimizer_step_started',next_step=progress['optimizer_steps']+1,learning_rate=rate,**progress))
                 stepping=True;optimizer.step()
                 if device.type=='cuda':torch.cuda.synchronize(device)
                 core.require(all(bool(torch.isfinite(p).all()) for p in parameters.values()),'nonfinite trainable parameter')
                 progress.update(optimizer_steps=progress['optimizer_steps']+1,next_episode=start+len(group),
                                 samples_seen=progress['samples_seen']+len(group),target_tokens_seen=progress['target_tokens_seen']+targets)
                 stepping=False
-                record(dict(event='optimizer_step_completed',loss=weighted,gradient_norm=float(norm),
+                warning=config.get('loss_warning')
+                if warning is not None:
+                    health=progress.setdefault('loss_health',dict(baseline=[],recent=[]))
+                    if len(health['baseline'])<warning['window']:health['baseline'].append(weighted)
+                    health['recent']=(health['recent']+[weighted])[-warning['window']:]
+                    if len(health['baseline'])==warning['window'] and len(health['recent'])==warning['window']:
+                        baseline=sum(health['baseline'])/warning['window'];recent=sum(health['recent'])/warning['window']
+                        if recent>max(warning['minimum'],baseline*warning['ratio']):
+                            record(dict(event='training_loss_warning',baseline=baseline,recent=recent,optimizer_steps=progress['optimizer_steps'],
+                                        action='notify_only; finite loss is not an Agent score or automatic stop'))
+                record(dict(event='optimizer_step_completed',loss=weighted,gradient_norm=float(norm),learning_rate=rate,
                             peak_allocated_bytes=peak(),**dict(progress,elapsed_seconds=elapsed())))
-                if progress['optimizer_steps']%config['checkpoint_every_steps']==0:checkpoint()
+                if progress['optimizer_steps']%config['checkpoint_every_steps']==0 or progress['optimizer_steps'] in config.get('checkpoint_milestones',[]):checkpoint()
                 continue
             break
         if progress['next_episode']>=len(ordered):result.update(status='candidate',stop_reason='registered_prefix_finished')
@@ -265,8 +311,8 @@ def run(reference,expected_sha,output,*,resume=None):
         else:selected=source_order(train,registration['optimizer']['seed'])
         config=dict(registration['optimizer'])
         ordered,exposure=capped_prefix(selected,token_cap=registration['supervised_token_cap'],accumulation=config['gradient_accumulation'])
-        deadline=datetime.fromisoformat(registration['hard_deadline']).timestamp()-30
-        core.require(time.time()<deadline,'CC-view hard deadline has passed')
+        deadline=None if registration.get('hard_deadline') is None else datetime.fromisoformat(registration['hard_deadline']).timestamp()-30
+        core.require(deadline is None or time.time()<deadline,'CC-view hard deadline has passed')
         torch.manual_seed(config['seed']);random.seed(config['seed'])
         model=backend.build(registration['model'],method=registration['arm'])
         core.require(all(bool(torch.count_nonzero(value)==0) for name,value in model.named_parameters() if name.endswith('.time_state')),

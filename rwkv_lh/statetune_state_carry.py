@@ -59,7 +59,7 @@ def _leaf(state):
     return tuple(tuple(value.detach().requires_grad_() for value in layer) for layer in state)
 
 
-def state_carry_backward(model, chunks, *, weight):
+def state_carry_backward(model, chunks, *, weight, record=None):
     """Accumulate weight * mean target loss of the whole episode into time_state.grad.
 
     model(input_ids, state, return_state=True) returns (logits, final State);
@@ -74,9 +74,13 @@ def state_carry_backward(model, chunks, *, weight):
     last = max(index for index, count in enumerate(counts) if count)
     used = chunks[:last + 1]
     boundaries = [None]
+    def event(name,index,stage,**fields):
+        if record is not None:
+            record(dict(event=name,chunk_index=index,stage=stage,input_tokens=chunks[index]['input_ids'].numel(),**fields))
     with torch.no_grad():
         state = None
-        for chunk in used[:-1]:
+        for index,chunk in enumerate(used[:-1]):
+            event('chunk_started',index,'boundary_forward')
             unused_logits, state = model(chunk["input_ids"].to(device), state, return_state=True)
             # Even `_` is a strong reference. A [24576, 65536] FP32 tensor
             # would otherwise stay live throughout every reverse chunk.
@@ -87,11 +91,22 @@ def state_carry_backward(model, chunks, *, weight):
     recompute_equal = True
     upstream = None
     for index in reversed(range(len(used))):
+        event('chunk_started',index,'recompute_forward')
         initial = None if boundaries[index] is None else _leaf(boundaries[index])
         logits, final = model(used[index]["input_ids"].to(device), initial, return_state=True)
         roots, grads = [], []
         if counts[index]:
-            loss = target_cross_entropy(logits, used[index]["labels"].to(device), reduction="sum")
+            try:
+                loss = target_cross_entropy(logits, used[index]["labels"].to(device), reduction="sum")
+                require(bool(torch.isfinite(loss)), 'nonfinite target loss')
+            except Exception as error:
+                finite=torch.isfinite(logits)
+                values=logits.detach()[finite]
+                event('chunk_failed',index,'loss',error=repr(error),logits=dict(
+                    shape=list(logits.shape),dtype=str(logits.dtype),nonfinite=int((~finite).sum()),
+                    minimum=float(values.min()) if values.numel() else None,
+                    maximum=float(values.max()) if values.numel() else None))
+                raise
             loss_sum += float(loss.detach())
             roots.append(loss * scale)
             grads.append(torch.ones_like(loss))
@@ -107,6 +122,7 @@ def state_carry_backward(model, chunks, *, weight):
                     grads.append(gradient)
         del final
         if roots:
+            event('chunk_started',index,'backward')
             torch.autograd.backward(roots, grads)
         upstream = None
         if initial is not None:

@@ -48,3 +48,21 @@ def load_last(path,model,optimizer,*,identity):
         core.require(torch.cuda.is_initialized() and len(payload['cuda_rng'])==torch.cuda.device_count(),'checkpoint CUDA RNG devices differ')
         torch.cuda.set_rng_state_all(payload['cuda_rng'])
     return payload['progress']
+
+
+def retain_milestone(saved):
+    """Keep a bounded, registered checkpoint by linking its atomic inode.
+
+    Replacing last.pt later cannot overwrite this file. Never replace an
+    existing milestone, including when exporting a completed resumed run.
+    """
+    source=Path(saved['path']);directory=source.parent/'checkpoints';directory.mkdir(exist_ok=True)
+    target=directory/f"step-{saved['progress']['optimizer_steps']:06d}.pt"
+    if target.exists():
+        core.require(core.sha256_file(target)==saved['sha256'],'checkpoint milestone already differs')
+    else:
+        os.link(source,target)
+        fd=os.open(directory,os.O_RDONLY|os.O_DIRECTORY)
+        try:os.fsync(fd)
+        finally:os.close(fd)
+    return dict(path=str(target),sha256=saved['sha256'],progress=saved['progress'])

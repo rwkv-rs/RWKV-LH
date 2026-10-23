@@ -161,7 +161,9 @@ def build(spec,*,method,device='cuda'):
     # A later whole-model cast would change those parameters as well.
     for block in model.blocks:
         block.att.time_state=nn.Parameter(block.att.time_state.detach().float())
-    model=select_method(model,method)
+    lora=spec.get('lora',dict(rank=64,alpha=128))
+    core.require(set(lora)=={'rank','alpha'} and all(type(v) is int and v>0 for v in lora.values()),'invalid LoRA specification')
+    model=select_method(model,method,rank=lora['rank'],alpha=lora['alpha'])
     if method=='lora':
         # PEFT follows a FP32 base but would otherwise keep autocast choices implicit.
         for name,value in trainable_parameters(model).items():value.data=value.data.float()

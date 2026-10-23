@@ -32,8 +32,10 @@ METHODS=('statetune','lora')
 
 
 def identity(model):
-    return dict(base=model['base'],peft_source=model['peft_source'],context_tokens=model['context_tokens'],
-                precision=model['precision'],merge_target_dtype=model.get('merge_target_dtype','base'))
+    value=dict(base=model['base'],peft_source=model['peft_source'],context_tokens=model['context_tokens'],
+               precision=model['precision'],merge_target_dtype=model.get('merge_target_dtype','base'))
+    if 'lora' in model:value['lora']=model['lora']
+    return value
 
 
 def read_registration(path,sha256):
