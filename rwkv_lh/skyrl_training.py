@@ -46,6 +46,55 @@ def gpu_uuid(index):
     return GPUS[index]
 
 
+BPTT_PROBE = '''
+import json
+import torch
+from transformers.models.rwkv.configuration_rwkv import RwkvConfig
+from transformers.models.rwkv.modeling_rwkv import RwkvCache
+
+config = RwkvConfig(architecture_version='rwkv7', hidden_size=64, num_hidden_layers=1,
+                    intermediate_size=256, head_size=64, num_attention_heads=1, context_length=16)
+cache = RwkvCache(config)
+layer = cache.layers[0]
+leaf = torch.zeros(1, 1, 64, 64, dtype=torch.float32, requires_grad=True)
+boundary = leaf * 2
+if boundary.grad_fn is None:
+    raise SystemExit('probe boundary tensor is not differentiable')
+layer.recurrent_states[0] = boundary
+layer.is_recurrent_states_initialized[0] = True
+cloned = cache.clone().layers[0].recurrent_states[0]
+if cloned is None:
+    raise SystemExit('clone dropped the recurrent state')
+if cloned.grad_fn is not None:
+    cloned.sum().backward()
+detached = cache.detach().layers[0].recurrent_states[0]
+print(json.dumps({
+    'clone_preserves_graph': cloned.grad_fn is not None,
+    'gradient_reaches_leaf': leaf.grad is not None and bool(leaf.grad.abs().sum() > 0),
+    'detach_breaks_graph': detached is not None and detached.grad_fn is None,
+    'torch': torch.__version__,
+}))
+'''
+
+
+def verify_chunk_gradient(python, source_root):
+    """SkyRL carries chunk boundaries by RwkvCache.clone(); a detaching clone
+    silently turns exact BPTT into truncated BPTT while loss still falls."""
+    process = subprocess.run(['uv', 'run', '--isolated', '--no-project', str(python), '-c', BPTT_PROBE],
+                             cwd=source_root, capture_output=True, text=True, check=False)
+    if process.returncode != 0:
+        raise ValueError('cross-chunk gradient probe failed to run: ' + process.stderr.strip()[-2000:])
+    try:
+        observed = json.loads(process.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        raise ValueError('cross-chunk gradient probe returned no verdict: ' + process.stdout.strip()[-2000:])
+    required = ('clone_preserves_graph', 'gradient_reaches_leaf', 'detach_breaks_graph')
+    if any(observed.get(key) is not True for key in required):
+        raise ValueError('pinned RwkvCache does not carry gradients across chunk boundaries: '
+                         + json.dumps(observed, sort_keys=True))
+    return observed
+
+
 def token_row(row):
     tokens = row['token_ids']
     spans, supervised = row['target_spans'], row['supervised']
@@ -178,6 +227,7 @@ def prepare(registration, output):
     root = Path(verified['root'])
     if not (root / 'skyrl/train/main_sft.py').is_file():
         raise ValueError('SkyRL native SFT source is missing')
+    chunk_gradient = verify_chunk_gradient(registration['python'], root)
     model = sealed(registration['model_manifest'])
     from .inference.irwkv_artifact import verify_artifact, verify_vocabulary
     artifact = verify_artifact(Path(model['root']), expected_manifest=registration['model_manifest'])
@@ -212,7 +262,7 @@ def prepare(registration, output):
         chunk_size=registration['chunk_size'], checkpoint_interval=registration['checkpoint_interval'],
         resume_from=registration.get('resume_from', ''), cpu_offload=registration.get('cpu_offload', True))
     result = dict(schema_version=RUN_SCHEMA, configuration=config, dataset=exported,
-                  model_manifest=registration['model_manifest'],
+                  model_manifest=registration['model_manifest'], chunk_gradient=chunk_gradient,
                   command=command(registration['python'], config), source_root=str(root),
                   training_started=False, optimizer_steps=0)
     (output / 'PREPARED.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
