@@ -17,12 +17,12 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-import vllm
+import irwkv
 from fastapi import FastAPI, HTTPException, Request
 from starlette.datastructures import State
-from vllm import TokensPrompt
-from vllm.engine.protocol import EngineClient
-from vllm.sampling_params import RequestOutputKind, SamplingParams
+from irwkv import TokensPrompt
+from irwkv.engine.protocol import EngineClient
+from irwkv.sampling_params import RequestOutputKind, SamplingParams
 
 from rwkv_lh.inference.native_source_identity import verify_native_source_identity
 from rwkv_lh.runtime.native_request_recovery import (
@@ -90,7 +90,7 @@ class RWKVNativeStateService:
         self.ready = False
         self.error = "engine client is unavailable"
         self.model_name = ""
-        self.server_build = str(getattr(vllm, "__version__", "unknown"))
+        self.server_build = str(getattr(irwkv, "__version__", "unknown"))
         self.tokenizer_build = ""
         self.worker_capabilities: dict[str, Any] = {}
         self.source_identity: dict[str, Any] = {}
@@ -101,7 +101,7 @@ class RWKVNativeStateService:
         if self.engine_client is None:
             return
         try:
-            self.source_identity = verify_native_source_identity(engine_file=getattr(vllm, "__file__", None))
+            self.source_identity = verify_native_source_identity(engine_file=getattr(irwkv, "__file__", None))
             self.model_name = str(self.engine_client.model_config.served_model_name)
             tokenizer = self.engine_client.renderer.get_tokenizer()
             self.tokenizer_build = _digest(
@@ -126,7 +126,7 @@ class RWKVNativeStateService:
             if capabilities.get("state_lifecycle_protocol") != NATIVE_STATE_LIFECYCLE_VERSION:
                 raise RuntimeError("worker State lifecycle protocol is unavailable")
             self.worker_capabilities = capabilities
-            self.server_build = f"{getattr(vllm, '__version__', 'unknown')}+native.{self.source_identity['identity_sha256']}"
+            self.server_build = f"{getattr(irwkv, '__version__', 'unknown')}+native.{self.source_identity['identity_sha256']}"
             self.ready = True
             self.error = ""
             await self._collect_garbage()
@@ -162,7 +162,7 @@ class RWKVNativeStateService:
 
     def capabilities(self) -> dict[str, Any]:
         enabled = self.ready
-        config = getattr(getattr(self.engine_client, 'vllm_config', None), 'structured_outputs_config', None)
+        config = getattr(getattr(self.engine_client, 'irwkv_config', None), 'structured_outputs_config', None)
         decoder = {}
         if enabled and getattr(config, 'backend', None) == DECODER_BACKEND:
             from importlib.metadata import version
@@ -266,7 +266,7 @@ class RWKVNativeStateService:
 
     @staticmethod
     def _profile(payload: dict[str, Any], binding: dict[str, Any]) -> tuple[str, str]:
-        xargs = payload.get("vllm_xargs")
+        xargs = payload.get("irwkv_xargs")
         values = xargs if isinstance(xargs, dict) else {}
         requested_id = values.get("rwkv_state_profile")
         requested_sha256 = values.get("rwkv_state_profile_sha256")
@@ -404,7 +404,7 @@ class RWKVNativeStateService:
         """Report the serving host's State filesystem, not the client's disk."""
         if self.journal is None:
             return {"available": False}
-        path = Path(os.getenv("VLLM_RWKV7_NATIVE_STATE_DIR") or str(self.journal.path.parent))
+        path = Path(os.getenv("IRWKV_RWKV7_NATIVE_STATE_DIR") or str(self.journal.path.parent))
         while not path.exists():
             path = path.parent
         usage = shutil.disk_usage(path)
@@ -571,7 +571,7 @@ class RWKVNativeStateService:
             validate_decoder_contract(decoder)
             if pending_token_id is not None or stop:
                 raise ValueError('decoder requires generation with grammar-controlled termination')
-            from vllm.sampling_params import StructuredOutputsParams
+            from irwkv.sampling_params import StructuredOutputsParams
             structured = StructuredOutputsParams(json=decoder['generation_schema'])
             structured._backend = DECODER_BACKEND
         await self._ensure_loaded(source)
@@ -998,8 +998,8 @@ class RWKVNativeStateService:
                 published = True
             except Exception as exc:
                 # Only known request-validation errors are safe to return as 4xx.
-                from vllm.exceptions import VLLMValidationError
-                if isinstance(exc, VLLMValidationError):
+                from irwkv.exceptions import IrwkvValidationError
+                if isinstance(exc, IrwkvValidationError):
                     raise HTTPException(status_code=400, detail=str(exc)) from exc
                 raise
             finally:

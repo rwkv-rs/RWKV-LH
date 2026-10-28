@@ -68,7 +68,7 @@ class RuntimeSettings:
     api_key: str
     model: str
     model_sha256: str = ""
-    backend_profile: str = "vllm-rwkv-native"
+    backend_profile: str = "irwkv-native"
     cf_access_client_id: str = ""
     cf_access_client_secret: str = ""
     proxy_url: str = ""
@@ -118,7 +118,7 @@ class RuntimeSettings:
                 "executor",
                 "backend_profile",
                 legacy="RWKV_BACKEND_PROFILE",
-                default="vllm-rwkv-native",
+                default="irwkv-native",
             ),
             cf_access_client_id=role_env(
                 "executor",
@@ -429,15 +429,8 @@ class RuntimeSettings:
             raise ValueError(
                 "process_attested state delivery requires an explicit profile identity"
             )
-        if self.backend_profile not in {
-            "vllm-rwkv-rapid",
-            "vllm-rwkv-native",
-            "rwkv-lightning-native",
-        }:
-            raise ValueError(
-                "RWKV_BACKEND_PROFILE must be vllm-rwkv-rapid, "
-                "vllm-rwkv-native, or rwkv-lightning-native"
-            )
+        if self.backend_profile != "irwkv-native":
+            raise ValueError("RWKV_BACKEND_PROFILE must be irwkv-native")
         if bool(self.cf_access_client_id) != bool(self.cf_access_client_secret):
             raise ValueError(
                 "RWKV_CF_ACCESS_CLIENT_ID and RWKV_CF_ACCESS_CLIENT_SECRET "
@@ -452,7 +445,7 @@ class RuntimeSettings:
         if self.retry_attempts < 1:
             raise ValueError("RWKV_RETRY_ATTEMPTS must be at least 1")
         minimum_temperature = (
-            0.0 if self.backend_profile == "vllm-rwkv-native" else 1e-5
+            0.0 if self.backend_profile == "irwkv-native" else 1e-5
         )
         if self.sampling_seed is not None and (type(self.sampling_seed) is not int or not 0 <= self.sampling_seed < 2**63):
             raise ValueError('sampling seed must be a nonnegative 63-bit integer')

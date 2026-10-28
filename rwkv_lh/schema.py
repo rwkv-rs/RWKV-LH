@@ -967,7 +967,7 @@ class TempDecision:
     frequency_penalty: float = 0.0
     penalty_decay: float = 0.996
     max_tokens: int = 0
-    backend_profile: str = "vllm-rwkv-native"
+    backend_profile: str = "irwkv-native"
     seed_supported: bool = False
     ended_at: str | None = None
     outcome: str = "running"

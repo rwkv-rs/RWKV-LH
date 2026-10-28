@@ -83,52 +83,12 @@ def target_cross_entropy(logits, labels, *, reduction: str = "mean"):
                                              labels[selected], reduction=reduction)
 
 
-def state_parameters(model, *, layers: int) -> dict[str, Any]:
-    require(type(layers) is int and layers > 0, "positive layer count is required")
-    expected = {f"blocks.{i}.att.time_state" for i in range(layers)}
-    parameters = {name: p for name, p in model.named_parameters() if _STATE.fullmatch(name)}
-    require(set(parameters) == expected, "exact one time_state per layer is required")
-    return parameters
 
 
-def freeze_for_state_tuning(model, *, layers: int) -> dict[str, Any]:
-    parameters = state_parameters(model, layers=layers)
-    model.requires_grad_(False)
-    for parameter in parameters.values():
-        parameter.requires_grad_(True)
-    require({name for name, p in model.named_parameters() if p.requires_grad} == set(parameters),
-            "optimizer trainable set is not exactly time_state")
-    return parameters
 
 
-def load_frozen_base(model, path: str | Path, expected_sha256: str, *, layers: int) -> None:
-    import torch
-    verify_file(path, expected_sha256)
-    candidate = state_parameters(model, layers=layers)
-    weights = torch.load(path, map_location="cpu", weights_only=True, mmap=True)
-    expected = model.state_dict()
-    require(isinstance(weights, dict) and set(weights) == set(expected) - set(candidate),
-            "base key set differs; only newly initialized time_state may be absent")
-    for name, value in weights.items():
-        require(isinstance(value, torch.Tensor) and value.shape == expected[name].shape,
-                f"base tensor shape differs: {name}")
-        require(value.is_floating_point() and bool(torch.isfinite(value).all()), f"invalid base tensor: {name}")
-    # Validate everything before copying anything into the model.
-    result = model.load_state_dict(weights, strict=False, assign=True)
-    require(set(result.missing_keys) == set(candidate) and not result.unexpected_keys, "base loading keys differ")
 
 
-def portable_state(model, *, layers: int, heads: int, head_size: int) -> dict[str, Any]:
-    import torch
-    result = {}
-    for name, value in state_parameters(model, layers=layers).items():
-        require(tuple(value.shape) == (heads, head_size, head_size), f"state shape differs: {name}")
-        tensor = value.detach().to(device="cpu", dtype=torch.bfloat16).contiguous().clone()
-        require(bool(torch.isfinite(tensor).all()) and bool(torch.count_nonzero(tensor)),
-                f"published state must be finite and nonzero in every layer: {name}")
-        result[name] = tensor
-    # Portable PEFT [H,V,K] stays unchanged; the runtime loader transposes once.
-    return result
 
 
 def max_logit_difference(actual, reference) -> float:

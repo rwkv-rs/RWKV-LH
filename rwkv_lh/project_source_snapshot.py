@@ -15,8 +15,7 @@ _SOURCE_PACKAGES = ('rwkv_lh', 'scripts')
 _OPTIONAL_SOURCE_PACKAGES = ('tests',)
 _REQUIRED_FILES = ('pyproject.toml', 'uv.lock', 'docs/ARCHITECTURE.zh-CN.md',
                    'rwkv_lh/__init__.py', 'scripts/__init__.py')
-_OPTIONAL_FILES = ('AGENTS.md', 'docs/HANDOFF.zh-CN.md',
-                   'docs/PROJECT_ROLE_DATA_PIPELINE.zh-CN.md')
+_OPTIONAL_FILES = ('AGENTS.md', 'docs/HANDOFF.zh-CN.md')
 _EXCLUDED_DIRS = {'__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache'}
 
 

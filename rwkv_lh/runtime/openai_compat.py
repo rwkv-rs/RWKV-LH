@@ -120,46 +120,7 @@ class OpenAICompatibleRWKVClient:
         return headers
 
     def _text_payload(self, request: TextCompletionRequest) -> dict[str, Any]:
-        if self.settings.backend_profile in {
-            "vllm-rwkv-rapid",
-            "vllm-rwkv-native",
-        }:
-            sampler_mode = (
-                "native"
-                if self.settings.backend_profile == "vllm-rwkv-native"
-                else "rapid"
-            )
-            return self._attach_state_profile(
-                request.payload(self.model_name, sampler_mode=sampler_mode)
-            )
-        unsupported: list[str] = []
-        if request.min_tokens:
-            unsupported.append("min_tokens")
-        if request.stop_token_ids:
-            unsupported.append("stop_token_ids")
-        if request.return_token_ids:
-            unsupported.append("return_token_ids")
-        if request.seed is not None:
-            unsupported.append("seed")
-        if unsupported:
-            raise ValueError(
-                "rwkv-lightning-native does not support: "
-                + ", ".join(unsupported)
-            )
-        return self._attach_state_profile(
-            {
-                "contents": [request.prompt],
-                "max_tokens": int(request.max_tokens),
-                "stop_tokens": list(request.stop),
-                "temperature": float(request.temperature),
-                "top_k": int(request.top_k),
-                "top_p": float(request.top_p),
-                "alpha_presence": float(request.presence_penalty),
-                "alpha_frequency": float(request.frequency_penalty),
-                "alpha_decay": float(request.penalty_decay),
-                "stream": False,
-            }
-        )
+        return self._attach_state_profile(request.payload(self.model_name, sampler_mode="native"))
 
     def _attach_state_profile(self, payload: dict[str, Any]) -> dict[str, Any]:
         profile_id = self.settings.state_profile_id
@@ -167,20 +128,13 @@ class OpenAICompatibleRWKVClient:
             return payload
         if self.settings.state_profile_delivery == "process_attested":
             return payload
-        if self.settings.backend_profile not in {
-            "vllm-rwkv-rapid",
-            "vllm-rwkv-native",
-        }:
-            raise ValueError("RWKV state profiles require a vllm-rwkv backend")
-        payload["vllm_xargs"] = {
+        payload["irwkv_xargs"] = {
             "rwkv_state_profile": profile_id,
             "rwkv_state_profile_sha256": self.settings.state_profile_sha256,
         }
         return payload
 
     def _generation_path(self) -> str:
-        if self.settings.backend_profile == "rwkv-lightning-native":
-            return "/chat/completions"
         return "/completions"
 
     def add_audit_hook(self, hook: AuditHook | None) -> None:
@@ -332,7 +286,7 @@ class OpenAICompatibleRWKVClient:
             raise RWKVProtocolError("response content must be a string")
         usage = TokenUsage.from_mapping(data.get("usage") if isinstance(data.get("usage"), Mapping) else {})
         metadata: dict[str, Any] = {"http_attempts": attempts}
-        # vLLM completion responses carry the echo on the selected choice;
+        # irwkv completion responses carry the echo on the selected choice;
         # some compatible servers expose it at response level instead.
         for source in (data, choice):
             prompt_ids = source.get("prompt_token_ids")
@@ -379,7 +333,7 @@ class OpenAICompatibleRWKVClient:
                 or request.add_special_tokens is not False or request.return_token_ids is not True
                 or not isinstance(request.request_id, str) or not request.request_id.strip()):
             raise ValueError("exact token completion requires an unmodified bounded prefix and request identity")
-        if (self.settings.backend_profile != "vllm-rwkv-native"
+        if (self.settings.backend_profile != "irwkv-native"
                 or self.settings.retry_attempts != 1
                 or self.settings.state_profile_delivery != "request"
                 or not self.settings.state_profile_id or not self.settings.state_profile_sha256):
@@ -553,40 +507,7 @@ class OpenAICompatibleRWKVClient:
             add_special_tokens=False,
             return_token_ids=self.settings.return_token_ids,
         )
-        if self.settings.backend_profile == "rwkv-lightning-native":
-            rendered = "".join(
-                f"{str(item.get('role') or 'user').title()}: "
-                f"{str(item.get('content') or '')}\n"
-                for item in request.messages
-            )
-            native_request = TextCompletionRequest(
-                prompt=rendered,
-                max_tokens=request.max_tokens,
-                temperature=request.temperature,
-                top_p=request.top_p,
-                top_k=request.top_k,
-                presence_penalty=request.presence_penalty,
-                frequency_penalty=request.frequency_penalty,
-                penalty_decay=request.penalty_decay,
-                min_tokens=request.min_tokens,
-                stop=request.stop,
-                stop_token_ids=request.stop_token_ids,
-                request_id=request.request_id,
-                seed=request.seed,
-                return_token_ids=request.return_token_ids,
-            )
-            payload = self._text_payload(native_request)
-        else:
-            sampler_mode = (
-                "native"
-                if self.settings.backend_profile == "vllm-rwkv-native"
-                else "rapid"
-            )
-            payload = request.payload(
-                self.model_name,
-                sampler_mode=sampler_mode,
-            )
-            payload = self._attach_state_profile(payload)
+        payload = self._attach_state_profile(request.payload(self.model_name, sampler_mode="native"))
         data, latency_ms, attempts = self._request_json(
             "POST", "/chat/completions", payload=payload, generation=True
         )

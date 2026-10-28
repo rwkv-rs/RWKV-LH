@@ -30,10 +30,10 @@ from rwkv_lh.exact_tool_selector.network_protocol import (
     NETWORK_EXACT_TOOL_LABELS,
     NetworkSelectorInput,
 )
-from rwkv_lh.inference.vllm_rwkv import PersistentVLLMRWKVExtractor
+from rwkv_lh.inference.irwkv import PersistentIRWKVExtractor
 from rwkv_lh.goal_state_protocols import selector_intent_v7
 from rwkv_lh.model_io import canonical_digest
-from rwkv_lh.state_router.local_backend import LocalVLLMRWKVSettings
+from rwkv_lh.state_router.local_backend import LocalIRWKVSettings
 
 
 NATIVE_SELECTOR_DECODER_MANIFEST_SCHEMA = (
@@ -514,8 +514,8 @@ def main() -> int:
         profile_id=args.profile_id,
         profile_sha256=args.profile_sha256,
     )
-    extractor = PersistentVLLMRWKVExtractor(
-        LocalVLLMRWKVSettings(
+    extractor = PersistentIRWKVExtractor(
+        LocalIRWKVSettings(
             engine_root=args.engine_root,
             engine_revision=args.engine_revision,
             engine_python=args.engine_python,
@@ -526,7 +526,6 @@ def main() -> int:
             max_tokens=settings.context_tokens,
             wkv_mode=NATIVE_SELECTOR_WKV_MODE,
             runtime_temp=args.runtime_temp,
-            compatibility_sha256="0" * 64,
             **extractor_profile_settings,
         )
     )

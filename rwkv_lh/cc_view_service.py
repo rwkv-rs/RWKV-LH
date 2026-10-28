@@ -1,4 +1,4 @@
-"""Explicit B-only vLLM plugins; never registered by the product entry point."""
+"""Explicit B-only irwkv plugins; never registered by the product entry point."""
 from copy import copy
 
 from .cc_view_decoder import EXTENSION, extract_grammar, forced_think_suffix, token_continues_suffix, think_limited_prefix
@@ -14,7 +14,7 @@ class CCGrammarEngine:
         return getattr(self.engine, name)
 
     def generate(self, prompt, params, request_id, *args, **kwargs):
-        from vllm.sampling_params import StructuredOutputsParams
+        from irwkv.sampling_params import StructuredOutputsParams
         from .runtime.structured_output import build_decoder_contract, DECODER_BACKEND
         structured = params.structured_outputs
         if structured is not None and isinstance(structured.json, dict) and EXTENSION in structured.json:
@@ -28,7 +28,7 @@ class CCGrammarEngine:
 def install_decoder_backend():
     """Registered only in the frozen B deployment's general-plugin overlay."""
     import torch
-    from vllm.v1.structured_output import backend_guidance as native
+    from irwkv.v1.structured_output import backend_guidance as native
     OriginalBackend, OriginalGrammar = native.GuidanceBackend, native.GuidanceGrammar
     if getattr(OriginalBackend, 'cc_view_protocol', None) == PROTOCOL:
         return
@@ -93,7 +93,7 @@ def install_decoder_backend():
 
 
 def endpoint_plugin():
-    """Factory loaded only from the experiment's vllm.endpoint_plugins entry."""
+    """Factory loaded only from the experiment's irwkv.endpoint_plugins entry."""
     from .inference.native_state_service import RWKVNativeStateEndpointPlugin, RWKVNativeStateService
 
     class CCService(RWKVNativeStateService):

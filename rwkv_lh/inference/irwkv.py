@@ -1,29 +1,27 @@
-"""Persistent direct-model adapter for the pinned local vllm-rwkv runtime.
+"""Persistent direct-model adapter for the pinned local irwkv runtime.
 
 This module is imported by the dedicated Router process, not by the Harness
-process.  All vLLM and CUDA imports remain lazy so the product runtime keeps a
+process.  All irwkv and CUDA imports remain lazy so the product runtime keeps a
 small dependency boundary and a separate GPU/process lifecycle.
 """
 
 from __future__ import annotations
 
-import os
 import threading
 from collections import defaultdict
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, Mapping, Sequence
 
 from rwkv_lh.state_router.local_backend import (
-    LocalVLLMRWKVExtractor,
-    LocalVLLMRWKVSettings,
+    LocalIRWKVExtractor,
+    LocalIRWKVSettings,
 )
 
 
-class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
+class PersistentIRWKVExtractor(LocalIRWKVExtractor):
     """Load one 0.4B model once and serve serialized feature extraction calls."""
 
-    def __init__(self, settings: LocalVLLMRWKVSettings | None = None) -> None:
+    def __init__(self, settings: LocalIRWKVSettings | None = None) -> None:
         super().__init__(settings)
         self._model: Any | None = None
         self._tokenizer: Any | None = None
@@ -32,88 +30,35 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
         self._lock = threading.Lock()
 
     def load(self) -> None:
-        """Validate the frozen identity and eagerly place the model on CUDA."""
-
         if self._model is not None:
             return
-        base = self._load_base_identity()
-        engine_root = self.settings.engine_root.resolve()
-        os.environ.setdefault("VLLM_ALLOW_INSECURE_SERIALIZATION", "1")
-        os.environ.setdefault("VLLM_USE_V2_MODEL_RUNNER", "1")
-        os.environ["VLLM_RWKV7_WKV_MODE"] = self.settings.wkv_mode
-
+        self._load_base_identity()
         import torch
         import transformers
-        import vllm
-        import vllm.rwkv7_ops  # noqa: F401
-        from vllm.tokenizers.rwkv import RWKVTokenizer
-
-        module_path = Path(vllm.__file__).resolve()
-        if not module_path.is_relative_to(engine_root):
-            raise RuntimeError(
-                f"vllm resolved outside the pinned source tree: {module_path}"
-            )
-        tokenizer = RWKVTokenizer.from_pretrained(self.settings.model.resolve())
+        import irwkv
+        from transformers import AutoTokenizer
+        module_path = Path(irwkv.__file__).resolve()
+        if not module_path.is_relative_to(self.settings.engine_root.resolve()):
+            raise RuntimeError('irwkv resolved outside the frozen source tree')
+        tokenizer = AutoTokenizer.from_pretrained(self.settings.model, local_files_only=True, trust_remote_code=False)
         model = self._load_direct_model(self.settings.model.resolve())
-        initial_wkv_state = self._load_initial_wkv_state(model)
-        profile = model.execution_profile
-        runtime = {
-            "model_class": type(model).__name__,
-            "hidden_size": int(model.hidden_size),
-            "num_hidden_layers": int(model.total_num_layers),
-            "head_size": int(model.head_size),
-            "vocab_size": int(model.vocab_size),
-            "wkv_mode": str(profile.wkv_mode),
-            "wkv_state_dtype": str(profile.wkv_state_dtype),
-            "gemm_accumulation_policy": str(profile.gemm_accumulation_policy),
-            "torch_version": torch.__version__,
-            "cuda_version": torch.version.cuda,
-            "device": torch.cuda.get_device_name(),
-            "vllm_module": str(module_path),
-            "vllm_version": vllm.__version__,
-            "transformers_version": transformers.__version__,
-            "runtime_temp": str(self.settings.runtime_temp.resolve()),
-            "runtime_compute_dtype": str(model.z["blocks.0.att.key.weight"].dtype),
-            "initial_state_checkpoint_layout": "[layer,head,value,key]",
-            "initial_state_runtime_layout": "[layer,head,key,value]",
-            "initial_state_layout_conversion": "transpose(-2,-1)-in-profile-loader",
-        }
-        tokenizer_values = {
-            "tokenizer_class": type(tokenizer).__name__,
-            "tokenizer_vocab_size": int(tokenizer.vocab_size),
-            "bos_token_id": int(tokenizer.bos_token_id),
-            "eos_token_id": int(tokenizer.eos_token_id),
-            "pad_token_id": int(tokenizer.pad_token_id),
-            "truncation_side": str(tokenizer.truncation_side),
-        }
-        comparisons = {
-            "vllm_module": runtime["vllm_module"],
-            "vllm_version": runtime["vllm_version"],
-            "engine_torch_version": runtime["torch_version"],
-            "engine_transformers_version": runtime["transformers_version"],
-            "hidden_size": runtime["hidden_size"],
-            "num_hidden_layers": runtime["num_hidden_layers"],
-            "head_size": runtime["head_size"],
-            "vocab_size": runtime["vocab_size"],
-            "wkv_mode": runtime["wkv_mode"],
-            **tokenizer_values,
-        }
-        mismatches = {
-            key: {"expected": base[key], "actual": value}
-            for key, value in comparisons.items()
-            if base[key] != value
-        }
-        if mismatches:
-            raise RuntimeError(f"persistent vllm-rwkv identity mismatch: {mismatches}")
-        self._model = model
-        self._tokenizer = tokenizer
-        self._runtime = runtime
-        self._initial_wkv_state = initial_wkv_state
+        from .native_weight_identity import fingerprint_model
+        self._loaded_weight_identity = fingerprint_model(model.model)
+        self._initial_wkv_state = self._load_initial_wkv_state(model)
+        self._runtime = dict(model_class=type(model.model).__name__,
+            hidden_size=model.hidden_size, num_hidden_layers=model.total_num_layers,
+            head_size=model.head_size, vocab_size=model.vocab_size,
+            wkv_mode='fp32io16', wkv_state_dtype='torch.float32',
+            runtime_compute_dtype='torch.bfloat16', torch_version=torch.__version__,
+            irwkv_module=str(module_path), irwkv_version=irwkv.__version__,
+            transformers_version=transformers.__version__,
+            loaded_weight_identity=self._loaded_weight_identity)
+        self._model, self._tokenizer = model, tokenizer
 
     def _load_initial_wkv_state(self, model: Any) -> Any | None:
         """Load one explicitly pinned selector state without changing model weights.
 
-        The profile loader converts portable PEFT ``[L,H,V,K]`` tensors to the
+        The profile loader converts portable ``[L,H,V,K]`` tensors to the
         recurrent runtime's ``[L,H,K,V]`` layout.  ``_new_state`` therefore
         performs only the batch expansion and copy, never another transpose.
         """
@@ -121,7 +66,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
         manifest = self.settings.state_profile_manifest
         if manifest is None:
             return None
-        from rwkv_lh.inference.vllm_rwkv_state_profiles_v1 import (
+        from rwkv_lh.inference.irwkv_state_profiles_v1 import (
             RWKV7InitialStateProfiles,
         )
 
@@ -129,7 +74,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             str(manifest.resolve()),
             self.settings.state_profile_manifest_sha256,
             model_artifact=str(self.settings.model.resolve()),
-            model_revision=self.settings.model_artifact_engine_revision,
+            model_revision=self._loaded_weight_identity['tensors_sha256'],
             total_num_layers=int(model.total_num_layers),
             total_num_heads=int(model.num_attention_heads),
             layer_offset=0,
@@ -138,7 +83,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             tp_rank=0,
             num_heads=int(model.num_attention_heads),
             head_size=int(model.head_size),
-            device=model.z["blocks.0.att.key.weight"].device,
+            device=model.device,
             dtype=model.wkv_state_dtype,
         )
         profile = profiles.resolve(self.settings.state_profile_id)
@@ -170,27 +115,27 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
         if parent_state is None:
             return self._new_state(1)
         if len(parent_state) != 3:
-            raise ValueError("persistent vllm-rwkv parent state must have 3 tensors")
+            raise ValueError("persistent irwkv parent state must have 3 tensors")
         assert self._model is not None
         state = self._model.zero_state(1)
         for index, (source, destination) in enumerate(zip(parent_state, state)):
             if not isinstance(source, torch_module.Tensor):
                 raise TypeError(
-                    f"persistent vllm-rwkv parent state {index} is not a tensor"
+                    f"persistent irwkv parent state {index} is not a tensor"
                 )
             if tuple(source.shape) != tuple(destination.shape):
                 raise ValueError(
-                    f"persistent vllm-rwkv parent state {index} shape mismatch"
+                    f"persistent irwkv parent state {index} shape mismatch"
                 )
             if source.dtype != destination.dtype:
                 raise ValueError(
-                    f"persistent vllm-rwkv parent state {index} dtype mismatch"
+                    f"persistent irwkv parent state {index} dtype mismatch"
                 )
             if source.is_floating_point() and not bool(
                 torch_module.isfinite(source).all()
             ):
                 raise ValueError(
-                    f"persistent vllm-rwkv parent state {index} is non-finite"
+                    f"persistent irwkv parent state {index} is non-finite"
                 )
             destination.copy_(source.to(device=destination.device))
         return state
@@ -203,7 +148,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             add_special_tokens=not continuation,
         )
         if not token_ids or len(token_ids) > self.settings.max_tokens:
-            raise ValueError("persistent vllm-rwkv state advance token count is invalid")
+            raise ValueError("persistent irwkv state advance token count is invalid")
         return token_ids
 
     def advance_hidden_feature(
@@ -212,21 +157,21 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
         *,
         parent_state: Sequence[Any] | None = None,
         continuation: bool = False,
-        feature_protocol: str = "rwkv-lh.vllm-rwkv-final-hidden-last.v1",
+        feature_protocol: str = "rwkv-lh.irwkv-final-hidden-last.v1",
         export_state: bool = True,
     ) -> tuple[Any, list[Any], int, Mapping[str, Any]]:
         """Advance one input and expose one unmodified hidden view."""
 
         if not str(text):
-            raise ValueError("persistent vllm-rwkv state advance text must be non-empty")
+            raise ValueError("persistent irwkv state advance text must be non-empty")
         if feature_protocol not in {
-            "rwkv-lh.vllm-rwkv-final-hidden-last.v1",
-            "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
+            "rwkv-lh.irwkv-final-hidden-last.v1",
+            "rwkv-lh.irwkv-final-hidden-mean.v1",
         }:
             raise ValueError("unsupported stateful hidden feature protocol")
         if continuation != (parent_state is not None):
             raise ValueError(
-                "persistent vllm-rwkv continuation and parent state must agree"
+                "persistent irwkv continuation and parent state must agree"
             )
         import torch
 
@@ -251,7 +196,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             )
             if not bool(torch.isfinite(feature).all()):
                 raise RuntimeError(
-                    "persistent vllm-rwkv returned non-finite stateful hidden features"
+                    "persistent irwkv returned non-finite stateful hidden features"
                 )
             identity = {
                 **self._load_base_identity(),
@@ -285,7 +230,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             text,
             parent_state=parent_state,
             continuation=continuation,
-            feature_protocol="rwkv-lh.vllm-rwkv-final-hidden-last.v1",
+            feature_protocol="rwkv-lh.irwkv-final-hidden-last.v1",
             export_state=export_state,
         )
 
@@ -305,10 +250,10 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
         """
 
         if not str(text):
-            raise ValueError("persistent vllm-rwkv state advance text must be non-empty")
+            raise ValueError("persistent irwkv state advance text must be non-empty")
         if continuation != (parent_state is not None):
             raise ValueError(
-                "persistent vllm-rwkv continuation and parent state must agree"
+                "persistent irwkv continuation and parent state must agree"
             )
         import torch
 
@@ -325,7 +270,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             }
             if any(not bool(torch.isfinite(value).all()) for value in features.values()):
                 raise RuntimeError(
-                    "persistent vllm-rwkv returned non-finite stateful hidden views"
+                    "persistent irwkv returned non-finite stateful hidden views"
                 )
             exported_state = (
                 [value.detach().cpu().contiguous().clone() for value in state]
@@ -335,8 +280,8 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             identity = {
                 **self._load_base_identity(),
                 "feature_protocols": {
-                    "mean": "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
-                    "last": "rwkv-lh.vllm-rwkv-final-hidden-last.v1",
+                    "mean": "rwkv-lh.irwkv-final-hidden-mean.v1",
+                    "last": "rwkv-lh.irwkv-final-hidden-last.v1",
                 },
                 "extraction": "one-forward-current-segment-real-token-mean-and-last",
                 "runtime": dict(self._runtime or {}),
@@ -366,7 +311,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
         """
 
         if not str(prompt):
-            raise ValueError("persistent vllm-rwkv suffix prompt must be non-empty")
+            raise ValueError("persistent irwkv suffix prompt must be non-empty")
         if not candidate_suffixes or expected_label not in candidate_suffixes:
             raise ValueError("suffix candidates must contain the expected label")
         normalized = {str(label): str(value) for label, value in candidate_suffixes.items()}
@@ -387,7 +332,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                 str(prompt), truncation=False, add_special_tokens=True
             )
             if not prompt_ids or len(prompt_ids) > self.settings.max_tokens:
-                raise ValueError("persistent vllm-rwkv suffix prompt token count is invalid")
+                raise ValueError("persistent irwkv suffix prompt token count is invalid")
 
             candidate_ids: dict[str, tuple[int, ...]] = {}
             for label, suffix in normalized.items():
@@ -408,7 +353,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                     or len(combined_ids) > self.settings.max_tokens
                 ):
                     raise ValueError(
-                        "persistent vllm-rwkv candidate is not an exact additive suffix"
+                        "persistent irwkv candidate is not an exact additive suffix"
                     )
                 candidate_ids[label] = suffix_ids
             if len(set(candidate_ids.values())) != len(candidate_ids):
@@ -435,7 +380,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                 prompt_hidden[:, -1, :]
             ).float()
             if first_logits.ndim != 2 or first_logits.shape[0] != 1:
-                raise RuntimeError("persistent vllm-rwkv returned invalid suffix logits")
+                raise RuntimeError("persistent irwkv returned invalid suffix logits")
 
             def cloned_state() -> list[Any]:
                 return [value.clone() for value in prompt_state]
@@ -451,7 +396,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             def token_metrics(logits: Any, target_id: int) -> dict[str, Any]:
                 row = logits[0]
                 if not bool(torch.isfinite(row).all()):
-                    raise RuntimeError("persistent vllm-rwkv returned non-finite suffix logits")
+                    raise RuntimeError("persistent irwkv returned non-finite suffix logits")
                 target_logit = row[target_id]
                 predicted_id = int(torch.argmax(row).item())
                 rank = 1 + int(torch.count_nonzero(row > target_logit).item())
@@ -610,7 +555,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
         """
 
         if not str(prompt):
-            raise ValueError("persistent vllm-rwkv suffix prompt must be non-empty")
+            raise ValueError("persistent irwkv suffix prompt must be non-empty")
         if not candidate_suffixes:
             raise ValueError("native suffix selection requires candidates")
         normalized = {
@@ -633,7 +578,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             )
             if not prompt_ids or len(prompt_ids) > self.settings.max_tokens:
                 raise ValueError(
-                    "persistent vllm-rwkv suffix prompt token count is invalid"
+                    "persistent irwkv suffix prompt token count is invalid"
                 )
 
             candidate_ids: dict[str, tuple[int, ...]] = {}
@@ -655,7 +600,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                     or len(combined_ids) > self.settings.max_tokens
                 ):
                     raise ValueError(
-                        "persistent vllm-rwkv candidate is not an exact additive suffix"
+                        "persistent irwkv candidate is not an exact additive suffix"
                     )
                 candidate_ids[label] = suffix_ids
             if len(set(candidate_ids.values())) != len(candidate_ids):
@@ -693,7 +638,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                 or not bool(torch.isfinite(logits).all())
             ):
                 raise RuntimeError(
-                    "persistent vllm-rwkv returned invalid suffix logits"
+                    "persistent irwkv returned invalid suffix logits"
                 )
 
             node = trie
@@ -740,7 +685,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                     ).float()
                     if not bool(torch.isfinite(logits).all()):
                         raise RuntimeError(
-                            "persistent vllm-rwkv returned non-finite suffix logits"
+                            "persistent irwkv returned non-finite suffix logits"
                         )
 
             result = {
@@ -791,12 +736,12 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
         """
 
         if not str(text):
-            raise ValueError("persistent vllm-rwkv state advance text must be non-empty")
+            raise ValueError("persistent irwkv state advance text must be non-empty")
         if not 0 < int(suffix_start) < len(str(text)):
-            raise ValueError("persistent vllm-rwkv suffix boundary is invalid")
+            raise ValueError("persistent irwkv suffix boundary is invalid")
         if continuation != (parent_state is not None):
             raise ValueError(
-                "persistent vllm-rwkv continuation and parent state must agree"
+                "persistent irwkv continuation and parent state must agree"
             )
         import torch
 
@@ -817,7 +762,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             )
             if not prefix_ids or not suffix_ids or token_ids != prefix_ids + suffix_ids:
                 raise ValueError(
-                    "persistent vllm-rwkv suffix boundary is not token additive"
+                    "persistent irwkv suffix boundary is not token additive"
                 )
             state = self._state_for_advance(parent_state, torch)
             tokens = torch.tensor([token_ids], dtype=torch.long, device="cuda")
@@ -829,7 +774,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             }
             if any(not bool(torch.isfinite(item).all()) for item in features.values()):
                 raise RuntimeError(
-                    "persistent vllm-rwkv returned non-finite suffix hidden views"
+                    "persistent irwkv returned non-finite suffix hidden views"
                 )
             exported_state = [
                 item.detach().cpu().contiguous().clone() for item in state
@@ -837,8 +782,8 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             identity = {
                 **self._load_base_identity(),
                 "feature_protocols": {
-                    "mean": "rwkv-lh.vllm-rwkv-final-hidden-suffix-mean.v1",
-                    "last": "rwkv-lh.vllm-rwkv-final-hidden-suffix-last.v1",
+                    "mean": "rwkv-lh.irwkv-final-hidden-suffix-mean.v1",
+                    "last": "rwkv-lh.irwkv-final-hidden-suffix-last.v1",
                 },
                 "extraction": "one-forward-exact-additive-suffix-mean-and-last",
                 "runtime": dict(self._runtime or {}),
@@ -876,12 +821,12 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
         """
 
         if not str(text):
-            raise ValueError("persistent vllm-rwkv state advance text must be non-empty")
+            raise ValueError("persistent irwkv state advance text must be non-empty")
         if not 0 < int(suffix_start) < len(str(text)):
-            raise ValueError("persistent vllm-rwkv suffix boundary is invalid")
+            raise ValueError("persistent irwkv suffix boundary is invalid")
         if continuation != (parent_state is not None):
             raise ValueError(
-                "persistent vllm-rwkv continuation and parent state must agree"
+                "persistent irwkv continuation and parent state must agree"
             )
         import torch
 
@@ -902,7 +847,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             )
             if not prefix_ids or not suffix_ids or token_ids != prefix_ids + suffix_ids:
                 raise ValueError(
-                    "persistent vllm-rwkv suffix boundary is not token additive"
+                    "persistent irwkv suffix boundary is not token additive"
                 )
             state = self._state_for_advance(parent_state, torch)
             tokens = torch.tensor([token_ids], dtype=torch.long, device="cuda")
@@ -919,7 +864,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             }
             if any(not bool(torch.isfinite(item).all()) for item in features.values()):
                 raise RuntimeError(
-                    "persistent vllm-rwkv returned non-finite global/suffix hidden views"
+                    "persistent irwkv returned non-finite global/suffix hidden views"
                 )
             exported_state = [
                 item.detach().cpu().contiguous().clone() for item in state
@@ -927,11 +872,11 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             identity = {
                 **self._load_base_identity(),
                 "feature_protocols": {
-                    "global_mean": "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
+                    "global_mean": "rwkv-lh.irwkv-final-hidden-mean.v1",
                     "suffix_mean": (
-                        "rwkv-lh.vllm-rwkv-final-hidden-suffix-mean.v1"
+                        "rwkv-lh.irwkv-final-hidden-suffix-mean.v1"
                     ),
-                    "final_last": "rwkv-lh.vllm-rwkv-final-hidden-last.v1",
+                    "final_last": "rwkv-lh.irwkv-final-hidden-last.v1",
                 },
                 "extraction": (
                     "one-forward-global-mean-exact-additive-suffix-mean-and-final-last"
@@ -954,60 +899,9 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                 identity,
             )
 
-    @staticmethod
-    def _load_direct_model(model_path: Path) -> Any:
-        import json
-
-        import torch
-        from safetensors import safe_open
-        from vllm.config.compilation import CompilationConfig, CompilationMode
-        from vllm.config.vllm import set_current_vllm_config
-        from vllm.model_executor.models import rwkv7
-        from vllm.model_executor.models.rwkv7 import RWKV7ForCausalLM
-        from vllm.transformers_utils.configs.rwkv7 import RWKV7Config
-
-        config_values = json.loads(
-            (model_path / "config.json").read_text(encoding="utf-8")
-        )
-        config = RWKV7Config(**config_values)
-        dtype_name = str(config_values.get("torch_dtype") or "float16").removeprefix(
-            "torch."
-        )
-        dtype_by_name = {
-            "float16": torch.float16,
-            "bfloat16": torch.bfloat16,
-        }
-        if dtype_name not in dtype_by_name:
-            raise ValueError(f"unsupported direct RWKV7 dtype: {dtype_name}")
-        rwkv7.get_tensor_model_parallel_world_size = lambda: 1
-        rwkv7.get_tensor_model_parallel_rank = lambda: 0
-        model_config = SimpleNamespace(
-            hf_config=config,
-            enforce_eager=True,
-            dtype=dtype_by_name[dtype_name],
-            head_dtype=None,
-        )
-        vllm_config = SimpleNamespace(
-            compilation_config=CompilationConfig(mode=CompilationMode.NONE),
-            model_config=model_config,
-            quant_config=None,
-            parallel_config=None,
-        )
-        with set_current_vllm_config(vllm_config):
-            model = RWKV7ForCausalLM(vllm_config=vllm_config)
-        weights_path = model_path / "model.safetensors"
-        with safe_open(weights_path, framework="pt", device="cpu") as weights:
-            loaded = model.load_weights(
-                (name, weights.get_tensor(name)) for name in weights.keys()
-            )
-        manifest = json.loads((model_path / "manifest.json").read_text(encoding="utf-8"))
-        expected = int((manifest.get("generation") or {}).get("weight_count") or 0)
-        if expected < 1 or len(loaded) != expected:
-            raise RuntimeError(
-                f"persistent vllm-rwkv loaded {len(loaded)} weights, expected {expected}"
-            )
-        model.eval()
-        return model
+    def _load_direct_model(self, model_path: Path) -> Any:
+        from .irwkv_direct import load_direct_model
+        return load_direct_model(model_path, runtime_temp=self.settings.runtime_temp)
 
     def _token_rows(self, texts: Sequence[str]) -> list[list[int]]:
         self.load()
@@ -1022,7 +916,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             for text in texts
         ]
         if not rows or any(not row for row in rows):
-            raise ValueError("persistent vllm-rwkv token rows must be non-empty")
+            raise ValueError("persistent irwkv token rows must be non-empty")
         return rows
 
     def _extract_matrix(
@@ -1034,7 +928,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
         layer_index: int = -1,
     ) -> tuple[Any, list[int], Mapping[str, Any]]:
         if not texts or any(not str(text).strip() for text in texts):
-            raise ValueError("persistent vllm-rwkv texts must be non-empty")
+            raise ValueError("persistent irwkv texts must be non-empty")
         import torch
 
         with self._lock, torch.inference_mode():
@@ -1068,7 +962,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                     maximum = max(len(token_rows[index]) for index in batch_indices)
                     tokens = torch.full(
                         (len(batch_indices), maximum),
-                        int(self._tokenizer.pad_token_id),
+                        int(self._tokenizer.eos_token_id),
                         dtype=torch.long,
                         device="cuda",
                     )
@@ -1089,15 +983,15 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                 matrix = torch.stack(result_rows)
                 if not bool(torch.isfinite(matrix).all()):
                     raise RuntimeError(
-                        "persistent vllm-rwkv returned non-finite hidden features"
+                        "persistent irwkv returned non-finite hidden features"
                     )
                 protocols = {
                     "hidden_mean": (
-                        "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
+                        "rwkv-lh.irwkv-final-hidden-mean.v1",
                         "final-layer-all-real-token-mean",
                     ),
                     "hidden_last": (
-                        "rwkv-lh.vllm-rwkv-final-hidden-last.v1",
+                        "rwkv-lh.irwkv-final-hidden-last.v1",
                         "final-layer-last-real-token",
                     ),
                 }
@@ -1144,7 +1038,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                         values = logits.index_select(1, code_index).float()
                     else:
                         raise ValueError(
-                            f"unsupported persistent vllm-rwkv operation: {operation}"
+                            f"unsupported persistent irwkv operation: {operation}"
                         )
                     values = values.detach().float().cpu()
                     for local_index, source_index in enumerate(batch_indices):
@@ -1153,22 +1047,22 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                 raise RuntimeError("persistent extraction left unfilled rows")
             matrix = torch.stack(result_rows)
             if not bool(torch.isfinite(matrix).all()):
-                raise RuntimeError("persistent vllm-rwkv returned non-finite features")
+                raise RuntimeError("persistent irwkv returned non-finite features")
         protocols = {
             "hidden_mean": (
-                "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
+                "rwkv-lh.irwkv-final-hidden-mean.v1",
                 "final-layer-all-real-token-mean",
             ),
             "hidden_last": (
-                "rwkv-lh.vllm-rwkv-final-hidden-last.v1",
+                "rwkv-lh.irwkv-final-hidden-last.v1",
                 "final-layer-last-real-token",
             ),
             "wkv_statistics": (
-                "rwkv-lh.vllm-rwkv-final-wkv-statistics.v1",
+                "rwkv-lh.irwkv-final-wkv-statistics.v1",
                 "last-layer-row-column-diagonal-rms",
             ),
             "code_logits": (
-                "rwkv-lh.vllm-rwkv-constrained-code-logits.v1",
+                "rwkv-lh.irwkv-constrained-code-logits.v1",
                 "last-token-fp32-lm-head-selected-codes",
             ),
         }
@@ -1208,7 +1102,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
         """Extract last-token and real-token-mean features from one forward."""
 
         if not texts or any(not str(text).strip() for text in texts):
-            raise ValueError("persistent vllm-rwkv texts must be non-empty")
+            raise ValueError("persistent irwkv texts must be non-empty")
         import torch
 
         with self._lock, torch.inference_mode():
@@ -1226,7 +1120,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                 maximum = max(len(token_rows[index]) for index in batch_indices)
                 tokens = torch.full(
                     (len(batch_indices), maximum),
-                    int(self._tokenizer.pad_token_id),
+                    int(self._tokenizer.eos_token_id),
                     dtype=torch.long,
                     device="cuda",
                 )
@@ -1258,13 +1152,13 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             mean = torch.stack(mean_rows)
             if not bool(torch.isfinite(last).all() and torch.isfinite(mean).all()):
                 raise RuntimeError(
-                    "persistent vllm-rwkv returned non-finite hidden features"
+                    "persistent irwkv returned non-finite hidden features"
                 )
         identity = {
             **self._load_base_identity(),
             "feature_protocols": {
-                "last": "rwkv-lh.vllm-rwkv-final-hidden-last.v1",
-                "mean": "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
+                "last": "rwkv-lh.irwkv-final-hidden-last.v1",
+                "mean": "rwkv-lh.irwkv-final-hidden-mean.v1",
             },
             "extraction": "one-forward-last-and-real-token-mean",
             "runtime": dict(self._runtime or {}),
@@ -1287,7 +1181,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             or any(not str(text).strip() for text in texts)
             or any(not str(prefix).strip() for prefix in prefixes)
         ):
-            raise ValueError("persistent vllm-rwkv text/prefix rows must align")
+            raise ValueError("persistent irwkv text/prefix rows must align")
         import torch
 
         with self._lock, torch.inference_mode():
@@ -1322,7 +1216,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                 maximum = max(len(token_rows[index]) for index in batch_indices)
                 tokens = torch.full(
                     (len(batch_indices), maximum),
-                    int(self._tokenizer.pad_token_id),
+                    int(self._tokenizer.eos_token_id),
                     dtype=torch.long,
                     device="cuda",
                 )
@@ -1356,13 +1250,13 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                 torch.isfinite(full_mean).all() and torch.isfinite(prefix_mean).all()
             ):
                 raise RuntimeError(
-                    "persistent vllm-rwkv returned non-finite prefix features"
+                    "persistent irwkv returned non-finite prefix features"
                 )
         identity = {
             **self._load_base_identity(),
             "feature_protocols": {
-                "mean": "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
-                "prefix_mean": "rwkv-lh.vllm-rwkv-causal-prefix-hidden-mean-lcp.v1",
+                "mean": "rwkv-lh.irwkv-final-hidden-mean.v1",
+                "prefix_mean": "rwkv-lh.irwkv-causal-prefix-hidden-mean-lcp.v1",
             },
             "extraction": "one-forward-full-and-causal-prefix-token-mean",
             "runtime": dict(self._runtime or {}),
@@ -1390,4 +1284,4 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
         return matrix
 
 
-__all__ = ["PersistentVLLMRWKVExtractor"]
+__all__ = ["PersistentIRWKVExtractor"]

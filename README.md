@@ -10,7 +10,7 @@
 
 ## 安装与配置
 
-维护和验证环境为 WSL UbuntuRecovered，Python 3.10 及以上。安装完整依赖：
+维护和验证环境为 WSL UbuntuRecovered，Harness 使用 Python 3.10 及以上，独立训练/推理环境使用 Python 3.12 及以上。安装完整依赖：
 
 ```bash
 uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev
@@ -20,6 +20,16 @@ uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev
 首次配置参照 [.env.example](.env.example) 创建 `.env.local`。需提供 RWKV 推理服务与强模型服务；Executor 读取 `RWKV_LH_PROJECT_EXECUTOR_*`，强 Planner 使用 Supervisor 配置。未设置 Executor State 时从 zero 开始，项目内切换步骤不重置 State；进程环境变量优先于配置文件。
 
 配置后用 `rwkv-lh-stack status` 核对服务，用 `rwkv-lh-runtime-smoke` 检查运行链路。以下命令均位于 `.venv/bin/`，也可在激活虚拟环境后直接使用。
+
+## 后端
+
+训练统一使用 **skyrl-rwkv**，推理统一使用 **irwkv**。版本固定在 `rwkv_lh/skyrl.lock.json` 和 `rwkv_lh/inference/irwkv.lock.json`。引擎使用各自隔离环境；Harness 环境不安装 GPU 服务。后端环境安装本项目时使用 `uv pip install --no-deps -e /absolute/path/to/RWKV-LH`，由对应引擎管理 Torch、Transformers 与 FlashRWKV2 的固定版本。
+
+实际模型转换在安装了固定 Transformers-RWKV 的 irwkv 环境中运行；训练和推理登记中的 `python` 分别指向各自引擎环境的解释器。`--help`、准备与配置核验可在 Harness 环境运行。
+
+模型使用标准 Transformers-RWKV safetensors 格式。`rwkv-lh-artifact --help` 查看固定转换器及 SHA 参数，`rwkv-lh-train --help` 查看训练交接，`rwkv-lh-seal-export --help` 查看训练导出封装，`rwkv-lh-serve --help` 查看推理部署。训练和服务入口都需要冻结 JSON 登记及 SHA，默认只准备，显式 `--execute` 才启动；登记字段和 State 身份规则见[架构说明](docs/ARCHITECTURE.zh-CN.md)。
+
+训练通过 SkyRL 原生全参数 SFT 保留完整 token/监督 mask，并使用原生 checkpoint 恢复；推理通过 irwkv 的 BF16 模型和 FP32 递归 State。服务 profile 为 `irwkv-native`，默认单卡、一个持续 State Executor。换后端后需要重新验证模型与 State，工程迁移不代表已经重训或证明能力提升。
 
 ## 执行任务
 
@@ -35,7 +45,7 @@ uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev
 
 工作区保留指向项目内部有效目标的相对符号链接，支持 npm 命令入口和项目内本地包随安装、构建及快照连续使用。绝对链接、越界、悬空或循环链接会报告具体错误；链接不能扩大写入权限。前端 `run_shell` 使用共享宿主网络下载依赖、访问服务，文件仍在隔离工作区中执行。它支持普通 HTTP/HTTPS 代理地址和 WSL DNS，npm 缓存放在命令临时目录，宿主凭据与用户 npm 配置不会自动继承。服务需在命令生命周期内启动、检查及停止，目前没有跨调用持久后台服务保证。
 
-退出码 0 表示 Executor 调用 `finish_work` 正常结束；`finished` 是模型声明，当前始终 `completed=false`、`acceptance=not_evaluated`，**不代表通过验收**。预算耗尽按中断处理；模型仍可能重复调用、遗漏修改或无依据提交。推理服务仍保有本次 State 时，可用 `rwkv-lh --resume /absolute/path/to/new-run` 沿原预算恢复；默认内存 State 在服务重启后失效，未知操作不会自动重放。
+退出码 0 表示 Executor 调用 `finish_work` 正常结束；`finished` 是模型声明，当前始终 `completed=false`、`acceptance=not_evaluated`，**不代表通过验收**。预算耗尽按中断处理；模型仍可能重复调用、遗漏修改或无依据提交。推理服务仍保有本次 State 时，可用 `rwkv-lh --resume /absolute/path/to/new-run` 沿原预算恢复；默认持久 State 和请求日志支持身份一致的服务恢复，未知操作不会自动重放。
 
 不带参数启动 `rwkv-lh` 可进入交互终端，也可直接传入一句需求创建新项目。使用 `--jobs` 批量运行独立任务；全部参数见 `rwkv-lh --help`。
 

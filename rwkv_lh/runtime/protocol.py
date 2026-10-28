@@ -83,12 +83,12 @@ class TextCompletionRequest:
     add_special_tokens: bool = True
     return_token_ids: bool = False
 
-    def payload(self, model: str, *, sampler_mode: str = "rapid") -> dict[str, Any]:
+    def payload(self, model: str, *, sampler_mode: str = "native") -> dict[str, Any]:
         if not self.prompt:
             raise ValueError("prompt must not be empty")
         if self.max_tokens < 1:
             raise ValueError("max_tokens must be positive")
-        _validate_vllm_sampling(self, sampler_mode=sampler_mode)
+        _validate_irwkv_sampling(self, sampler_mode=sampler_mode)
         payload: dict[str, Any] = {
             "model": model,
             "prompt": self.prompt,
@@ -134,12 +134,12 @@ class ChatCompletionRequest:
     add_special_tokens: bool = False
     return_token_ids: bool = False
 
-    def payload(self, model: str, *, sampler_mode: str = "rapid") -> dict[str, Any]:
+    def payload(self, model: str, *, sampler_mode: str = "native") -> dict[str, Any]:
         if not self.messages:
             raise ValueError("messages must not be empty")
         if self.max_tokens < 1:
             raise ValueError("max_tokens must be positive")
-        _validate_vllm_sampling(self, sampler_mode=sampler_mode)
+        _validate_irwkv_sampling(self, sampler_mode=sampler_mode)
         payload: dict[str, Any] = {
             "model": model,
             "messages": [dict(item) for item in self.messages],
@@ -167,24 +167,17 @@ class ChatCompletionRequest:
         return payload
 
 
-def _validate_vllm_sampling(
+def _validate_irwkv_sampling(
     request: TextCompletionRequest | ChatCompletionRequest,
     *,
     sampler_mode: str,
 ) -> None:
-    if sampler_mode not in {"rapid", "native"}:
-        raise ValueError("sampler_mode must be rapid or native")
-    minimum_temperature = 1e-5 if sampler_mode == "rapid" else 0.0
-    if not minimum_temperature <= request.temperature <= 2:
-        raise ValueError(
-            f"temperature must be between {minimum_temperature:g} and 2 "
-            f"for vllm-rwkv {sampler_mode} sampling"
-        )
-    if request.seed is not None:
-        if not isinstance(request.seed, int) or isinstance(request.seed, bool):
-            raise ValueError("seed must be an integer or null")
-        if sampler_mode == "rapid":
-            raise ValueError("seed is unsupported by vllm-rwkv rapid sampling")
+    if sampler_mode != "native":
+        raise ValueError("sampler_mode must be native")
+    if not 0 <= request.temperature <= 2:
+        raise ValueError("temperature must be between 0 and 2 for irwkv sampling")
+    if request.seed is not None and type(request.seed) is not int:
+        raise ValueError("seed must be an integer or null")
     if not 0 < request.top_p <= 1:
         raise ValueError("top_p must be in (0, 1]")
     if not isinstance(request.top_k, int) or request.top_k < 0:

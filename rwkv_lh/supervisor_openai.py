@@ -31,7 +31,7 @@ except ImportError:  # pragma: no cover - project runtime is WSL/Linux
 
 from rwkv_lh.runtime.role_config import role_bool, role_env, role_float, role_int
 from rwkv_lh.runtime.settings import DEFAULT_ENV_FILE, PROJECT_ROOT, load_local_env
-from rwkv_lh.runtime import supervisor_vllm_rwkv
+from rwkv_lh.runtime import supervisor_irwkv
 from rwkv_lh import deepseek_api
 from rwkv_lh.runtime.protocol import RWKVProtocolError
 from rwkv_lh.contract_graph import (
@@ -359,7 +359,7 @@ class SupervisorAPISettings:
     def validate(self) -> None:
         _validated_request_options(self.planner_request_options)
         _validated_request_options(self.stage_checker_request_options)
-        if self.backend_profile not in {deepseek_api.BACKEND_PROFILE, supervisor_vllm_rwkv.BACKEND_PROFILE}:
+        if self.backend_profile not in {deepseek_api.BACKEND_PROFILE, supervisor_irwkv.BACKEND_PROFILE}:
             raise ValueError("RWKV_LH_PLANNER_BACKEND_PROFILE is unsupported")
         if self.backend_profile == deepseek_api.BACKEND_PROFILE:
             deepseek_api.endpoint(self.base_url)
@@ -1186,9 +1186,9 @@ class OpenAICompatibleSupervisorClient:
             return
 
     def _transport_for_phase(self, phase: str) -> str:
-        if self.settings.backend_profile == supervisor_vllm_rwkv.BACKEND_PROFILE:
-            supervisor_vllm_rwkv.envelope_for_phase(phase)  # reject unsupported native phases
-            return supervisor_vllm_rwkv.TRANSPORT
+        if self.settings.backend_profile == supervisor_irwkv.BACKEND_PROFILE:
+            supervisor_irwkv.envelope_for_phase(phase)  # reject unsupported native phases
+            return supervisor_irwkv.TRANSPORT
         if self.settings.backend_profile != deepseek_api.BACKEND_PROFILE:
             raise ValueError('explicit official DeepSeek backend required')
         return deepseek_api.TRANSPORT
@@ -1200,11 +1200,11 @@ class OpenAICompatibleSupervisorClient:
         # while Project tool calls use the independently sealed strict contract.
         transport = self._transport_for_phase(phase)
         options = self._request_options_for_phase(phase)
-        if transport == supervisor_vllm_rwkv.TRANSPORT:
+        if transport == supervisor_irwkv.TRANSPORT:
             if tool_contract is not None or options:
                 raise ValueError('native Supervisor does not accept DeepSeek tools/options')
             return (self.settings.base_url + "/completions",
-                    supervisor_vllm_rwkv.build_completion_payload(phase=phase, model=selected_model,
+                    supervisor_irwkv.build_completion_payload(phase=phase, model=selected_model,
                         system_prompt=system_prompt, payload_text=payload_text, max_tokens=max_tokens), transport)
         return deepseek_api.chat_request(base_url=self.settings.base_url, model=selected_model,
             system=system_prompt, user=payload_text, max_tokens=max_tokens,
@@ -1278,8 +1278,8 @@ class OpenAICompatibleSupervisorClient:
         )
         payload_bytes = payload_text.encode("utf-8")
         native_envelope = (
-            supervisor_vllm_rwkv.envelope_for_phase(phase)
-            if transport == supervisor_vllm_rwkv.TRANSPORT else None
+            supervisor_irwkv.envelope_for_phase(phase)
+            if transport == supervisor_irwkv.TRANSPORT else None
         )
         self._emit(
             {
@@ -1307,7 +1307,7 @@ class OpenAICompatibleSupervisorClient:
                 "stream": body.get("stream") is True,
                 "response_format": (
                     'strict_tools' if tool_contract is not None else
-                    None if transport == supervisor_vllm_rwkv.TRANSPORT else "json_object"
+                    None if transport == supervisor_irwkv.TRANSPORT else "json_object"
                 ),
                 **({'tool_contract_sha256': tool_contract['contract_sha256']} if tool_contract is not None else {}),
                 **(
@@ -1316,8 +1316,8 @@ class OpenAICompatibleSupervisorClient:
                         "prompt_chars": len(body["prompt"]),
                         "prefill_sha256": hashlib.sha256(native_envelope.generation_prefill.encode("utf-8")).hexdigest(),
                         "generation_mode": native_envelope.generation_mode,
-                        "state_profile_id": supervisor_vllm_rwkv.STATE_PROFILE_ID,
-                        "state_profile_sha256": supervisor_vllm_rwkv.STATE_PROFILE_SHA256,
+                        "state_profile_id": supervisor_irwkv.STATE_PROFILE_ID,
+                        "state_profile_sha256": supervisor_irwkv.STATE_PROFILE_SHA256,
                         "sampling": {
                             key: body[key] for key in (
                                 "temperature", "top_p", "top_k", "presence_penalty",
@@ -1397,7 +1397,7 @@ class OpenAICompatibleSupervisorClient:
                         f"{envelope_metadata['finish_reason']!r}; output limit={max_tokens}"
                     )
                 native_metadata: dict[str, Any] = {}
-                if transport == supervisor_vllm_rwkv.TRANSPORT:
+                if transport == supervisor_irwkv.TRANSPORT:
                     choices = data.get("choices")
                     raw_choice = (
                         choices[0] if isinstance(choices, list) and choices
@@ -1414,7 +1414,7 @@ class OpenAICompatibleSupervisorClient:
                         "usage": data.get("usage"),
                     })
                     try:
-                        decoded = supervisor_vllm_rwkv.decode_completion(
+                        decoded = supervisor_irwkv.decode_completion(
                             data, phase=phase, latency_ms=latency_ms, attempts=attempt,
                         )
                     except RWKVProtocolError as exc:
@@ -1481,7 +1481,7 @@ class OpenAICompatibleSupervisorClient:
                 else:
                     if native_envelope is not None:
                         try:
-                            value, content_normalization = supervisor_vllm_rwkv.decode_json_content(decoder_content)
+                            value, content_normalization = supervisor_irwkv.decode_json_content(decoder_content)
                         except (ValueError, RWKVProtocolError) as exc:
                             raise SupervisorProtocolError(str(exc)) from exc
                     else:

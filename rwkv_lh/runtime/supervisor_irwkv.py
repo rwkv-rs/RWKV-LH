@@ -1,6 +1,6 @@
-"""Native vllm-rwkv text transport for the existing Goal Supervisor contracts.
+"""Native irwkv text transport for the existing Goal Supervisor contracts.
 
-The System/User/Bot rendering matches vllm.tokenizers.rwkv_defaults. Planner
+The System/User/Bot rendering matches irwkv.tokenizers.rwkv_defaults. Planner
 uses its empty fake_think prefix; Stage Checker retains open_think. The role
 payload and system instruction still come from the existing Supervisor builder.
 """
@@ -13,8 +13,8 @@ from typing import Any
 from rwkv_lh.runtime.openai_compat import OpenAICompatibleRWKVClient
 from rwkv_lh.runtime.protocol import CompletionResponse, RWKVProtocolError, TextCompletionRequest
 
-BACKEND_PROFILE = "vllm-rwkv-native"
-TRANSPORT = "vllm_rwkv_completions"
+BACKEND_PROFILE = "irwkv-native"
+TRANSPORT = "irwkv_completions"
 STATE_PROFILE_ID = "zero"
 STATE_PROFILE_SHA256 = "0" * 64
 
@@ -74,7 +74,7 @@ def build_completion_payload(
     ).payload(model, sampler_mode="native")
     # Each ordinary completion starts independently from explicit zero State.
     # No Executor sampling context, checkpoint or native State handle is used.
-    body["vllm_xargs"] = {
+    body["irwkv_xargs"] = {
         "rwkv_state_profile": STATE_PROFILE_ID,
         "rwkv_state_profile_sha256": STATE_PROFILE_SHA256,
     }

@@ -1,11 +1,11 @@
-"""Compatibility namespace for the vllm-rwkv feature backend."""
+"""Compatibility namespace for the irwkv feature backend."""
 
 from rwkv_lh.state_router.local_backend import (
-    LocalVLLMRWKVExtractor,
-    LocalVLLMRWKVSettings,
+    LocalIRWKVExtractor,
+    LocalIRWKVSettings,
 )
 
 __all__ = [
-    "LocalVLLMRWKVExtractor",
-    "LocalVLLMRWKVSettings",
+    "LocalIRWKVExtractor",
+    "LocalIRWKVSettings",
 ]

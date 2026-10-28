@@ -22,18 +22,19 @@ def fingerprint_model(model):
     """
     import torch
     tensors = getattr(model, 'z', None)
-    if not isinstance(tensors, Mapping) or not tensors:
-        raise ValueError('Native loaded weight tensors are unavailable')
-    values = {'runtime.' + name: value for name, value in tensors.items()}
+    values = {'runtime.' + name: value for name, value in tensors.items()} if isinstance(tensors, Mapping) else {}
     for method, prefix in (('named_parameters', 'parameter.'), ('named_buffers', 'buffer.')):
-        values.update((prefix + name, value) for name, value in getattr(model, method, lambda: ())())
+        values.update((prefix + name, value) for name, value in getattr(model, method, lambda: ())()
+                      if '.rwkv_state.' not in name and not name.startswith('rwkv_state.'))
+    if not values:
+        raise ValueError('Native loaded weight tensors are unavailable')
     records = []
     with torch.no_grad():
         for name, value in sorted(values.items()):
             if not isinstance(value, torch.Tensor) or value.layout != torch.strided:
                 raise ValueError('Native loaded weight tensor layout is unsupported')
             if not value.numel():
-                # vLLM's empty device/dtype marker is not an inference weight.
+                # irwkv's empty device/dtype marker is not an inference weight.
                 continue
             tensor = value.detach()
             digest = hashlib.sha256()

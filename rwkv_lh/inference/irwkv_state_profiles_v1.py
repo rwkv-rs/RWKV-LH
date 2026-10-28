@@ -1,10 +1,10 @@
-"""Fail-closed RWKV7 initial-state profiles for vLLM-RWKV.
+"""Fail-closed RWKV7 initial-state profiles for irwkv-RWKV.
 
 This module deliberately contains no request generation or output processing.
 It only validates a pinned manifest, preloads immutable WKV tensors, and
 resolves an explicitly pinned profile identity for each request.  Portable
-RWKV-PEFT ``time_state`` tensors use ``[head, value, key]`` while the pinned
-FLA recurrent runtime consumes ``[head, key, value]``.  The loader performs
+Portable RWKV ``time_state`` tensors use ``[head, value, key]`` while the irwkv
+recurrent runtime consumes ``[head, key, value]``.  The loader performs
 that boundary conversion exactly once.
 """
 
@@ -19,11 +19,11 @@ from pathlib import Path
 import torch
 
 
-RWKV7_STATE_PROFILE_MANIFEST_SCHEMA = "vllm.rwkv7-state-profiles.v1"
+RWKV7_STATE_PROFILE_MANIFEST_SCHEMA = "irwkv.rwkv7-state-profiles.v1"
 RWKV7_STATE_PROFILE_XARG = "rwkv_state_profile"
 RWKV7_STATE_PROFILE_SHA256_XARG = "rwkv_state_profile_sha256"
 RWKV7_ZERO_STATE_PROFILE = "zero"
-RWKV7_PEFT_STATE_LAYOUT = "[layer,head,value,key]"
+RWKV7_PORTABLE_STATE_LAYOUT = "[layer,head,value,key]"
 RWKV7_RUNTIME_STATE_LAYOUT = "[layer,head,key,value]"
 RWKV7_PROFILE_TO_RUNTIME_CONVERSION = "transpose(-2,-1)"
 _PROFILE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
@@ -103,7 +103,7 @@ class RWKV7InitialStateProfiles:
         expected_manifest_sha256 = str(manifest_sha256 or "").lower()
         if not _SHA256_PATTERN.fullmatch(expected_manifest_sha256):
             raise ValueError(
-                "VLLM_RWKV7_STATE_PROFILE_MANIFEST_SHA256 must pin the manifest"
+                "IRWKV_RWKV7_STATE_PROFILE_MANIFEST_SHA256 must pin the manifest"
             )
         actual_manifest_sha256 = sha256_file(path)
         if actual_manifest_sha256 != expected_manifest_sha256:
@@ -139,7 +139,7 @@ class RWKV7InitialStateProfiles:
                 raise ValueError("RWKV7 state-profile ID is invalid")
             if profile_id == RWKV7_ZERO_STATE_PROFILE or profile_id in profiles:
                 raise ValueError(f"duplicate RWKV7 state-profile ID: {profile_id}")
-            if entry.get("format") != "rwkv-peft-time-state.v1":
+            if entry.get("format") != "irwkv-time-state.v1":
                 raise ValueError("unsupported RWKV7 state-profile format")
             state_sha256 = str(entry.get("sha256") or "").lower()
             if not _SHA256_PATTERN.fullmatch(state_sha256):
@@ -198,8 +198,8 @@ class RWKV7InitialStateProfiles:
                 raise ValueError("RWKV7 state-profile heads are not TP divisible")
             heads_per_rank = initial.shape[1] // tp_size
             initial = initial.narrow(1, tp_rank * heads_per_rank, heads_per_rank)
-            # RWKV-PEFT trains and saves time_state as [H,V,K].  Both the
-            # training FLA wrapper and the pinned vLLM recurrent API consume
+            # Portable RWKV trains and saves time_state as [H,V,K].  Both the
+            # training FLA wrapper and the pinned irwkv recurrent API consume
             # [B,H,K,V].  Equal K/V sizes make a missing transpose invisible
             # to shape validation, so keep this conversion explicit here.
             initial = initial.transpose(-2, -1).contiguous()
@@ -295,7 +295,7 @@ __all__ = [
     "RWKV7_STATE_PROFILE_SHA256_XARG",
     "RWKV7_STATE_PROFILE_XARG",
     "RWKV7_ZERO_STATE_PROFILE",
-    "RWKV7_PEFT_STATE_LAYOUT",
+    "RWKV7_PORTABLE_STATE_LAYOUT",
     "RWKV7_PROFILE_TO_RUNTIME_CONVERSION",
     "RWKV7_RUNTIME_STATE_LAYOUT",
     "resolve_request_profile",

@@ -22,17 +22,9 @@ selector-runtime = [
 benchmark-web = [
   "playwright==1.61.0",
 ]
-ccview-training = [
-    "accelerate==1.11.0",
-    "peft==0.17.1",
-    "rwkv-fla==0.7.202508221413",
-    "transformers==4.57.1",
-]
 
 [dependency-groups]
 dev = [
-    "accelerate==1.11.0",
-    "peft==0.17.1",
     "pytest>=9,<10",
     "transformers==4.57.1",
 ]
@@ -44,6 +36,18 @@ rwkv-lh-data = "scripts.run_trace_correction_pipeline:main"
 rwkv-lh-runtime-smoke = "scripts.runtime_smoke:main"
 rwkv-lh-stack = "scripts.manage_runtime_stack:main"
 rwkv-lh-web = "scripts.run_web_ui:main"
+rwkv-lh-train = "rwkv_lh.skyrl_training:main"
+rwkv-lh-serve = "rwkv_lh.inference.serve_irwkv:main"
+rwkv-lh-artifact = "scripts.prepare_rwkv_irwkv_artifact:main"
+rwkv-lh-seal-export = "scripts.seal_skyrl_export:main"
+
+[project.entry-points."irwkv.general_plugins"]
+rwkv_lh_ccview_decoder = "rwkv_lh.cc_view_service:install_decoder_backend"
+rwkv_lh_state_worker = "rwkv_lh.inference.irwkv_plugin:register_worker"
+
+[project.entry-points."irwkv.endpoint_plugins"]
+rwkv_lh_native = "rwkv_lh.inference.irwkv_plugin:endpoint"
+rwkv_lh_ccview = "rwkv_lh.cc_view_service:endpoint_plugin"
 
 [tool.setuptools.packages.find]
 include = ["rwkv_lh*", "scripts*"]
@@ -52,19 +56,11 @@ include = ["rwkv_lh*", "scripts*"]
 rwkv_lh = [
   "data/*.txt",
   "inference/*.json",
+  "skyrl.lock.json",
   "goal_web_assets/*.html",
   "goal_web_assets/*.css",
   "goal_web_assets/*.js",
   "goal_web_assets/*.json",
-  "statetune_native_csrc/LICENSE",
-  "statetune_native_csrc/ORIGIN.json",
-  "statetune_native_csrc/*.cpp",
-  "statetune_native_csrc/*.h",
-  "statetune_native_csrc/common/wkv7/*.cpp",
-  "statetune_native_csrc/common/wkv7/*.h",
-  "statetune_native_csrc/common/wkv7/*.cu",
-  "statetune_native_csrc/common/wkv7/*.cuh",
-  "statetune_native_csrc/validation/*.cu",
 ]
 
 [tool.pytest.ini_options]

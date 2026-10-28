@@ -1,49 +1,42 @@
-"""Stage only serving files from a verified artifact; never glob audit sidecars."""
+"""Stage the exact serving files from a sealed canonical irwkv artifact."""
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
 import shutil
+import tempfile
 
-
-def sha(path):
-    with Path(path).open('rb') as stream:
-        return hashlib.file_digest(stream,'sha256').hexdigest()
+from rwkv_lh.inference.irwkv_artifact import verify_artifact, seal_artifact
+from rwkv_lh.inference.uploaded_sources import digest
 
 
 def stage(source, output):
-    source=Path(source).resolve(strict=True);output=Path(output).resolve()
+    source=Path(source).resolve(strict=True)
+    output=Path(output).absolute()
     if output.exists() or source in output.parents or output in source.parents:
         raise ValueError('serving output exists or overlaps source')
-    manifest=json.loads((source/'manifest.json').read_text())
-    checks={'model.safetensors':'weights_sha256','config.json':'config_sha256',
-            'rwkv_vocab_v20230424.txt':'vocab_sha256'}
-    for name,key in checks.items():
-        if sha(source/name)!=manifest['output'][key]:
-            raise ValueError('artifact checksum differs: '+name)
-    names=[*checks,'tokenizer_config.json','special_tokens_map.json']
-    for name in names:
-        if not (source/name).is_file() or (source/name).is_symlink():
-            raise ValueError('missing or unsafe serving file: '+name)
-    output.mkdir(parents=True)
-    for name in names:
-        # Hardlink preserves original bytes without duplicating multi-GB weights.
-        # The serving loader only reads these files.
-        if name=='model.safetensors':os.link(source/name,output/name)
-        else:shutil.copyfile(source/name,output/name)
-    result={'source_manifest':{'path':str(source/'manifest.json'),'sha256':sha(source/'manifest.json')},
-            'source_model_sha256':manifest['source']['sha256'],
-            'files':{name:sha(output/name) for name in names},'weights_changed':False,
-            'excluded_from_serving':['native_unused_layer0_value_mix.safetensors']}
-    (output.parent/(output.name+'.IDENTITY.json')).write_text(json.dumps(result,indent=2)+'\n')
-    return result
+    manifest=verify_artifact(source)
+    output.parent.mkdir(parents=True,exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='.irwkv-stage-',dir=output.parent) as work:
+        work=Path(work)
+        for name in manifest['files']:
+            # Copy-on-write reflinks are platform dependent. A separate copy
+            # prevents accidental edits of the serving tree mutating its source.
+            shutil.copyfile(source/name,work/name)
+            if digest(work/name)!=manifest['files'][name]['sha256']:
+                raise ValueError('source artifact changed during staging')
+        os.rename(work,output)
+    reference=seal_artifact(output,source=manifest['source'],converter=manifest['converter'],
+        source_vocabulary_sha256=manifest['source_vocabulary_sha256'])
+    return dict(manifest=reference,source_manifest=dict(path=str(source/'manifest.json'),
+        sha256=digest(source/'manifest.json')),weights_changed=False)
 
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
-    args=parser.parse_args();print(json.dumps(stage(args.source,args.output),indent=2))
+    args=parser.parse_args()
+    print(json.dumps(stage(args.source,args.output),indent=2))
 
 if __name__=='__main__':main()

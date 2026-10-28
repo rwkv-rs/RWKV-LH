@@ -130,42 +130,34 @@ Web 增量轮询绑定每次项目选择的独立身份，同一选择只保留�
 
 新任务冻结时分别写明 Agent 的创建、实现、命令运行、修复和交付要求，以及外部浏览器/视觉验收要求。已有冻结任务和成绩不原地改写；职责变更须登记新规格版本及其验收关系，不能把两种职责下的运行混为同一基线。
 
-## 数据与后续实验
+## 训练与推理后端
 
-生产、trace、候选提取、StateTune 校验和角色评测共用当前输入构造与 renderer。当前只有 `project_executor` 角色数据入口；旧 Decision 数据不能重标为 Executor。
+训练统一使用 [skyrl-rwkv](https://github.com/rwkv-rs/skyrl-rwkv) 原生 `skyrl.train.main_sft`。项目入口 `rwkv-lh-train` 只核验冻结来源、模型、tokenizer、明确授权、GPU身份和预算，向原生训练器交接数据与配置。当前入口为全参数 SFT（`model.lora.rank=0`）；优化器、跨块梯度、checkpoint、恢复及模型导出均归 SkyRL。
 
-Executor 训练标签的文本就是边界解码器实际生成的文本：紧凑 JSON，键按 schema 属性顺序排列，由 `project_decoder.render_role_target` 统一渲染。标签不追加 stop 后缀；终止 EOS 由解码器强制生成，不进入 State，也不计入 loss。不符合这一形式的行在 StateTune 校验时被拒绝。
+完整轨迹以 `input_ids` 与同长度 `loss_mask` 交接。被屏蔽目标仍在原位置提供上下文；mask 不提前位移、不额外添加 EOS。`max_length=null`，`rwkv_chunk_size` 由登记指定。训练默认一台机器、一张卡，关闭内置 rollout、自动评测和训练前评测；同一完整模型工件同时用于训练加载与推理部署。迁移本身不授予额外训练预算，也不把已有训练更新数归到新训练器名下。
 
-候选来源需重验事件链、生成前快照、Native 完整输入 token、父 State、原始生成与实际 decoder。离线候选审查与训练准入仍独立存在，仅用于授权后的数据工作，执行器不会调用它们。未审查轨迹、机制夹具、脚本输出和参考实现不会自动成为训练数据。
+推理统一使用 [irwkv](https://github.com/rwkv-org/irwkv)，配置 profile 为 `irwkv-native`。irwkv 负责模型、FlashRWKV2 内核、调度、原生采样与结构化解码；项目插件负责跨请求 State 快照、事务、恢复日志和输入/输出身份。服务使用 BF16 权重/计算与 FP32 递归 State，不能写成 FP32 全精度推理。当前采样支持 temperature=0 和 seed；旧服务配置不做隐式映射。
 
-缺陷分析关联两份独立证据：RWKV 的真实创建、代码、命令和错误轨迹，以及外部浏览器/视觉检查结果。外部发现可用于定位原因和验证纠正，但不是 RWKV 当时已看到的反馈，不能倒灌进早先输入或伪装为模型动作；需要文字反馈后的真实续跑时另行披露并保留原 source_group。评测项目、私有检查和参考答案继续与训练来源隔离。
+`rwkv-lh-serve` 生成并核验单卡服务配置：TP/PP=1、max_num_seqs=1、关闭 prefix caching、mamba_cache_mode=none、显式 FP32 State、显式 GPU UUID。Native State 由 irwkv 的 att/ffn shift 池与递归矩阵池物化后快照；续接时恢复同一模型和执行身份下的快照，并校验 pending token。状态绑定实际 resident weights、engine/project 源码清单和协议身份。默认使用磁盘 State 与持久请求日志；恢复时拒绝源码、权重、布局或采样请求身份不匹配，不自动重放未知操作。
 
-`project_correction_corpus` 将已登记 train 来源的真实边界积累为待人工分析材料；重复动作仅是诊断信号，不自动等于错误。外部作者在原始完整输入上纠正下一动作，原错误输出和来源保持不变。修正工具动作通过 `ProjectRuntime` 在生成前快照的独立副本中执行，沿用原计划范围和保护路径；账本明确标记离线作者，不伪造 RWKV 调用、State 或后继生产数据。代码修改须有能区分修改前后的实际检查，写入成功本身不足以证明修正合适。
+推理服务只绑定 loopback；远程访问使用已有隧道或受控代理。普通 Executor 加载 `rwkv_lh_state_worker,rwkv_lh_native`，cc-view 使用 `rwkv_lh_state_worker,rwkv_lh_ccview_decoder,rwkv_lh_ccview`，两套端点不同时注册。
 
-`read_receipt` 和 `finish_work` 的离线纠正从原始生成前事件恢复当时已有的工具证据与投递状态，保留原回执身份和字节，通过明确的导入事件写入隔离账本，再调用生产回执投递或结束方法。证明绑定实际控制事件及来源文件；不得导入未来证据、伪造工具回执或模型调用。结束声明执行成功只证明该操作被记录，不能证明任务完成。
+## 模型与部署身份
 
-错误积累、修正执行、独立复核和训练准入各自保留结果。超长输入可完整保存和复核，训练行仍必须满足既定容量，禁止截断前文。`load_executed_candidate` 重新绑定原始输入、作者目标、实际执行账本、检查文件和独立复核，仅返回候选；正式数据冻结仍须满足去重、任务族隔离和覆盖要求。回执/结束动作同样需要独立材料复核，控制事件证明不能代替事实依据和目标合适性判断。
+模型使用 `model_type=rwkv`、`architectures=[RwkvForCausalLM]` 的标准 safetensors 工件，包含 tokenizer.json、tokenizer_config.json、chat_template.jinja 和三个生成配置。原生 checkpoint 通过固定版本 Transformers-RWKV 的 `temp/rwkv_pth2st.py` 转换；这是上游转换器位置，项目运行不依赖本仓库的 temp。`rwkv-lh-artifact` 要求 checkpoint、转换器、模板及词表源各自 SHA，重开全部输出 tensor 检查名称、形状、dtype 和逐元素一致，并全量比较生产 tokenizer 每个 token ID 的字节值。
 
-`project_training_windows.py` 可为已验真的 train 边界建立明确标记的离线训练窗口：复用唯一 Executor builder，保留当前目标、完整计划、工具、进度及合法引用，只调整历史动作反馈的投递范围。最近 K 份回执与作者预登记的必要更早回执均保留完整正文，未来回执不能进入窗口。窗口不声称是原始 Native 输入；分别记录原始前缀、派生输入、策略与源码摘要，并重新验证同一纠错目标的真实执行和独立材料复核。监督从窗口起点的可训练初始 State 开始，损失只计算目标；生产持续 State、固定完整前缀回归与 Agent 验收不改用窗口。窗口容量不足仍拒绝准入，不能静默截 token 或脱离证据补全事实。
+工件 manifest 绑定全部服务文件。`scripts.stage_rwkv_serving_artifact` 支持单文件及分片模型，复制后重新核验并生成目标路径 manifest。SkyRL 导出全量模型后使用 `rwkv-lh-seal-export`，提供原生 HF export 路径、PREPARED.json、RESULT.json 及各自 SHA，核对完成回执和日志、基座 manifest、模型形状及完整词表，保持导出权重字节不变。缺失的 tokenizer/template 及三个独立生成配置取自冻结基座，复用项写入新 manifest；不复用基座或旧 adapter 的权重身份，不凭退出码推断更新数。服务部署使用上传源码清单，不查询服务器 Git。
 
-超过训练上下文的完整轨迹由 `statetune_state_carry.py` 分块接续训练，不截断前文。各块不超过已验证上下文。第 0 块从可训练 `time_state` 与零 token-shift 开始，后一块从前一块的最终 State 开始。每层接续的 State 是 FP32 wkv 加 att/ffn 两个 token-shift，布局与 serving 持续 State 相同。
+训练登记 schema 为 `rwkv-lh.skyrl-sft-run.v1`，包含 experiment、authorization_references、method=sft_full、skyrl_source、model_manifest、dataset（path/sha256/format）、data_context_tokens、python、gpu_index/gpu_uuid、batch_size、learning_rate、seed、epochs、max_steps、chunk_size、checkpoint_interval，及显式 resume_from/cpu_offload。dataset.format 为 ccview_episodes 或 executor_episodes，各自调用现有冻结来源校验器。授权 JSON 必须含 owner_instruction，并精确绑定 experiment、optimizer_steps、method、epochs、gpu_uuid、model_manifest_sha256、dataset_manifest_sha256、skyrl_source_manifest_sha256。准备阶段只写 PREPARED.json 和完整 token store，`--execute` 才运行训练器。
 
-梯度跨块精确传递，步骤如下：
-1. 不求梯度前向一遍，保存各块边界的 State；
-2. 倒序重算每一块，以边界为叶子张量；
-3. 每块做一次反向，根节点是本块的 target loss 加上从后一块传回的最终 State 梯度；
-4. 重算得到的边界须与保存值逐位相等。
+推理登记 schema 为 `rwkv-lh.irwkv-deployment.v1`，包含 engine_source、project_source、model_manifest（各为 path/SHA）、model_root、model_name、python、gpu_index/gpu_uuid、protocol（executor 或 ccview）、context_tokens、port、gpu_memory_utilization。默认准备部署清单，`--execute` 才启动服务。两者都必须指定新输出目录。
 
-整条轨迹按 target 总数统一归一 loss。最后一个有 target 的块之后的块不计算。
+## 数据、评测与发布
 
-授权教师轨迹的训练视图由 `statetune_episodes.py` 冻结：绑定原集合、tokenizer、模型、当前协议、来源审计、去重规则和逐目标监督掩码；被屏蔽的目标仍保留在原位置作为上下文。冻结只生成 train split，不重新生成固定角色回归。`statetune_training.optimize_state` 共用同一 State-only AdamW 实现，对同组轨迹按监督 token 数加权，每条轨迹独立从可训练初始 State 开始。训练入口 `scripts/run_statetune.py` 只执行已冻结的授权、预算、来源、数值验证与评测登记。候选导出使用生产 State loader 验证；训练结束不代表角色或 Agent 验收通过。
+生产、trace重建、候选提取和评测共用当前角色的唯一输入 builder 和 renderer。Project 当前训练边界为 Executor。来源必须可追溯至真实生产上下文、原始输出、工具回执与生成前工作区；纠正后续跑需要真实执行并独立复核，不能把未来结果或参考实现写成模型当时已知事实。
 
-`NativeGradientModel.forward(tokens, state, return_state=True)` 与 serving 逐块的 logits 和 State 一致。预填充的未用 logits 立即释放。激活显存由单块大小控制，边界 State 存储随块数线性增加；不能把总显存写成与块数无关。
+冻结数据须记录来源 run、生成脚本和协议 SHA、任务族切分、相似度算法与覆盖审计。去重使用已登记的 UTF-8 byte 5-gram count-vector cosine，当前阈值0.95；去重投影不改变训练 token 或标签。正式 dataset 与 optimizer 预算按明确授权执行，每角色固定回归保持原身份。cc-view 的冻结数据由原始输入/目标构造器验证后转成 SkyRL 的无损 token store，不新建或重标旧 dataset 版本。
 
-离线纠错复核使用 `project_training_labels.py::build_review_input` 构造 Markdown 材料：完整原始输入只出现一次，末尾单列本次纠正目标；当前错误输出留在来源记录中，不与目标并列投递。复核通过唯一命名的严格函数 submit_correction_review 返回，生产端与验收端共用 review_tool_definitions；除来源、输入与完整目标摘要外，还必须逐字段绑定实际审查的动作、步骤与工具（或回执/结束类型）。当前复核合同将这些既定身份字段限制为单值枚举，并在材料中显式展示完整绑定对象；判词、问题列表和理由由复核模型独立给出，原始响应仍须验证，不能在返回后改写绑定或判词。最近活动步骤不构成不可回退的阶段门；旧版复核记录不能直接作为新版标签准入。
+开发题、浏览器验收、私有参考与 Holdout 隔离于训练。后端迁移的工程检查、GPU推理验证、实际 optimizer 更新和 Agent Strict/completed 分别报告。训练结束或模型正常输出不代表交付质量通过；协议有效率不能代替 Agent 验收。
 
-`verify_review` 对接受与拒绝判词执行相同的原始请求、响应及目标绑定验证；有效拒绝可被审计，格式或绑定错误不能冒充有效拒绝。候选加载器先由真实来源重建材料，再使用同一验证器并单独要求接受判词；审计成功、工具执行成功和作者对拒绝理由的异议均不授予准入资格。
-
-数据去重统一使用 `project_training_freeze.py::similarity_material` 去除行首 Markdown 标题标记，再计算 UTF-8 byte 5-gram count-vector cosine（阈值 0.95）。这只影响去重视图，不改变模型收到的完整输入、训练 token 或标签；仓库族隔离仍独立强制执行。固定回归、索引和冻结证明绑定该格式归一化版本，不能把旧索引静默重算为新结果。
-
-所有实验使用冻结源码清单与预登记预算；当前运行不依赖旧实验、旧 State 或旧调度。训练与新数据集版本另按明确授权执行。公开 CI 只验证发布源码与构建；完整工程回归和真实 Agent 成绩分别报告。新开发基准覆盖 CLI、数据、API、维护、Web 与全栈的需求阅读、实现、自测、修复与交付；题目、私有黑盒、参考实现与变异验证只在本地。新任务不等于真实用户 trace，也不自动获得训练资格。
+GitHub 只分发 README、本架构、维护源码及必要构建配置。tests、acceptance_tests、benchmarks、data、temp、实验与其他文档仅本地维护。公开 CI 只检查源码边界、编译、入口与构建，完整工程回归须在 owner 交接本地测试和必要夹具后执行。旧实验和文档按逐文件 SHA 登记后删除，不保留本地归档副本。
