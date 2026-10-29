@@ -44,6 +44,12 @@ def tool_definitions(native_tools, *, background=True):
     """Rename the same primitive arguments; fixed native defaults stay native defaults."""
     definitions = []
     for native in native_tools:
+        # This view's name map is hand-written and predates background job
+        # control. The module is being deleted with the legacy chain, so
+        # unmapped product tools are skipped rather than mapped here; the
+        # canonical vocabulary lives in rwkv_lh/transcript/tools.py.
+        if native['name'] not in TOOL_NAMES:
+            continue
         name = TOOL_NAMES[native['name']]
         aliases = ALIASES.get(native['name'], {})
         schema = _clean_schema(native['parameters'])

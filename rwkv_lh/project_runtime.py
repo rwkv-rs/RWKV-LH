@@ -358,7 +358,18 @@ class ProjectRuntime:
             finally:
                 self.db.update('runtime_checkpoint', lambda state: state.update(
                     elapsed=self.initial_elapsed + time.monotonic() - self.started))
+                self.reclaimed_jobs = self.reclaim_background_jobs()
         return self.result(reason)
+
+    def reclaim_background_jobs(self):
+        """Stop every background job this project started.
+
+        A dev server must not outlive the project that launched it. An
+        uncertain cleanup propagates as UncertainToolOutcome rather than being
+        reported as a clean teardown.
+        """
+        table = getattr(self.harness, '_jobs', None)
+        return table.stop_all() if table is not None else []
 
     def result(self, reason=''):
         from .project_step_progress import build_step_progress
@@ -375,6 +386,7 @@ class ProjectRuntime:
             'workspace': s['workspace'], 'workspace_digest': s['workspace_digest'], 'elapsed': s['elapsed'],
             'diagnostics': {'next_role': None if ended or s['status'] == 'failed' else 'executor' if s['plan'] else 'planner',
                 'pending_operation': s['pending'], 'runtime_error': s.get('error'),
-                'last_obstacle': s['feedback'], 'rejections': deepcopy(s['role_rejections'])}}
+                'last_obstacle': s['feedback'], 'rejections': deepcopy(s['role_rejections']),
+                'reclaimed_background_jobs': getattr(self, 'reclaimed_jobs', [])}}
         (self.db.root / 'RESULT.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
         return result

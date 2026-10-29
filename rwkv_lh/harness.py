@@ -37,6 +37,9 @@ class UncertainToolOutcome(RuntimeError):
     """A process has not been confirmed stopped; its workspace cannot publish."""
 
 
+
+
+
 @dataclass(frozen=True)
 class ActionDefinition:
     name: str
@@ -299,6 +302,44 @@ WORKSPACE_BYPRODUCT_DIRECTORIES = frozenset(
     }
 )
 
+
+# Background job control is implemented and tested, but it is not offered to
+# the role prompts by default. The work-order loop enables it explicitly; the
+# legacy Selector menu is frozen and is being removed rather than widened.
+BACKGROUND_JOB_ACTIONS = ("read_job_output", "kill_job")
+BACKGROUND_JOB_DEFINITIONS = {
+"read_job_output": ActionDefinition(
+        "read_job_output", (
+            'Read what a background job produced since your last read: new stdout and stderr, '
+            'whether it was running when checked, its exit code, and bytes left unread. '
+            'Output showing a server is ready does not prove it is still running now.'
+        ), True, False, False, 30.0,
+        {
+            "job_handle": {"type": "string", "minLength": 1,
+                           "description": "Handle from a run_shell call that set run_in_background."},
+            "max_bytes": {"type": "integer", "minimum": 1, "maximum": 1_000_000, "default": 65536,
+                          "description": "Maximum bytes to return per stream."},
+        },
+        required_arguments=("job_handle",),
+        capability_class="local.process_observation",
+        data_boundary="workspace_process",
+    ),
+"kill_job": ActionDefinition(
+        "kill_job", (
+            'Terminate a background job and its process group, reporting the observed status. '
+            'A job that already exited is reported as such, not as a failure; an unconfirmed '
+            'outcome is reported as unknown, never as success.'
+        ), False, True, False, 30.0,
+        {
+            "job_handle": {"type": "string", "minLength": 1,
+                           "description": "Handle from a run_shell call that set run_in_background."},
+        },
+        required_arguments=("job_handle",),
+        capability_class="local.process_mutation",
+        data_boundary="workspace_process",
+        side_effect_class="local_process_mutation",
+    ),
+}
 
 class ActionHarness:
     _verifier_candidates = {
@@ -752,10 +793,17 @@ class ActionHarness:
                 'Use stdin for exact input text and env for environment variables. Omitted stdin supplies EOF. '
                 'Returns stdout, stderr and the whole script exit code; success means expected_exit_code matched. '
                 'Bash uses its normal final-command/pipeline status; use explicit && or pipefail when required. '
-                'A failed script may already have changed files.'
+                'A failed script may already have changed files. '
+                'Set run_in_background to start a dev server or other long process without blocking; '
+                'it returns job_handle instead of an exit code, and is not guaranteed to survive '
+                'until a later call.'
             ), False, True, False, 120.0,
             {
                 "command": {"type": "string", "minLength": 1},
+                "run_in_background": {"type": "boolean", "default": False, "description": (
+                    "Start the script without waiting for it to exit and return a job handle. "
+                    "Output is collected continuously; read it with read_job_output."
+                )},
                 "stdin": {"type": "string", "default": "", "description": (
                     "Exact UTF-8 text sent to the process, followed by EOF. Supply the input contents, "
                     "not a filename; no file reading or JSON extraction is performed."
@@ -809,6 +857,9 @@ class ActionHarness:
         self.output_limit_chars = max(1000, int(output_limit_chars))
         self.sandbox_commands = bool(sandbox_commands)
         self._bubblewrap = shutil.which("bwrap") if self.sandbox_commands else None
+        # Created on first background use; a project without background jobs
+        # never makes the directory.
+        self._jobs = None
         self._overlay_support: bool | None = None
         self._definitions = dict(type(self)._definitions)
         self._handlers: dict[str, Callable[[GoalState, dict[str, Any]], ActionResult]] = {
@@ -2885,6 +2936,78 @@ class ActionHarness:
         result.metadata["shell"] = "/bin/bash"
         return result
 
+    def _job_table(self, goal: GoalState):
+        from .background_jobs import JobTable
+        if self._jobs is None:
+            self._jobs = JobTable(Path(goal.workspace_root).parent / "background_jobs")
+        return self._jobs
+
+    def _start_background(
+        self, goal: GoalState, arguments: dict[str, Any], *, argv, cwd, environment,
+        sandboxed: bool = False,
+    ) -> ActionResult:
+        """Start a job and report only what starting it established.
+
+        There is no exit code to report and no claim that the process is
+        serving: the model must read the job's output to learn anything about
+        what it did.
+        """
+        job = self._job_table(goal).start(
+            argv, cwd=cwd, env=environment, stdin=arguments.get("stdin", ""),
+            sandbox_info_fd=sandboxed)
+        return ActionResult(
+            "run_shell", True,
+            output="started background job " + job.handle,
+            metadata={"job_handle": job.handle, "background": True,
+                      "job_identity": job.identity(), "running_when_started": True,
+                      "sandboxed": sandboxed,
+                      "sandbox_backend": "bubblewrap" if sandboxed else "none",
+                      "workspace_committed": False},
+        )
+
+    def _read_job_output(
+        self, goal: GoalState, arguments: dict[str, Any],
+    ) -> ActionResult:
+        table = self._job_table(goal)
+        try:
+            job = table.get(arguments["job_handle"])
+        except KeyError:
+            raise HarnessError("unknown background job handle") from None
+        observed = table.read(job, max_bytes=int(arguments.get("max_bytes", 65536)))
+        return ActionResult(
+            "read_job_output", True,
+            output=observed["stdout"] + observed["stderr"],
+            exit_code=observed["exit_code"],
+            metadata={"job_handle": job.handle, "running": observed["running"],
+                      "exit_code": observed["exit_code"],
+                      "unread_bytes": observed["unread_bytes"],
+                      "stdout_chars": len(observed["stdout"]),
+                      "stderr_chars": len(observed["stderr"])},
+        )
+
+    def _kill_job(
+        self, goal: GoalState, arguments: dict[str, Any],
+    ) -> ActionResult:
+        table = self._job_table(goal)
+        try:
+            job = table.get(arguments["job_handle"])
+        except KeyError:
+            raise HarnessError("unknown background job handle") from None
+        observed = table.stop(job)
+        verified = observed["outcome"] == "stopped"
+        return ActionResult(
+            "kill_job", verified,
+            output=("background job " + job.handle + (
+                " already exited" if observed["already_exited"] else " terminated")
+                if verified else "background job identity could not be verified"),
+            exit_code=observed["exit_code"],
+            metadata={**observed, "workspace_committed": False},
+            error=None if verified else {
+                "type": "UnknownProcessIdentity",
+                "message": "the recorded pid is no longer the process this job started",
+            },
+        )
+
     def _execute_process(
         self,
         goal: GoalState,
@@ -2919,6 +3042,10 @@ class ActionHarness:
         if not isinstance(explicit_environment, Mapping):
             raise HarnessError("command env must be an object")
         environment.update({str(key): str(value) for key, value in explicit_environment.items()})
+        background = bool(arguments.get("run_in_background"))
+        if background and ephemeral_workspace:
+            # Its writes would vanish with the overlay while the job still runs.
+            raise HarnessError("a background job cannot run in a discarded workspace copy")
         requested_argv = list(argv)
         resolved_argv = list(argv)
         if resolved_argv[0] == "python" and "PATH" not in explicit_environment:
@@ -3033,6 +3160,7 @@ class ActionHarness:
                     literal_arguments=action_type == "run_shell",
                     resolve_host_executable="PATH" not in explicit_environment,
                     shared_network=shared_network,
+                    die_with_parent=not background,
                 )
                 environment["PATH"] = (
                     self._rebase_search_path(str(explicit_environment["PATH"]), (
@@ -3138,6 +3266,13 @@ class ActionHarness:
             # bwrap reports the host PID of the sandbox PID-namespace init.
             # Its pipes close before the kernel kills the other namespace
             # members, so pipe EOF alone can precede a detached child's exit.
+            if background:
+                # The fully built sandbox command is handed to the job table,
+                # which owns its lifetime from here. No sandbox info-fd reaper
+                # is armed: that reaper exists to confirm the PID namespace is
+                # empty when a call ends, and this job must still be running.
+                return self._start_background(goal, arguments, argv=command, cwd=cwd,
+                                              environment=environment, sandboxed=sandboxed)
             info_read, info_write = os.pipe() if sandboxed else (None, None)
             if sandboxed:
                 command = [command[0], "--info-fd", str(info_write), *command[1:]]
@@ -3319,8 +3454,16 @@ class ActionHarness:
         literal_arguments: bool = False,
         resolve_host_executable: bool = True,
         shared_network: bool = False,
+        die_with_parent: bool = True,
     ) -> tuple[list[str], str]:
-        """Build a read-isolated command sandbox with one writable workspace."""
+        """Build a read-isolated command sandbox with one writable workspace.
+
+        `die_with_parent` is dropped only for a background job, which by
+        definition must outlive the call that started it. Its lifetime is then
+        owned by the job table: every job is reclaimed by handle, by project
+        teardown, or reported as an unknown outcome when its recorded identity
+        no longer matches.
+        """
 
         workspace = (workspace if workspace is not None
                      else Path(goal.workspace_root)).resolve(strict=True)
@@ -3401,7 +3544,7 @@ class ActionHarness:
 
         command = [
             str(self._bubblewrap),
-            "--die-with-parent",
+            *(("--die-with-parent",) if die_with_parent else ()),
             "--unshare-all",
             "--new-session",
             "--ro-bind",
