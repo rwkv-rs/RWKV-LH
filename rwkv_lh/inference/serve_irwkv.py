@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 
 from rwkv_lh.skyrl_training import gpu_uuid, sealed, sha
+from rwkv_lh.gpu_resources import require_idle_gpu
 from .uploaded_sources import ENGINE_SCHEMA, PROJECT_SCHEMA, verify_manifest
 from .irwkv_artifact import verify_artifact, verify_vocabulary
 from rwkv_lh.token_budget import VOCAB_PATH
@@ -41,6 +42,7 @@ def launch_configuration(registration, output):
     argv = [str(registration['python']), '-m', 'irwkv.entrypoints.cli.main', 'serve',
         registration['model_root'], '--served-model-name', registration['model_name'],
         '--host', '127.0.0.1', '--port', str(port), '--dtype', 'bfloat16',
+        '--generation-config', 'irwkv',
         '--mamba-ssm-cache-dtype', 'float32', '--mamba-cache-mode', 'none',
         '--tensor-parallel-size', '1', '--pipeline-parallel-size', '1',
         '--max-model-len', str(context), '--max-num-seqs', '1',
@@ -75,6 +77,8 @@ def run(registration, output):
         '-i',str(registration['gpu_index'])],text=True).strip()
     if actual != registration['gpu_uuid']:
         raise ValueError('physical GPU UUID differs; no inference started')
+    snapshot = require_idle_gpu(actual)
+    (Path(output) / 'GPU_START.json').write_text(json.dumps(snapshot, indent=2) + '\n')
     env=dict(os.environ, **prepared['environment'])
     env.pop('PYTHONPATH',None)
     with (Path(output)/'irwkv.log').open('xb') as log:

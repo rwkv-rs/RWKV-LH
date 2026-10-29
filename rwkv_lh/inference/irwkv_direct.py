@@ -79,10 +79,9 @@ class DirectModel:
 
 def load_direct_model(path, *, runtime_temp):
     import os
-    from rwkv_lh.skyrl_training import GPUS
+    from rwkv_lh.gpu_resources import require_idle_gpu
     # Dedicated process required: never choose the first visible GPU implicitly.
-    if os.environ.get('CUDA_VISIBLE_DEVICES') not in GPUS.values():
-        raise ValueError('direct irwkv requires one explicitly registered GPU UUID')
+    require_idle_gpu(os.environ.get('CUDA_VISIBLE_DEVICES'))
     import torch
     from irwkv.config import set_current_irwkv_config
     from irwkv.engine.arg_utils import EngineArgs

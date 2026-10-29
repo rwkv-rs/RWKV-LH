@@ -17,11 +17,10 @@ import subprocess
 import tempfile
 
 from .inference.uploaded_sources import ENGINE_SCHEMA, verify_manifest
+from .gpu_resources import gpu_uuid, require_idle_gpu
 
 RUN_SCHEMA = 'rwkv-lh.skyrl-sft-run.v1'
 STORE_SCHEMA = 'rwkv-lh.skyrl-token-store.v1'
-GPUS = {0: 'GPU-1faf7f09-25f4-2515-b707-6e0766aa841d',
-        1: 'GPU-3e07b500-7d09-ce83-cc1a-35c6b13f8863'}
 LOCK = json.loads(Path(__file__).with_name('skyrl.lock.json').read_text())
 
 
@@ -38,12 +37,6 @@ def sealed(reference):
     if not path.is_file() or sha(path) != reference['sha256']:
         raise ValueError('sealed file identity differs: ' + str(path))
     return json.loads(path.read_text())
-
-
-def gpu_uuid(index):
-    if type(index) is not int or index not in GPUS:
-        raise ValueError('only registered GPU 0 or GPU 1 is permitted')
-    return GPUS[index]
 
 
 BPTT_PROBE = '''
@@ -254,10 +247,10 @@ def prepare(registration, output):
 def run(registration, output):
     prepared = prepare(registration, output)
     expected = gpu_uuid(registration['gpu_index'])
-    actual = subprocess.check_output(['nvidia-smi', '--query-gpu=uuid', '--format=csv,noheader',
-                                     '-i', str(registration['gpu_index'])], text=True).strip()
-    if actual != expected:
+    if expected != registration['gpu_uuid']:
         raise ValueError('physical GPU UUID differs; no training started')
+    snapshot = require_idle_gpu(expected)
+    (Path(output) / 'GPU_START.json').write_text(json.dumps(snapshot, indent=2) + '\n')
     env = dict(os.environ, CUDA_VISIBLE_DEVICES=expected, RAY_ADDRESS='local')
     env.pop('PYTHONPATH', None)
     with (Path(output) / 'skyrl.log').open('xb') as log:
