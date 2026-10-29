@@ -25,6 +25,9 @@ def launch_configuration(registration, output):
         raise ValueError('registered GPU identity differs')
     context, port = registration['context_tokens'], registration['port']
     memory = registration['gpu_memory_utilization']
+    eager = registration.get('enforce_eager', True)
+    if type(eager) is not bool:
+        raise ValueError('enforce_eager must be an explicit boolean')
     if (type(context) is not int or context <= 0 or type(port) is not int or not 0 < port < 65536
             or type(memory) not in (int, float) or not 0 < memory < 1):
         raise ValueError('invalid context, port or explicit GPU memory fraction')
@@ -47,9 +50,11 @@ def launch_configuration(registration, output):
         '--tensor-parallel-size', '1', '--pipeline-parallel-size', '1',
         '--max-model-len', str(context), '--max-num-seqs', '1',
         '--gpu-memory-utilization', str(memory), '--enable-chunked-prefill',
-        '--no-enable-prefix-caching', '--enforce-eager',
+        '--no-enable-prefix-caching',
         '--worker-extension-cls', 'rwkv_lh.inference.irwkv_plugin.NativeStateWorkerExtension',
         '--structured-outputs-config', json.dumps({'backend': DECODER_BACKEND})]
+    if eager:
+        argv.append('--enforce-eager')
     return dict(command=argv, environment=env, training_started=False, optimizer_steps=0)
 
 
@@ -82,7 +87,9 @@ def run(registration, output):
     env=dict(os.environ, **prepared['environment'])
     env.pop('PYTHONPATH',None)
     with (Path(output)/'irwkv.log').open('xb') as log:
-        process=subprocess.run(prepared['command'],cwd=prepared['engine_source']['root'],env=env,
+        # Third-party JIT builds inspect cwd for pyproject.toml. The frozen
+        # engine source is not a build context and has no VCS metadata.
+        process=subprocess.run(prepared['command'],cwd=str(Path(output).absolute()),env=env,
             stdout=log,stderr=subprocess.STDOUT,check=False)
     result=dict(exit_code=process.returncode,log_sha256=sha(Path(output)/'irwkv.log'))
     (Path(output)/'EXIT.json').write_text(json.dumps(result,indent=2)+'\n')

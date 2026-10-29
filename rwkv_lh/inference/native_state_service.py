@@ -599,6 +599,8 @@ class RWKVNativeStateService:
             temperature=float(sampling.get("temperature", 0.05)),
             top_p=float(sampling.get("top_p", 1.0)),
             top_k=int(sampling.get("top_k", 0)),
+            min_p=float(sampling.get("min_p", 0.0)),
+            repetition_penalty=float(sampling.get("repetition_penalty", 1.0)),
             presence_penalty=float(sampling.get("presence_penalty", 0.0)),
             frequency_penalty=float(sampling.get("frequency_penalty", 0.0)),
             penalty_decay=float(sampling.get("penalty_decay", 0.996)),
