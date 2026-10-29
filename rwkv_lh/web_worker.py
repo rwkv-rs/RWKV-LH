@@ -3,50 +3,15 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import traceback
 from pathlib import Path
-from typing import Any, Mapping
 
 from rwkv_lh.model_session import create_model_session
-from rwkv_lh.read_only_agent import ReadOnlyJob, run_read_only_job
 from rwkv_lh.agent_jobs import CodingJob
 from rwkv_lh.project_agent import run_project_job as run_coding_job, resume_project
 from rwkv_lh.project_runtime import ARCHITECTURE
 from rwkv_lh.web_ui import atomic_write_json, read_json, update_metadata, utc_now
-
-
-def append_jsonl(path: Path, event: Mapping[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    line = json.dumps(dict(event), ensure_ascii=False, separators=(",", ":")) + "\n"
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(line)
-        handle.flush()
-        os.fsync(handle.fileno())
-
-
-def result_payload(state: Any, final_output: str, transitions: int) -> dict[str, Any]:
-    persisted_final = state.final_output
-    return {
-        "schema_version": "rwkv-lh.manual-web-result.v1",
-        "generated_at": utc_now(),
-        "run_id": state.run_id,
-        "status": state.status.value,
-        "revision": state.revision,
-        "transitions": transitions,
-        "action_count": len(state.actions),
-        "causal_record_count": len(state.causal_order),
-        "artifact_count": len(state.artifacts),
-        "model_request_count": len(state.temp_decisions),
-        "final_output": final_output,
-        "persisted_final_output": persisted_final,
-        "final_output_matches_persisted_rwkv": final_output == persisted_final,
-        "output_policy": (
-            "The UI and worker return the Controller's exact final output. They do not generate, "
-            "select, repair, or rewrite an answer."
-        ),
-    }
 
 
 def direct_settings():
@@ -57,13 +22,11 @@ def direct_settings():
 
 def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
     request = read_json(run_root / "request.json")
-    if not isinstance(request, dict) or request.get("runtime") not in ("direct_rwkv", ARCHITECTURE):
+    if not isinstance(request, dict) or request.get("runtime") != ARCHITECTURE:
         raise ValueError("historical runtime is read-only; create a new task")
     scope = request["tool_scope"]
-    if scope == 'coding' and request['runtime'] != ARCHITECTURE:
-        raise ValueError('historical coding runtime is read-only; create a new project')
-    if resume and scope != 'coding':
-        raise ValueError('read-only utility resume is not supported')
+    if scope != 'coding':
+        raise ValueError('historical tool_scope is read-only; create a new Project task')
     goal = request["request"]
     if request.get("constraints"):
         goal += "\n\n用户补充要求：\n" + "\n".join(request["constraints"])
@@ -76,20 +39,14 @@ def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
         key: value for key, value in vars(settings).items()
         if key not in {"api_key", "cf_access_client_id", "cf_access_client_secret", "proxy_url"}
     })
-    if scope == "coding":
-        result = resume_project(run_root / 'delivery', settings=settings) if resume else run_coding_job(CodingJob(
-            request["run_id"], goal, str(run_root / "workspace"), str(run_root / "delivery"),
-            max_transitions, request["max_seconds"]), settings=settings, session_factory=create_model_session)
-    else:
-        result = run_read_only_job(ReadOnlyJob(
-            request["run_id"], goal, str(run_root / "workspace"), str(run_root / "execution"),
-            max_transitions, request["max_seconds"], tool_scope=scope),
-            settings=settings, session_factory=create_model_session)
+    result = resume_project(run_root / 'delivery', settings=settings) if resume else run_coding_job(CodingJob(
+        request["run_id"], goal, str(run_root / "workspace"), str(run_root / "delivery"),
+        max_transitions, request["max_seconds"]), settings=settings, session_factory=create_model_session)
     atomic_write_json(run_root / "result.json", {**result, "final_output": result["final"]})
-    submitted = result["termination"] in ("submitted", "model_finished")
-    execution = run_root / ("delivery/execution" if scope == "coding" else "execution")
+    submitted = result["termination"] == 'planner_finished'
+    execution = run_root / "delivery/execution"
     update_metadata(run_root, active=False, phase="finished" if submitted else "blocked",
-                    pid=None, status=("finished" if scope == "coding" else "submitted") if submitted else result.get("status", "interrupted"),
+                    pid=None, status=result.get("status", "finished" if submitted else "interrupted"),
                     state_created=(execution / "state_snapshot.json").exists() or (execution / 'project.sqlite3').exists(),
                     termination_reason=result["termination_reason"],
                     worker_finished_at=utc_now(), result_path="result.json", error="")

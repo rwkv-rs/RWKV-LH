@@ -1,163 +1,139 @@
 # 当前编码项目架构
 
-当前产品面向前端项目完整交付，采用一份初始强模型计划与一个持续 State 的 RWKV Executor。Executor 负责创建项目、生成和修改代码、执行命令、根据实际报错修复、测试、构建及交付，自主选择步骤、工具和结束时机。当前 RWKV 没有视觉能力；浏览器操作、截图、视觉检查和浏览器端诊断由 Codex 或独立验收器在执行链外负责。项目整体仍须满足需求、视觉、功能、工程、数据和交付要求；实际能力由冻结项目的独立验收与预定重复运行证明。
+产品只有一条 Project 执行链：Planner 按工单循环派发，RWKV Executor 在一个持续 State 中自主读取文件、选择工具、实现、自测、修复和交回。工单粒度决定单次交回前的自主范围；放大粒度或更换模型须另做受控验收，不能自动复用原结果或 State。
 
-产品仅有这一条链路。Decision、在线计划审查、阶段审查、重新规划、诊断求助及独立完成验收已移除；没有开关、旧协议兼容模块或自动回退。
+当前 RWKV 没有视觉能力。浏览器操作、截图和视觉验收由 Codex 或独立验收器在执行链外完成。宿主报告、模型结束声明和外部验收分别记录；工程检查不产生 Agent 能力结论。
 
-## 执行流程
+## 工单循环与持续 State
 
 ```mermaid
 flowchart LR
-    U[原始目标与受保护路径] --> P[强 Planner：一次初始计划]
-    P -->|结构合法| E[RWKV Executor：持续 State]
-    P -->|协议错误| I[中断：保留原始输出]
-    E -->|execute_tool：步骤、工具与参数| T[Harness：隔离执行]
-    T -->|真实结果与错误| E
-    E -->|finish_work| F[模型最终报告：未验收]
-    E -->|预算或未知结果| B[中断：保留恢复边界]
-    F --> V[外部 Codex / 验收器：浏览器与视觉检查]
-    V --> R[独立验收记录与缺陷分析]
+    U[原始请求、材料身份、保护路径] --> P[Planner]
+    P -->|issue_work_order| E[同一个 RWKV Executor State]
+    E -->|原生 tool_calls| T[Harness 隔离执行]
+    T -->|对应 call ID 的真实 tool 回执| E
+    E -->|finish_work 或工单中断| H[宿主事实报告]
+    H -->|工单与报告历史| P
+    H -->|User 轮| E
+    P -->|finish_project| F[项目结束声明：未验收]
+    F --> V[外部独立验收]
 ```
 
-初始 Planner 只允许 `submit_plan`，收到原始请求、workspace 清单、请求明确引用的已有文件材料、保护路径、剩余预算与实际注册的 Executor 能力摘要。能力从同一前端工具合同按文件、命令、网络和数据边界生成，浏览器检查不进入 Planner 能力或 Executor 菜单。能力摘要随原始输入保存，Trace 重建复用原记录，不读取已变化的工具注册表；它说明可用操作，不宣称某次运行或行为检查已经成功。
+Planner 只有 `issue_work_order` 和 `finish_project` 两个动作。工单 schema 直接来自 `project_work_orders.order_schema()`，字段固定为 `protocol/id/goal/scope/checks/call_budget`。Planner 收到原始请求、初始工作区身份、明确引用材料的 SHA/字节数/状态、保护路径、实际工具能力、已发工单及对应宿主报告、剩余预算；不收到完整文件正文。文件内容由 Executor 自行读取。
 
-模型可见输入区分空工作区与未知工作区，省略协议身份、空计划/反馈及目录权限数值，预算时间显示为整数秒；完整内部身份仍保留。材料入口按实际相对路径匹配，不特判文件名或扩展名；完整 UTF-8 正文、字节数与 SHA 和初始工作区身份绑定，非 UTF-8 文件明确标注而不伪造文本。材料捕获前后及逐文件身份均核对，发现变化即拒绝；这不是对任意外部写者的原子文件系统快照。未引用的源码与间接引用仍由计划中的调查步骤交给 Executor 读取；不要求执行证据先于执行。阶段与步骤数量按任务需要决定，没有固定数量上限或静默截断。需求忠实于用户请求，实现选择放在任务中；任务字段明确唯一标识、引用和无环依赖，以及可观察的预期交付或行为检查。每个任务必有 `checks`：在工作区根目录用 `run_shell` 运行的字面命令列表，退出码 0 表示实现后的预期行为；无命令检查时为空数组。宿主从不运行或评判这些命令，由 Executor 决定是否、何时运行。
+项目创建时捕获请求明确引用的材料，核对捕获前后的工作区与逐文件身份；完整原件保留在账本，模型输入仅引用其身份。Trace 重建使用冻结上下文，不重读后来变化的源文件。未引用材料、间接引用与私有验收不会被自动注入。初始材料捕获不是针对任意外部写者的原子文件系统快照。
 
-宿主校验字段、唯一标识、需求引用、依赖结构与路径权限，不评价计划是否正确合理。不合规的初始返回结束为 `planner_protocol_error`，同一任务恢复时不会重新调用 Planner。
+项目自创建起使用一个稳定 assignment 和 Executor lane。新工单、预算披露、协议拒绝事实及宿主报告作为 User 轮追加到同一 transcript；工单切换不重新委派、不换 lane、不清空 State。Native 请求只追加已确认历史之后的新消息。拒绝或输出截断的候选 State 回滚到干净父边界，保留原始输出和拒绝原因；截断候选不执行工具。恢复校验消息前缀、模型、权重、tokenizer、协议、工具、采样与 Native State 身份，不能用旧状态冒充新部署。
 
-项目创建时，账本冻结初始 workspace 身份与请求明确引用的完整材料；Planner 和 Executor 共用这份原始上下文。计划安装后，宿主建立一个覆盖原目标的稳定 Executor lane，完整计划及原始引用材料送入首次输入。材料摘要绑定 assignment，正文、字节数、SHA 和 non_utf8 状态保持原样；Executor 不重复接收整个仓库清单。后续工具修改、恢复和 Trace 重建均不会用新文件内容覆盖原始材料，Native 增量不重复追加未变化正文。每次工作区工具调用都由模型显式给出 `step_id`；工具 intent 与这次选择在同一事务持久化，权限和回执绑定该步骤。切换步骤不会更换 lane、重新委派或清空 State。依赖描述计划顺序，不构成已验证依赖门；模型可以选择和重访任意已声明步骤。
+宿主按账本事实生成报告，包含检查命令实际退出码、stderr 末尾、实际提交的变更路径、调用用量及中断原因，并绑定 `report_digest`。只认本工单中已确认、在工作区根执行且字面完全匹配的前台检查命令。宿主不自动执行 `checks`、不调用模型、不判断正确性、不改写模型声明；报告不是完成门。
 
-## 唯一入口与模块职责
+## 唯一协议与模块
 
-CLI、批量 coding 和 Web 统一调用 `project_agent.run_project_job()`，恢复入口为 `resume_project()`。`CodingJob` 只保留请求、workspace、总调用/时间预算、保护路径和生成快照选项。没有单元交回预算或可选初始规划参数。
+CLI、批量任务和 Web 统一进入 `project_agent.run_project_job()`，恢复使用 `resume_project()`。`CodingJob` 保存原始请求、目录、总调用与墙钟预算、保护路径、生成快照选项，以及显式的连续无变更和拒绝上限。产品 scope 只有 `coding`；旧 files/inspect 路径拒绝运行。
 
-|职责|唯一实现|边界|
+|职责|当前实现|边界|
 |---|---|---|
-|原目标与计划合同|`project_contracts.py`|结构、引用、路径与身份；不作语义验收|
-|持久记录|`project_ledger.py`|单写者、事务、事件链、原始回执、动作步骤、结束声明与未决操作|
-|初始材料|`project_materials.py`|完整捕获被请求引用的文件；不解释需求或授予写权限|
-|初始 Planner|`project_protocols/planner.py::build_input`|一次规划；不执行工作区工具|
-|自主 Executor|`project_protocols/executor.py::build_input`|原始目标、完整引用材料和计划、最近工具步骤、工具事实、回执与预算|
-|动作合同|`project_protocols/executor.py::action_definitions`|执行工具、读取回执、结束；步骤与原始工具参数分离|
-|输入呈现|`project_markdown.py`、`project_model_io.py`|Markdown 工具目录、目标、计划、反馈和原始材料；唯一 bootstrap 与增量 renderer|
-|State 与实际传输|`project_sessions.py`|Native 增量、干净重试锚点、模型/协议/工具/采样身份绑定|
-|运行器|`project_runtime.py`|执行合法模型操作、落实权限、提交真实事实与预算中断|
-|Trace 重建|`project_trace.py::role_boundaries`|全链验真后调用当前生产 builder；不授予训练资格|
-|工具合同|`harness.py::ActionDefinition`|菜单、schema、权限、回执与 decoder 共用定义|
-|前端工具装配|`project_tools.py`|默认六项文件/命令工具；生产、Planner 能力、decoder 与离线入口共用|
-|外部预览与检查|`project_launch.py`、`project_browser.py`|由外部调用的隔离启动、HTTP 与浏览器检查；不属于 RWKV 工具|
+|工单与事实报告|`project_work_orders.py`|固定工单字段；报告只投影已确认事实|
+|原目标与路径合同|`project_contracts.py`|原始请求、保护路径、稳定 assignment 和身份|
+|Planner 输入|`project_protocols/planner.py::build_input`|每轮派单或结束声明；材料只给身份|
+|Executor 输入|`project_protocols/executor.py::build_input`|同一原生 transcript 和当前工单|
+|工具词表|`transcript/tools.py`|固定九工具；唯一规范名与底层参数映射|
+|消息、回执与解码|`transcript/render.py`、`parse.py`、`grammar.py`|生产、trace、token 化共享真实消息形状|
+|完整 token 与监督|`transcript/tokenize.py`、`frozen.py`|无损 token/mask；核验已封存来源，不生成数据|
+|实际传输|`project_sessions.py`、`strong_transport.py`|Planner 原始 provider 回执；Executor Native State 增量|
+|Planner 配置|`project_planner_settings.py`|只包含实际使用的传输、模型与预算配置|
+|持久记录|`project_ledger.py`、`project_record_store.py`|单写者事务、事件链、内容寻址、原始事实与 pending|
+|运行器|`project_runtime.py`|工单循环、权限、工具事务与中断；不做在线验收|
+|工具实现|`harness.py`、`project_tools.py`、`background_jobs.py`|同一 schema 驱动执行、能力与解码|
+|外部预览与检查|`project_launch.py`、`project_browser.py`|隔离启动与浏览器证据；不进入 RWKV 工具菜单|
 
-当前版本：整套 Project 协议是 `rwkv-lh.coder.*` 命名空间的第一版——Goal、Plan、Assignment、Ledger、Executor 输入、动作、Planner 输入、Planner chat、prompt、输入传输、边界解码、JSON fence、严格调用、架构身份、强模型传输和模型视图均为 `.v1`。新命名空间不与任何历史标识重名（旧 `rwkv-lh.project-*.v1`、`project-*.v1`、`rwkv-lh.agent-*.v1` 都曾存在），因此旧协议、账本、prompt 和不兼容 State 仍一律拒绝恢复或改标签重用。运行标签引用模块常量。数据与冻结证据的标识（候选、固定回归、冻结证明、审查包、生产来源、训练行）标记已封存的原件，不随运行协议改名。
+Planner 输入/chat、Executor 输入/actions、assignment、ledger 和 architecture 当前为 `rwkv-lh.coder.*.v2`。工单为 `rwkv-lh.coder.work-order.v1`，transcript 为 `rwkv-lh.coder.transcript.v1`；这些独立版本以各模块常量为准，attestation 不硬编码版本。旧版和未知版协议、账本、数据及不兼容 State 拒绝加载或改标签重用。
 
-工具目录与被拒调用视图只渲染决策信息：工具名、说明、参数名、是否必填、默认值、`const`/`enum` 选项。类型、长度、正则、上下界、`additionalProperties`、`uniqueItems` 由约束解码器从同一 schema 强制，不进入模型输入；固定值的可选参数不展示；`anyOf` 各形式共享的字段只出现一次。未知 schema 键直接报错，不得静默消失。
+旧五角色链、独立 exact_tool_selector、一次性初始计划协议、cc-view 实验实现及相应入口已退出生产；不保留兼容路由。irwkv 和 State Router 动态插件继续维护，不能仅因静态不可达而删除。后端或模型变化不重写角色协议。
 
-底层只读工具与独立研究依赖不构成另一条编码产品入口。模型升级通过权重、tokenizer、State、上下文和传输配置适配，不自动改变角色协议。
+## 原生 assistant transcript 与九工具
 
-## Executor 操作与反馈
+Executor 返回原生 assistant 消息：`role/content/reasoning_content/tool_calls`。每个调用有唯一 `id`、`type=function`、`function.name` 和 JSON 字符串 `function.arguments`；思考位于 `reasoning_content`，不使用 think 标签。一轮可包含多个工具调用，整批先验证，再按顺序执行；`finish_work` 必须最后出现。所有工具参数来自同一冻结 schema，宿主不补语义字段、不修复转义、不接受底层旧工具拼写或未知字段。
 
-Executor 只产生一个严格的 `function/params` JSON 对象。动作参数为：
+|规范名|作用|
+|---|---|
+|`Read`|按字节范围读取文件|
+|`Write`|写入文件|
+|`Edit`|按精确文本匹配替换|
+|`Bash`|执行命令，可显式选择后台运行|
+|`ListDir`|枚举目录|
+|`Grep`|有界搜索与分页|
+|`BashOutput`|读取后台作业新增 stdout/stderr|
+|`KillShell`|停止本项目后台作业并报告观测结果|
+|`finish_work`|以 finished 或 blocked 声明交回当前工单|
 
-|动作|参数|效果|
+工具回执是对应原始 `tool_call_id` 的 tool 轮，content 为结构化 JSON，保留 `action_type/success/output/metadata/outcome_type` 等实际存在的字段。`finish_work` 的对应回执仅携带 `declaration` 原始参数。文件正文、命令输出和错误保持原文；渲染器仅去除宿主记账和重复元数据，不推断正确性、存活或完成。完整原始回执另存供身份核验。宿主报告只能作为 User 轮，不能伪造一个模型未发起调用的 tool 回执。
+
+约束解码由 irwkv 内置 guidance 执行，grammar 从相同工具 schema 派生，保留 `additionalProperties:false` 和目标渲染键序。完整消息结构、跨轮 call ID 唯一性和工具参数仍由宿主校验。真实来源的 parse/render 逐字节往返只证明编解码一致；已有七工具轨迹可用于该项工程验证，不能当作当前九工具训练来源。
+
+## 权限、后台作业与恢复
+
+工作区是经身份核对的源目录副本。工单 `scope` 为字面写入路径集合，空数组只读；叠加 owner 保护路径。`file` 与 `./file`、`.` 与 `./` 按相同 POSIX 路径身份比较，保留原始拼写，不猜路径、不展开通配符。绝对路径、`..` 分量、反斜杠与 NUL 拒绝。
+
+前台工具在隔离副本执行。显式越权写入在执行前拒绝；执行后的整体变化越权则全部不发布。合法变化经身份核对后按事务发布，失败和无变化各自保留真实回执，不伪造 mutation。相对符号链接必须逐段留在工作区，最终目标存在且无循环；原始链接拼写与实际文件 SHA 均进入身份。链接不扩大权限，保护路径也保护真实目标及中间链接。无效链接与特殊节点不发布。
+
+`Bash` 使用共享宿主网络下载依赖和访问服务；它不是域名白名单。文件、PID 和其他命名空间继续隔离，只继承明确基础环境和普通 HTTP/HTTPS 代理，宿主凭据与用户 npm 配置不自动继承。网络外部效果不能由文件事务回滚，未知结果不能重放。
+
+后台模式保留独立沙箱、私有工作区和独立日志目录，返回项目内 job handle。活跃期间异步文件变化不发布；`BashOutput` 或 `KillShell` 确认作业停止后，克隆稳定树并复核启动基线、当前与启动工单范围及保护路径，才可发布授权变更。前台已改变工作区时拒绝覆盖，记录冲突。`BashOutput` 按游标读取增量输出，`KillShell` 按进程身份终止；运行器退出时（包括 checkpoint yield）确认回收全部所属作业，丢弃尚未提交的私有变化，将停止事实追加到持续 transcript。日志出现 ready 不证明后续存活，作业自行退出按实际退出码报告。沙箱 namespace init 是否消失是清理判据；不能确认清理时抛出 `UncertainToolOutcome`，保留 pending 和私有目录，不降级为普通失败或假成功。
+
+模型和工具先登记 intent，再确认返回。SQLite 事件链、内容寻址记录和原始回执保存输入、输出、checkpoint 与因果身份；已确认写入和已确认批次前缀不重复执行。失联、取消、发布或清理结果不确定时保留 pending；恢复不自动重放未知操作，也不在服务丢失必需 Native State 后假装恢复。
+
+RecordStore 以 64 MiB 字节预算复用已校验节点；可变展开结果不共享，新读取事务重新校验，事件链检查仍覆盖完整历史。该缓存不限制完整返回历史或进程总内存，也不改变存储格式和模型输入。
+
+## 终止、报告与计量
+
+|边界|原因|处理|
 |---|---|---|
-|`execute_tool`|`step_id`、`tool`、`arguments`|在一次调用中选择计划步骤和工具；arguments 只含 Harness 原始工具参数|
-|`read_receipt`|`receipt_id`|重新投递已有回执原文，不重新执行工具|
-|`finish_work`|`outcome`、`summary`、`receipt_ids`|outcome 为 finished 或 blocked，保存模型原文并结束|
+|工单|`model_finished`|保存 `finish_work` 原始声明与事实报告，交回 Planner|
+|工单|`call_budget_exhausted`|保存工单调用预算中断报告，交回 Planner|
+|工单|`model_output_budget_exhausted`|截断候选不执行，交回 Planner|
+|工单|`repeated_rejection`|达到显式拒绝上限，带原文和错误交回|
+|项目|`planner_finished`|Planner 结束声明，尚未验收|
+|项目|`resource_budget_exhausted`、`wall_budget_exhausted`|总调用或墙钟预算中断|
+|项目|`model_input_budget_exhausted`|保存完整输入和容量证据，不截断|
+|项目|`planner_protocol_error`|Planner 协议失败，不自动修补或重规划|
+|项目|`uncertain_operation`|保留 pending，拒绝自动重放|
+|项目|`no_progress`|达到显式连续零提交变更工单上限，按中断记录|
 
-默认工作区工具只有 `list_directory`、`search_files`、`read_file`、`write_file`、`replace_text`、`run_shell`。重复文件操作和丢弃写入的 `check_command` 不进入产品菜单。`project_tools.configure_project_tools` 同时限制 schema、执行和恢复注册表；显式注册的外部 `check_project` 及同类检查能力也被排除，不能借扩展重新进入 Planner 或 RWKV。共享研究 Harness 保留自身工具合同。
+工单数量按任务需要，不另加数量拦截或静默截断。`CodingJob.no_progress_limit` 和 `rejection_limit` 默认均为 3，属于明示的工程停止边界，不能冒充模型完成。Planner 和 Executor 调用都计入项目总预算。
 
-产品 `replace_text` 仅接收路径、旧文本、新文本及匹配次数/全量替换选项，不接受模型填写文件 SHA 或其他版本令牌。它与研究 Harness 复用同一个文本替换实现；产品配置以精确内容匹配和现有隔离事务执行，缺失或歧义匹配返回真实失败且不写入。修改不声明幂等，未知执行结果不得自动重放。多任务并发应使用各自工作区，已确认写入的发布及恢复仍由工程事务负责，不由模型维护校验值。
+`RESULT.json` 分别记录 `planner_usage` 与 `executor_usage`：模型调用数、预留调用数、生成耗时、输入/输出 token 和有真实 token 计量的调用数。Planner token 来自本次原始 provider envelope 的 `prompt_tokens/completion_tokens`；缺少真实 usage 的调用不以估算代替，总量显示未知。容量估算另用于拒绝超长输入。没有计划模型独自完成的同口径对照，不能宣称省 token。
 
-`project_tool_feedback.model_tool_result` 是 RWKV 提示和教师采集共用的模型可见回执视图。文件内容、命令输出和真实错误保持原文；文件哈希、修改版本校验、命令流摘要等工程元数据不展示：读取游标块（已由 start/end/next_start_byte 与行范围表达）、未改变解析的 shell 包装 argv、零字节 stdin、只读工具的 `workspace_committed=false` 及空值字段均省略；`false`/`0` 等实际取值保留。来源段只在模型给出的参数值与实际执行值不同时出现，Harness 补充的默认值本身已在执行参数中。搜索结果只移除工具产生的摘要字段，实际命中文本、位置和分页游标保留。原始完整回执仍用于内部来源核验，不能直接重写成新模型实际收到的历史；旧 prompt/工具身份不得作为新格式恢复或重标。
+`status=finished` 与 `model_finished=true` 仅表示 Planner 选择结束；当前运行始终 `completed=false`、`acceptance=not_evaluated`。`finish_work` 只交回工单，CLI 退出码 0 对应 `planner_finished`，均不证明功能验收。mutation 只统计真实工具回执中的已提交变更。
 
-例如 `{"function":"execute_tool","params":{"step_id":"T2","tool":"read_file","arguments":{"path":"README.md"}}}`。旧工具直接调用、独立选步、步骤汇报、双绑定方式及兼容入口已删除。缺少步骤、未知工具、错误参数或多余字段一律拒绝，宿主不补齐、不丢弃字段。模型可以在没有自测或完成全部步骤时结束；finished 只代表模型声明。
+执行目录保留 `project.sqlite3`、实际传输 trace、`raw_tools/`、`PROGRESS.jsonl`、`RESULT.json`，外层保存 `DELIVERY.json`；启用选项后保存 `generation_snapshots/`。Web 显示工单目标、scope、checks、calls、报告、当前工单及真实工具记录。轮询和文件预览按项目选择身份及请求游标隔离，过期响应不能覆盖当前视图。
 
-约束解码仍在生成时使用 guidance。schema 精确绑定全部合法步骤、各工具的参数变体、现有回执和结束枚举；必填字段不会延迟到生成后再补。schema 唯一推迟的是数组 uniqueItems 校验，宿主仍验证重复引用。非法回执不产生工具执行。强 Planner 使用当前 `rwkv-lh.coder.strong-strict-tools.v1` 传输：唯一操作通过具名 tool_choice 指定，API arguments 直接包含该工具参数，不再套额外 params。原始 arguments 字符串逐字保留，由唯一角色 parser 校验；旧包装、模型自创别名、裸计划、额外身份和转义修复均不接受。传输格式通过不等于计划正确。
+## 外部验收
 
-模型的目标、计划、工具名字/描述/参数合同、事实反馈和预算统一渲染为 Markdown。实际源码、工具正文及拒绝原文按字面保留；其中本来就有的 JSON 不改写。内部输入对象用于哈希与审计，不直接序列化为 RWKV 决策提示。Native 初始输入、增量、容量检查和离线 token 回放调用同一 renderer。模型视图省略 assignment 中重复的请求和工程身份、原始模型 OP、重复参数与空输出段；引用材料和工具字面内容保持完整。稀疏显示的旧步骤与引用来自经 base_digest 核验的 view_base，拒绝重试使用同一干净锚点；原始角色 payload 不因渲染压缩而裁剪。`rwkv-lh.coder.model-view.v1` 同时绑定 prompt 身份和输入恢复封装；缺失或旧视图身份拒绝恢复和 token 重放。
+外部静态或 npm 预览在隔离副本启动。npm 项目使用声明的 dev 或 build/preview 脚本；生产预览要求 `dist/index.html`，不要求指定框架。预览不调用模型，也不改变本次完成声明。
 
-步骤观察只记录工具次数、失败、实际提交变更、路径、回执与最近工具步骤，不维护独立的“完成步骤”声明。计划检查只按事实投影：命令字面相同且 cwd 为工作区根的已确认 `run_shell` 回执计为一次运行，显示运行次数、最近一次退出码与成功位、对应回执，以及之后是否有已提交的工作区变更（结果可能已过期）；未运行的检查只在计划中出现。相似但不同的命令不计入，不构成完成门、不触发自动执行。完整账本保留全部步骤和回执；模型视图只显示有调用或当前选中的步骤，后续按 step_id 更新实际变化的行。回执清单在模型视图中合并，后续只给出新增或移除的句柄，约束解码器仍校验完整合法集合。工具实际参数默认值由 Harness 合同处理，模型原始 arguments 与执行后的 arguments 分别记录，防止混淆。
+独立浏览器检查使用新 Chromium 上下文和只读工作区，按合同保存逐动作状态、DOM/布局、截图、HAR、trace、console/pageerror 与网络事实。独立验证器保存完整 stdout/stderr、退出状态和证据 SHA；超时或中断保留不完整证据，不宣称通过。证据清单绑定工作区树、快照实现、验收输入、验证器源码及每份证据的字节数/SHA。私有程序和证据目录不暴露给候选进程，验收结果不送回 Executor State 或授予训练资格。
 
-最新工具原始结果自动送达。回执按确认顺序提供 `receipt:N`，只在有类型的引用参数位置转换为原 OP；文件、工具内容与报告正文保持字面值。每次显式读取都有可见投递 revision、显式读取次数和内容未变事实，同样的完整正文也会再次进入增量。工具重复事实由已确认账本推导，按实际默认值归一后的工具参数统计调用数、相同模型可见结果数和连续相同结果数；正文、错误、退出码和变更事实的变化均参与比较。重复事实不选步、不修改完成条件或提前中断。游标只确认实际输入包含的投递事件；无变化的旧工具正文不因无关后续动作而重复追加。
+任务冻结时分开定义 Agent 的开发交付职责和外部浏览器/视觉要求，保留来源版本、许可证、资源、依赖、数据流、检查规则和任务族隔离。完整参考实现与私有验收放在允许材料之外。旧成绩和冻结口径不原地改写；Strict、completed、mutation 和终止原因先于角色或工程检查汇报。截图存在不证明视觉要求通过。
 
-非法输出保留原文、错误、实际参数合同和连续拒绝事实，回到同一 Executor。拒绝生成不会提交其候选 State；干净锚点中的已确认事实保留。新工具事实或步骤变化推进正常父 State 链。Controller 不替模型选择修复、不补语义参数、不引入额外模型。
+## 训练、推理与来源身份
 
-## 权限、事务与中断
+训练统一使用固定版本 skyrl-rwkv 原生 `skyrl.train.main_sft`，全参数 SFT 为 `model.lora.rank=0`。本仓库只核验冻结模型、tokenizer、数据、源码、明确授权、预算和 GPU 身份，并向原生训练器交接；优化器、跨块梯度、checkpoint、恢复和模型导出均归 SkyRL。
 
-工作区来自经身份核对的源目录副本。写入权限为该次工具明确选择步骤的显式范围，并叠加 owner 与初始计划的保护路径。禁止写入、路径逃逸及未知操作结果仍由宿主阻止，这些是执行边界，不是模型正确性检查。
+训练 reader 只接受 `dataset.format=transcript_tokens` 和当前 `rwkv-lh.transcript-token-manifest.v1`。manifest 绑定模型/tokenizer、协议源码、生成脚本、生产来源清单、切分文件、owner 授权和 split/similarity/coverage 审计。逐来源核对当前九工具与原生 transcript，逐行复核完整 `input_ids` 和同长度 `loss_mask` 与共享 codec 一致；返回原行，不生成、转换、重标或补齐数据。旧 episode 格式直接拒绝。
 
-任务 `scope` 是字面写入路径集合：空数组表示只读，可读取材料但不能提交任何文件变更。字段缺失仍属协议错误。路径采用工作区相对路径规则，`file` 与 `./file`、`.` 与 `./` 权限相同；保留模型和 owner 的原始拼写，按 POSIX 路径身份比较保护范围，不猜测文件、不展开通配符。绝对路径、`..` 路径分量、反斜杠与 NUL 一律拒绝。Planner schema、计划验证、计划安装与执行权限遵循同一语义；旧计划不通过自动补字段或改路径迁移。
+每个消息轮次按与 Native 增量相同的渲染编码；assistant token 监督为 1，system/user/tool 为 0，被 mask 的 token 仍在原位置提供上下文。mask 不位移，不添加 BOS/EOS，不静默截断；容量不足直接拒绝。交接配置 `max_length=null`，chunk_size 来自登记；完整 split 文件 SHA 和行数核对完成后才发布 token store。新数据版本和训练预算必须由 owner 明确授权，本轮接线与清理不新增授权，也不采集或转换旧轨迹。
 
-工具在隔离副本执行。显式越权写入在执行前拒绝；命令运行后的整体变更若越权，全部不发布。合法变更以完整事务发布，`run_shell` 构建产物可供后续操作读取。失败和无变化分别保留原始回执，不产生假 mutation。命令没有跨调用持久后台服务保证；项目运行和命令诊断由模型在命令生命周期内完成。
+训练使用 BF16 权重/计算，递归 State 中 wkv 为 FP32、两个 token-shift 池为 BF16。推理统一使用 irwkv 的 `irwkv-native` profile，同样为 BF16 权重/计算、wkv FP32、两个 token-shift 池 BF16。两种运行分别登记实际精度与资源，不能笼统写作 State FP32。版本固定在 `skyrl.lock.json` 和 `inference/irwkv.lock.json`；训练、推理各用隔离的 Python 3.12+ 环境。
 
-前端 `run_shell` 的注册合同声明 public_web，执行时使用共享宿主网络，供依赖下载和服务访问；这不是域名白名单。网络模式由同一个 ActionDefinition 驱动执行、Planner 能力摘要、Executor 目录和回执，不依赖模型自行打开宿主开关。底层研究 Harness 的命令默认仍隔离网络。裸命令名按沙箱实际挂载的系统及已声明 Python/venv 工具链解析，不受交互终端用户目录中同名程序遮蔽；明确绝对路径仍受范围检查。缺失路径提示枚举前验证符号链接父目录仍位于工作区。文件、PID 与其他命名空间继续隔离，WSL 仅额外挂载解析后的 DNS 文件；命令环境只继承明确的基础字段和普通 HTTP/HTTPS 代理地址，不继承宿主凭据及用户 npm 配置。npm 使用临时缓存；工具显式 env 可以覆盖默认值。网络请求的外部效果不能由工作区文件事务回滚，未知结果不自动重放。
+irwkv 负责模型、FlashRWKV2、调度、原生采样与 guidance；项目插件负责跨请求 State、事务、请求日志和身份。单卡部署 TP/PP=1、max_num_seqs=1，关闭 prefix caching，mamba_cache_mode=none。State 恢复核对 resident weights、布局、pending token、采样请求以及 engine/project 源码清单；不匹配即拒绝。服务绑定 loopback，远程通过隧道或受控代理访问，加载 `rwkv_lh_state_worker,rwkv_lh_native`。
 
-命令超时和项目取消时，先终止本次进程组并收完剩余输出，等待沙箱 reaper 与子进程关闭输出管道，再返回或传播取消；无法在清理期限内确认时抛出 UncertainToolOutcome。Harness 不把它转成普通失败回执，Project 保留 pending 事务、不发布工作区、不自动重放。开始监听的输出仍可保留为诊断事实，不能因为日志显示 ready 就宣称服务在后续调用中持续存在。
+模型是标准 Transformers-RWKV safetensors，包含完整 tokenizer、模板和生成配置。工件转换核对 checkpoint/转换器/模板/词表 SHA，重开所有 tensor 核对名称、形状、dtype、逐元素值及全部 token ID 字节。SkyRL export 封装保留导出权重字节，核对 PREPARED/RESULT 与实际更新证据，不凭退出码推断训练次数。服务器禁用 Git，上传完整文件清单、逐文件 SHA 和清单 SHA；实际加载来源不一致则拒绝运行。
 
-工作区支持能随副本迁移的相对符号链接：每段解析均留在工作区内，最终目标存在，且没有解析循环。npm 的命令入口、项目内本地包、文件和目录别名遵循同一规则，没有 node_modules 或题目特判。绝对链接、越界、悬空和循环链接以及特殊节点不发布；绝对链接即使指向原目录内部，也不能在目录复制及事务交换后维持相同目标。身份记录保留链接目标的原始拼写，并分别绑定实际文件 SHA；复制、材料捕获、生成前快照、来源封存、离线纠正及外部验收共用这一身份规则，不展开目录别名树。写权限仍按实际变更路径检查，链接不能授予新范围；受保护路径同时保护实际目标及到达它的中间链接。
+训练登记 `rwkv-lh.skyrl-sft-run.v1` 绑定 experiment、authorization_references、sft_full 方法、模型/数据/源码 SHA、context、解释器、GPU 编号/UUID、batch、学习率、seed、epochs/max_steps、chunk/checkpoint 与显式恢复配置。部署登记 `rwkv-lh.irwkv-deployment.v1` 绑定 engine/project 源码、模型、解释器、GPU 编号/UUID、executor 协议、容量、端口和显存比例。默认只准备，新输出目录内显式 `--execute` 才启动；选卡前实查空闲，不占用别人的任务。
 
-越界写入被拒绝时，模型视图中的路径列表有上限：不超过 20 条时原样列出；超过后按顶层路径段汇总为 `段/** (N paths)`，并最多保留 20 组。原始回执正文同样会投递给 Executor，所以它也只带同一份摘要、`scope_violation_count` 和最多 20 条 `workspace_entry_errors`。完整路径与条目错误写入该操作事务目录的 `tool_transactions/<id>/scope_violation_paths.json`；回执不写这个位置，操作身份不进入模型输入。这样一次 npm 安装产生的上千个路径不会让下一轮输入超出 Native 单次增量上限。
+## 维护与发布
 
-外部检查器可显式注册 `check_project`，使用 `project_browser.py` 的参数合同操作真实 Chromium。它在工作区外保留逐动作状态、DOM/布局、截图、HAR、trace、console/pageerror 和网络事实及 SHA；失败或超时保留证据并清理进程。检查使用只读项目副本和新浏览器上下文，只允许本次项目源的 HTTP/WebSocket 请求。外部结果不自动进入 RWKV 回执、State 或完成声明；无浏览器动作时仅验证 HTTP readiness。外部 npm 预览按项目声明的 `dev` 或 `build`/`preview` 脚本启动，生产预览要求 `dist/index.html`，不再要求 Vite 依赖。
+开发题、验收轨迹、私有参考与 Holdout 不进入训练；Real Agent Holdout V2、`acceptance_tests/` 和 `data/acceptance/` 不在日常回归、迁移或清理范围。固定回归和任务族隔离保持原身份。工程回归、GPU 推理、实际 optimizer 更新和 Agent 验收分别报告；未运行时明确写未运行。
 
-SQLite 事件与内容寻址记录保留输入、输出、checkpoint、原始回执和因果身份。模型/工具调用先登记 intent，再确认返回。失联、取消或发布结果不确定时保留 pending，不自动重放。断点恢复保留总预算、lane 和已确认 inbox；已完成的写入不重复执行。服务不再持有必要 Native State 时不得假装恢复。
-
-内容记录在每个 RecordStore 内按 64 MiB 字节预算复用已校验节点，避免共享历史超过固定节点数量后反复读取与验真。预算计算节点对象、键与条目开销，超大节点不缓存；它不限制 SQLite 缓冲区、返回的完整历史或进程总内存。展开后的可变结果不共享，新读取事务重新校验，事件链检查仍覆盖全部历史；缓存不改变存储格式、模型输入或事实权限。
-
-初始材料随账本创建持久化，直接安装离线冻结计划也经过同一捕获入口；Trace 通过唯一 builder 从原始上下文重建并核对身份，不重读已变化的工作区。引用集合由初始清单校验，Executor 的材料视图由稳定 assignment 摘要绑定；未引用、间接引用及私有内容不会被自动注入。输入超出部署容量时记录完整输入与估算，按中断处理，不截断计划或材料。总预算耗尽、输出预算耗尽和超时均不能伪装成完成。
-
-## 可观察输出与结果语义
-
-执行目录保留：
-
-- `project.sqlite3`：可验真的完整事件链与模型输入/输出。
-- `model_trace.jsonl`、Strong trace：实际传输、采样与原始返回。
-- `raw_tools/`：完整工具结果。
-- `PROGRESS.jsonl`：逐次模型命令、步骤、反馈和对应真实工具正文的可读投影；SQLite 为权威记录。
-- `RESULT.json` 与外层 `DELIVERY.json`：最终状态、终止原因、模型报告、步骤事实和 mutation。
-- 开启选项时的 `generation_snapshots/`：每次生成前实际 workspace 的身份与快照。
-
-`status=finished` 与 `model_finished=true` 表示模型选择结束。当前执行流程始终保持 `completed=false`、`acceptance=not_evaluated`；外层超时可能标记不可评估。退出码 0 只表示模型正常结束并返回报告，不表示功能验收成功。Web 显示有执行记录的步骤、真实工具回执和最终模型声明，不能用绿灯或“已验证”代替真实验收。
-
-真实开发评测的 Strict、功能完成与 mutation 必须在独立结果中报告。后续独立验收不能回写这次运行的模型报告、冻结源码或评分口径。
-
-Web 增量轮询绑定每次项目选择的独立身份，同一选择只保留一批在途请求，待所有接口响应或失败后才释放。事件和 trace 游标只向前推进；离开、切换或重新选择同一项目后，旧响应、错误和计时器都不能更新当前选择。文件预览另按当前项目、文件路径与请求编号核对归属。这些机制保护证据的展示，不改变原始记录、模型行为或验收结果。
-
-独立项目检查 `benchmark_verifier.run_isolated_verifier()` 可显式接收工作区外的新 `evidence_dir`，为每个检查保存完整 stdout/stderr 和私有程序写入 `RWKV_LH_VERIFIER_EVIDENCE` 的截图、HAR、浏览器 trace 等文件。内层检查超时返回失败与实际退出状态；外层验收中断保留不完整证据，不宣称通过。回执中的文本预览仍有明确截断标记，完整文件按检查序号分开保存。
-
-证据清单绑定实际只读工作区树（含原始链接目标和逐文件 SHA）、快照实现 SHA、验收输入摘要、验证器源码 SHA 和每份证据 SHA/字节数，清单自身 SHA 在结果中返回。候选工作区可包含上述有效链接；证据输出目录自身仍拒绝覆盖、工作区重叠、链接和特殊文件。候选 Python 子进程的独立 namespace 隐藏私有程序和证据目录，并移除证据环境变量。证据只供运行后的独立复核，不送回 Controller、改变模型完成声明或授予训练资格。截图存在本身不能证明视觉要求通过。
-
-前端评测来源先核对固定版本与许可证，再实际验证上游项目的资源、安装、构建、浏览器行为和数据流。教学示例的缺失功能与依赖须明确记录；派生参考版本要单独绑定改动与验证，不能把它的通过写成上游通过。需求和允许素材与完整答案、私有验收分离，所有必需要求逐项验收；评测项目及答案不转作生产纠错训练来源。实验身份未变的有效结果复用；新增实验须说明改动或尚未解决的问题。
-
-新任务冻结时分别写明 Agent 的创建、实现、命令运行、修复和交付要求，以及外部浏览器/视觉验收要求。已有冻结任务和成绩不原地改写；职责变更须登记新规格版本及其验收关系，不能把两种职责下的运行混为同一基线。
-
-## 训练与推理后端
-
-训练统一使用 [skyrl-rwkv](https://github.com/rwkv-rs/skyrl-rwkv) 原生 `skyrl.train.main_sft`。项目入口 `rwkv-lh-train` 只核验冻结来源、模型、tokenizer、明确授权、GPU身份和预算，向原生训练器交接数据与配置。当前入口为全参数 SFT（`model.lora.rank=0`）；优化器、跨块梯度、checkpoint、恢复及模型导出均归 SkyRL。
-
-完整轨迹以 `input_ids` 与同长度 `loss_mask` 交接。被屏蔽目标仍在原位置提供上下文；mask 不提前位移、不额外添加 EOS。`max_length=null`，`rwkv_chunk_size` 由登记指定。训练默认一台机器、一张卡，关闭内置 rollout、自动评测和训练前评测；同一完整模型工件同时用于训练加载与推理部署。迁移本身不授予额外训练预算，也不把已有训练更新数归到新训练器名下。
-
-推理统一使用 [irwkv](https://github.com/rwkv-org/irwkv)，配置 profile 为 `irwkv-native`。irwkv 负责模型、FlashRWKV2 内核、调度、原生采样与结构化解码；项目插件负责跨请求 State 快照、事务、恢复日志和输入/输出身份。服务使用 BF16 权重/计算与 FP32 递归 State，不能写成 FP32 全精度推理。当前采样支持 temperature=0 和 seed；旧服务配置不做隐式映射。
-
-`rwkv-lh-serve` 生成并核验单卡服务配置：TP/PP=1、max_num_seqs=1、关闭 prefix caching、mamba_cache_mode=none、显式 FP32 State、显式 GPU UUID。Native State 由 irwkv 的 att/ffn shift 池与递归矩阵池物化后快照；续接时恢复同一模型和执行身份下的快照，并校验 pending token。状态绑定实际 resident weights、engine/project 源码清单和协议身份。默认使用磁盘 State 与持久请求日志；恢复时拒绝源码、权重、布局或采样请求身份不匹配，不自动重放未知操作。
-
-推理服务只绑定 loopback；远程访问使用已有隧道或受控代理。普通 Executor 加载 `rwkv_lh_state_worker,rwkv_lh_native`，cc-view 使用 `rwkv_lh_state_worker,rwkv_lh_ccview_decoder,rwkv_lh_ccview`，两套端点不同时注册。
-
-## 模型与部署身份
-
-模型使用 `model_type=rwkv`、`architectures=[RwkvForCausalLM]` 的标准 safetensors 工件，包含 tokenizer.json、tokenizer_config.json、chat_template.jinja 和三个生成配置。原生 checkpoint 通过固定版本 Transformers-RWKV 的 `temp/rwkv_pth2st.py` 转换；这是上游转换器位置，项目运行不依赖本仓库的 temp。`rwkv-lh-artifact` 要求 checkpoint、转换器、模板及词表源各自 SHA，重开全部输出 tensor 检查名称、形状、dtype 和逐元素一致，并全量比较生产 tokenizer 每个 token ID 的字节值。
-
-工件 manifest 绑定全部服务文件。`scripts.stage_rwkv_serving_artifact` 支持单文件及分片模型，复制后重新核验并生成目标路径 manifest。SkyRL 导出全量模型后使用 `rwkv-lh-seal-export`，提供原生 HF export 路径、PREPARED.json、RESULT.json 及各自 SHA，核对完成回执和日志、基座 manifest、模型形状及完整词表，保持导出权重字节不变。缺失的 tokenizer/template 及三个独立生成配置取自冻结基座，复用项写入新 manifest；不复用基座或旧 adapter 的权重身份，不凭退出码推断更新数。服务部署使用上传源码清单，不查询服务器 Git。
-
-训练登记 schema 为 `rwkv-lh.skyrl-sft-run.v1`，包含 experiment、authorization_references、method=sft_full、skyrl_source、model_manifest、dataset（path/sha256/format）、data_context_tokens、python、gpu_index/gpu_uuid、batch_size、learning_rate、seed、epochs、max_steps、chunk_size、checkpoint_interval，及显式 resume_from/cpu_offload。dataset.format 为 ccview_episodes 或 executor_episodes，各自调用现有冻结来源校验器。授权 JSON 必须含 owner_instruction，并精确绑定 experiment、optimizer_steps、method、epochs、gpu_uuid、model_manifest_sha256、dataset_manifest_sha256、skyrl_source_manifest_sha256。准备阶段只写 PREPARED.json 和完整 token store，`--execute` 才运行训练器。
-
-推理登记 schema 为 `rwkv-lh.irwkv-deployment.v1`，包含 engine_source、project_source、model_manifest（各为 path/SHA）、model_root、model_name、python、gpu_index/gpu_uuid、protocol（executor 或 ccview）、context_tokens、port、gpu_memory_utilization。默认准备部署清单，`--execute` 才启动服务。两者都必须指定新输出目录。
-
-## 数据、评测与发布
-
-生产、trace重建、候选提取和评测共用当前角色的唯一输入 builder 和 renderer。Project 当前训练边界为 Executor。来源必须可追溯至真实生产上下文、原始输出、工具回执与生成前工作区；纠正后续跑需要真实执行并独立复核，不能把未来结果或参考实现写成模型当时已知事实。
-
-冻结数据须记录来源 run、生成脚本和协议 SHA、任务族切分、相似度算法与覆盖审计。去重使用已登记的 UTF-8 byte 5-gram count-vector cosine，当前阈值0.95；去重投影不改变训练 token 或标签。正式 dataset 与 optimizer 预算按明确授权执行，每角色固定回归保持原身份。cc-view 的冻结数据由原始输入/目标构造器验证后转成 SkyRL 的无损 token store，不新建或重标旧 dataset 版本。
-
-开发题、浏览器验收、私有参考与 Holdout 隔离于训练。后端迁移的工程检查、GPU推理验证、实际 optimizer 更新和 Agent Strict/completed 分别报告。训练结束或模型正常输出不代表交付质量通过；协议有效率不能代替 Agent 验收。
-
-GitHub 只分发 README、本架构、维护源码及必要构建配置。tests、acceptance_tests、benchmarks、data、temp、实验与其他文档仅本地维护。公开 CI 只检查源码边界、编译、入口与构建，完整工程回归须在 owner 交接本地测试和必要夹具后执行。旧实验和文档按逐文件 SHA 登记后删除，不保留本地归档副本。
+GitHub 仅发布 README、本架构、维护源码和必要构建配置。tests、acceptance_tests、benchmarks、data、temp、AGENTS 与其他文档仅本地维护。清理先登记路径、逐文件 SHA 与依赖检查，保留有效夹具和模型/State 等受保护材料，不留旧实现归档。完整本地回归不得跳过 Torch、State 注入或必需浏览器测试；同轮完成并全绿后本地提交，owner 负责 push。

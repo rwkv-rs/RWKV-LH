@@ -43,7 +43,7 @@
           <div class="hero-copy">
             <p class="kicker"><span></span> RWKV · CODE AGENT</p>
             <h1>给出任务，<br><em>查看真实执行。</em></h1>
-            <p>编码项目由强模型规划，RWKV 决定下一步并执行局部任务。查看计划、实际结果与检查证据，支持从已确认的进度恢复。</p>
+            <p>计划模型循环派发工单，RWKV 持续执行、自测和交回。查看每张工单的目标、实际变更与检查记录，支持从已确认的进度恢复。</p>
           </div>
 
           <form id="goalForm" class="goal-composer">
@@ -54,8 +54,8 @@
             <details class="advanced-settings" open>
               <summary>项目设置 <span>可选</span></summary>
               <div class="settings-grid">
-                <label>工具权限
-                  <select id="toolScope"><option value="files">指定文件阅读</option><option value="inspect">只读检查与运行测试</option><option value="coding">修改隔离副本（实验性）</option></select>
+                <label>工作区
+                  <select id="toolScope"><option value="coding">Project 隔离副本</option></select>
                 </label>
                 <label>模型调用上限
                   <select id="transitionBudget"><option value="6">6 次</option><option value="12">12 次</option><option value="24">24 次</option></select>
@@ -69,7 +69,7 @@
             </details>
 
             <div class="composer-footer">
-              <div class="mode-lock"><span class="live-dot"></span><strong>Goal 模式</strong><small>自主执行 · 提交不等于验收</small></div>
+              <div class="mode-lock"><span class="live-dot"></span><strong>工单循环</strong><small>自主执行 · 提交不等于验收</small></div>
               <button id="startButton" class="launch-button" type="submit"><span>开始执行</span><b>→</b></button>
             </div>
             <p id="formMessage" class="form-message" role="status"></p>
@@ -97,7 +97,7 @@
           <p>执行顺序由 RWKV 决定；中断、回答提交与任务验收分别记录。</p>
 
           <div class="metric-strip">
-            <div><span>有执行记录的步骤（未验收）</span><strong id="obligationMetric">0 / 0</strong></div>
+            <div><span>已交回工单（未验收）</span><strong id="obligationMetric">0 / 0</strong></div>
             <div><span>RWKV Actions</span><strong id="actionMetric">0</strong></div>
             <div><span>证据记录</span><strong id="evidenceMetric">0</strong></div>
             <div><span>工作区文件</span><strong id="fileMetric">0</strong></div>
@@ -106,7 +106,7 @@
 
           <nav class="run-tabs" aria-label="运行内容">
             <button class="active" data-tab="overview" type="button">总览</button>
-            <button data-tab="contract" type="button">用户目标 <span id="contractCount">0</span></button>
+            <button data-tab="contract" type="button">工单与目标 <span id="contractCount">0</span></button>
             <button data-tab="execution" type="button">RWKV 执行 <span id="executionCount">0</span></button>
             <button data-tab="evidence" type="button">证据与验收 <span id="evidenceCount">0</span></button>
             <button data-tab="artifacts" type="button">项目产物 <span id="artifactCount">0</span></button>
@@ -135,7 +135,7 @@
               <p id="goalRequest"></p>
             </article>
             <div id="obligationBoard" class="obligation-board"><p class="empty-copy">按用户目标验收，不限定工具顺序。</p></div>
-            <article class="surface graph-surface"><div class="surface-heading"><h3>当前滚动步骤</h3><span id="nodeCount">0 steps</span></div><div id="graphNodes" class="graph-nodes"></div></article>
+            <article class="surface graph-surface"><div class="surface-heading"><h3>已发工单</h3><span id="nodeCount">0 orders</span></div><div id="graphNodes" class="graph-nodes"></div></article>
           </div>
 
           <div id="executionTab" class="tab-panel">

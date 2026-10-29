@@ -28,11 +28,8 @@ from urllib.parse import parse_qs, unquote, urlparse
 from rwkv_lh.runtime.openai_compat import OpenAICompatibleRWKVClient
 from rwkv_lh.retrieval import RetrievalRuntimeConfig
 from rwkv_lh.runtime.settings import PROJECT_ROOT, get_runtime_settings
-from rwkv_lh.store import LongHorizonStore, StateRecoveryError
-from rwkv_lh.trace_projection import project_run_activity
 from rwkv_lh.project_runtime import ARCHITECTURE
 from rwkv_lh.project_ledger import ProjectLedger
-from rwkv_lh.project_contracts import work_items
 
 
 SCHEMA_VERSION = "rwkv-lh.manual-web-run.v1"
@@ -145,15 +142,15 @@ class ManualRunRepository:
         if not isinstance(raw_retrieval, Mapping):
             raise ValueError("retrieval_policy must be an object")
         retrieval = RetrievalRuntimeConfig.from_dict(raw_retrieval)
-        if payload.get("supervisor_mode") not in (None, "direct_rwkv"):
-            raise ValueError("supervisor_mode must be direct_rwkv")
+        if payload.get("supervisor_mode") not in (None, "work_order_loop"):
+            raise ValueError("supervisor_mode must be work_order_loop")
         if payload.get("state_router_shadow", False) is not False:
             raise ValueError("state_router_shadow is retired")
         if retrieval.mode != "offline":
-            raise ValueError("direct frontend currently requires offline retrieval")
-        scope = payload.get("tool_scope", "files")
-        if scope not in ("files", "inspect", "coding"):
-            raise ValueError("unknown tool_scope")
+            raise ValueError("Project frontend requires offline retrieval")
+        scope = payload.get("tool_scope", "coding")
+        if scope != "coding":
+            raise ValueError("tool_scope must be coding; files and inspect execution are retired")
         max_transitions = payload.get("max_transitions", 6)
         max_seconds = payload.get("max_seconds", 300)
         if type(max_transitions) is not int or not 1 <= max_transitions <= 100:
@@ -201,11 +198,11 @@ class ManualRunRepository:
             "request": request,
             "constraints": constraints,
             "retrieval_policy": retrieval.to_dict(),
-            "runtime": ARCHITECTURE if scope == 'coding' else 'direct_rwkv',
-            "supervisor_mode": "strong_planned" if scope == 'coding' else 'direct_rwkv',
+            "runtime": ARCHITECTURE,
+            "supervisor_mode": "work_order_loop",
             "tool_scope": scope,
             "max_seconds": max_seconds,
-            "execution_mode": "goal",
+            "execution_mode": "project",
             "max_transitions": max_transitions,
             "seed_files": [
                 {
@@ -266,24 +263,14 @@ class ManualRunRepository:
     def execution_root(self, run_id: str) -> Path:
         root = self.run_root(run_id)
         request = self.request_document(run_id)
-        if request.get("runtime") in ("direct_rwkv", ARCHITECTURE):
-            return root / ("delivery/execution" if request.get("tool_scope") == "coding" else "execution")
-        return root
+        if request.get('runtime') != ARCHITECTURE or request.get('tool_scope') != 'coding':
+            raise ValueError('unsupported stored Project runtime; start a new run')
+        return root / 'delivery/execution'
 
     def workspace_root(self, run_id: str) -> Path:
         root = self.run_root(run_id)
         delivery = root / "delivery" / "workspace"
         return delivery if delivery.is_dir() else root / "workspace"
-
-    def state_root(self, run_id: str) -> Path:
-        direct = self.execution_root(run_id) / "state"
-        return direct if direct.exists() else self.run_root(run_id) / "state"
-
-    def store(self, run_id: str) -> LongHorizonStore:
-        return LongHorizonStore(self.state_root(run_id), checkpoint_retention=100_000)
-
-    def state_available(self, run_id: str) -> bool:
-        return (self.state_root(run_id) / "long_horizon.db").is_file()
 
     def summary(self, run_id: str) -> dict[str, Any]:
         metadata = self.metadata(run_id)
@@ -291,11 +278,8 @@ class ManualRunRepository:
         project = self.execution_root(run_id) / 'project.sqlite3'
         if project.is_file():
             state = ProjectLedger(project.parent).state()
-            output['project'] = {key: state[key] for key in ('goal', 'plan', 'plan_version',
-                'current_step_id', 'active', 'pending', 'feedback', 'status', 'calls', 'elapsed',
-                'final', 'final_claim')}
-            from .project_step_progress import build_step_progress
-            output['project']['step_progress'] = build_step_progress(state)['steps']
+            output['project'] = {key: state[key] for key in ('goal', 'work_orders', 'current_order',
+                'pending', 'status', 'calls', 'elapsed', 'final', 'final_claim')}
             progress_path = project.parent / 'PROGRESS.jsonl'
             progress = []
             if progress_path.is_file():
@@ -305,38 +289,11 @@ class ManualRunRepository:
                         break  # The writer has not completed this projection row yet.
                     progress.append(json.loads(line))
             output['project']['progress'] = progress
-            output['project']['work_items'] = work_items(state)
             output['project']['actions'] = [{'action_id': key, 'operation': value['intent']['name'],
                 'arguments': value['intent']['arguments'], 'result': value['result'],
-                'step_id': value['intent']['step_id'],
+                'work_order_id': value['intent']['step_id'],
                 'status': 'succeeded' if value['result'].get('success') else 'failed'}
                 for key, value in state['evidence'].items() if value['kind'] == 'tool']
-        if self.state_available(run_id):
-            try:
-                state = self.store(run_id).load(run_id)
-            except StateRecoveryError as exc:
-                output["state_error"] = f"{type(exc).__name__}: {exc}"
-            else:
-                activity = project_run_activity(state)
-                output["state"] = {
-                    "run_id": state.run_id,
-                    "revision": state.revision,
-                    "status": state.status.value,
-                    "request": state.goal.request,
-                    "goal_digest": state.goal.digest,
-                    "actions": activity["actions"],
-                    "direct_action_count": len(activity["direct_actions"]),
-                    "atom_action_count": len(activity["atom_actions"]),
-                    "artifact_count": len(state.artifacts),
-                    "causal_record_count": len(state.causal_order),
-                    "model_request_count": activity["rwkv_model_requests"],
-                    "direct_model_request_count": activity[
-                        "direct_model_requests"
-                    ],
-                    "atom_model_request_count": activity["atom_model_requests"],
-                    "errors": state.errors[-8:],
-                    "final_output": state.final_output,
-                }
         result = read_json(self.run_root(run_id) / "result.json")
         if isinstance(result, dict):
             output["result"] = result
@@ -347,9 +304,7 @@ class ManualRunRepository:
         project = self.execution_root(run_id) / 'project.sqlite3'
         if project.is_file():
             return {'run_id': run_id, 'state': ProjectLedger(project.parent).state()}
-        if not self.state_available(run_id):
-            return {"run_id": run_id, "state": None}
-        return {"run_id": run_id, "state": self.store(run_id).load(run_id).to_dict()}
+        return {"run_id": run_id, "state": None}
 
     def events(self, run_id: str, *, after: int = 0, limit: int = 500) -> dict[str, Any]:
         metadata = self.metadata(run_id)
@@ -360,15 +315,7 @@ class ManualRunRepository:
                     (after, max(1, min(limit, 2000)))).fetchall()
             return {'events': [{'event_id': row[0], 'kind': row[1], 'digest': row[2]} for row in rows],
                     'last_event_id': rows[-1][0] if rows else after}
-        if not self.state_available(run_id):
-            return {"events": [], "last_event_id": after}
-        records = [
-            item for item in self.store(run_id).event_records(run_id) if int(item["event_id"]) > after
-        ][: max(1, min(limit, 2_000))]
-        return {
-            "events": records,
-            "last_event_id": int(records[-1]["event_id"]) if records else after,
-        }
+        return {"events": [], "last_event_id": after}
 
     def trace(self, run_id: str, *, after: int = 0, limit: int = 300) -> dict[str, Any]:
         self.metadata(run_id)
@@ -435,34 +382,16 @@ class ManualRunRepository:
                     archive.writestr(f'{run_id}/{project.relative_to(run_root).as_posix()}', snapshot.serialize())
                     from .project_record_store import RecordStore
                     reference = json.loads(snapshot.execute('SELECT body FROM current WHERE id=1').fetchone()[0])
-                    state = RecordStore(snapshot).read(reference)
+                    records = RecordStore(snapshot)
+                    state = records.read(reference)
                     archive.writestr(f'{run_id}/state-export.json',
                         json.dumps(state, ensure_ascii=False, indent=2) + '\n')
-            database = self.state_root(run_id) / "long_horizon.db"
-            if database.is_file():
-                source = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
-                snapshot = sqlite3.connect(":memory:")
-                try:
-                    source.backup(snapshot)
-                    archive.writestr(
-                        f"{run_id}/{database.relative_to(run_root).as_posix()}",
-                        snapshot.serialize(),
-                    )
-                    state = self.store(run_id).load(run_id)
-                    archive.writestr(
-                        f"{run_id}/state-export.json",
-                        json.dumps(state.to_dict(), ensure_ascii=False, indent=2) + "\n",
-                    )
-                    archive.writestr(
-                        f"{run_id}/events-export.json",
-                        json.dumps(self.store(run_id).event_records(run_id), ensure_ascii=False, indent=2)
-                        + "\n",
-                    )
-                except StateRecoveryError:
-                    pass
-                finally:
-                    snapshot.close()
-                    source.close()
+                    events = [{'event_id': seq, 'kind': kind, 'digest': checksum,
+                               'state': records.read(json.loads(body))}
+                              for seq, kind, body, checksum in snapshot.execute(
+                                  'SELECT seq,kind,body,digest FROM events ORDER BY seq')]
+                    archive.writestr(f'{run_id}/events-export.json',
+                        json.dumps(events, ensure_ascii=False, indent=2) + '\n')
         return buffer.getvalue()
 
 
@@ -488,8 +417,8 @@ class ManualRunManager:
                     or self._managed_pid_alive(run_id, metadata.get("pid"))):
                 raise RuntimeError("run is already active")
             request = self.repository.request_document(run_id)
-            if resume and request.get('runtime') != ARCHITECTURE:
-                raise ValueError('historical/read-only runtime resume is not supported')
+            if request.get('runtime') != ARCHITECTURE or request.get('tool_scope') != 'coding':
+                raise ValueError('historical runtime execution is not supported; create a new Project task')
             update_metadata(
                 run_root,
                 active=True,
@@ -663,7 +592,7 @@ class WebHandler(BaseHTTPRequestHandler):
                             "backend_profile": settings.backend_profile,
                             "max_model_len": settings.max_model_len,
                         },
-                        "can": ["读取指定文件回答问题", "只读搜索与指定测试", "隔离副本中的代码修改（实验性）", "下载真实输入输出、工具结果与 State 审计包"],
+                        "can": ["计划模型循环派发工单", "RWKV 在隔离副本中自主读写、搜索与测试", "查看宿主事实报告", "下载真实输入输出、工具结果与 State 审计包"],
                         "cannot": ["计划内检查通过不代表外部验收通过", "新架构尚未完成真实模型能力验收", "结果不确定的操作不能自动重放"],
                         "latest_formal": None,
                         "latest_diagnostic": None,
@@ -687,7 +616,7 @@ class WebHandler(BaseHTTPRequestHandler):
                     client.close()
                 self.send_json({"runtime": ARCHITECTURE, "executor": executor,
                                 "harness": {"available": True, "scope": "isolated workspace"},
-                                "strong_assistance": "initial planning, replanning and requested diagnosis; connectivity not probed"})
+                                "planner": {"role": "work_order_loop", "connectivity": "not_probed"}})
                 return
             if path == "/api/runs":
                 rows = []

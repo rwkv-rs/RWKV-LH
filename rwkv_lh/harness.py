@@ -303,9 +303,7 @@ WORKSPACE_BYPRODUCT_DIRECTORIES = frozenset(
 )
 
 
-# Background job control is implemented and tested, but it is not offered to
-# the role prompts by default. The work-order loop enables it explicitly; the
-# legacy Selector menu is frozen and is being removed rather than widened.
+# Background process observation and termination are shared native primitives.
 BACKGROUND_JOB_ACTIONS = ("read_job_output", "kill_job")
 BACKGROUND_JOB_DEFINITIONS = {
 "read_job_output": ActionDefinition(
@@ -385,6 +383,7 @@ class ActionHarness:
     }
 
     _definitions = {
+        **BACKGROUND_JOB_DEFINITIONS,
         "write_file": ActionDefinition(
             "write_file", (
                 "Create or atomically replace the entire UTF-8 file with content, creating missing parents. "
@@ -881,6 +880,8 @@ class ActionHarness:
             "bind_evidence": self._bind_evidence,
             "check_command": self._check_command,
             "run_shell": self._run_shell,
+            "read_job_output": self._read_job_output,
+            "kill_job": self._kill_job,
             "noop": self._noop,
         }
         self._recovery_handlers: dict[

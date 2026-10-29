@@ -1,5 +1,6 @@
 """Auditable output grammar contract; execution schemas remain authoritative."""
 from copy import deepcopy
+import hashlib
 from typing import Any, Mapping
 
 from .native_request_protocol import native_result_digest
@@ -7,6 +8,7 @@ from .native_request_protocol import native_result_digest
 DECODER_PROTOCOL = 'rwkv-lh.structured-output.v2'
 DECODER_BACKEND = 'guidance'
 STATE_OUTPUT_POLICY = 'exclude_terminal_eos'
+TRANSCRIPT_GRAMMAR_PROTOCOL = 'rwkv-lh.transcript-guidance.v1'
 
 
 def _generation_schema(schema, path='$', deferred=None):
@@ -51,17 +53,54 @@ def build_decoder_contract(schema: Mapping[str, Any]) -> dict[str, Any]:
     return value
 
 
+def build_transcript_decoder_contract(native_tools: list[dict[str, Any]]) -> dict[str, Any]:
+    """Bind the native catalog to its exact transcript grammar and key order.
+
+    This is a distinct, explicitly versioned grammar branch of the decoder
+    transport. The existing JSON-schema contract and its projection are unchanged.
+    The receiver derives the grammar again; a caller-supplied arbitrary grammar
+    cannot be authorized merely by replacing its digest.
+    """
+    from rwkv_lh.transcript.grammar import build_grammar
+    from rwkv_lh.transcript.render import PROTOCOL
+    from rwkv_lh.transcript.tools import TOOL_PROTOCOL
+
+    if not isinstance(native_tools, list) or not native_tools:
+        raise ValueError('transcript decoder requires a nonempty native tool catalog')
+    original = deepcopy(native_tools)
+    grammar = build_grammar(original)
+    value = {'protocol': DECODER_PROTOCOL, 'backend': DECODER_BACKEND,
+             'state_output_policy': STATE_OUTPUT_POLICY,
+             'grammar_protocol': TRANSCRIPT_GRAMMAR_PROTOCOL,
+             'transcript_protocol': PROTOCOL, 'tool_protocol': TOOL_PROTOCOL,
+             'native_tools': original,
+             'native_tools_sha256': native_result_digest({'tools': original}),
+             'grammar': grammar,
+             'grammar_sha256': hashlib.sha256(grammar.encode('utf-8')).hexdigest()}
+    value['contract_sha256'] = native_result_digest(value)
+    return value
+
+
 def validate_decoder_contract(value: Mapping[str, Any]) -> None:
     if not isinstance(value, dict) or value.get('protocol') != DECODER_PROTOCOL:
         raise ValueError('unsupported decoder contract')
-    if value != build_decoder_contract(value.get('original_schema')):
+    if 'grammar_protocol' in value:
+        if value['grammar_protocol'] != TRANSCRIPT_GRAMMAR_PROTOCOL:
+            raise ValueError('unsupported decoder grammar protocol')
+        expected = build_transcript_decoder_contract(value.get('native_tools'))
+    else:
+        expected = build_decoder_contract(value.get('original_schema'))
+    if value != expected:
         raise ValueError('decoder contract identity or projection mismatch')
 
 
 def decoder_receipt(value: Mapping[str, Any]) -> dict[str, Any]:
     validate_decoder_contract(value)
-    return {key: value[key] for key in ('protocol', 'backend', 'state_output_policy', 'contract_sha256',
-                                       'original_schema_sha256', 'generation_schema_sha256')}
+    identities = (('grammar_protocol', 'transcript_protocol', 'tool_protocol',
+                   'native_tools_sha256', 'grammar_sha256') if 'grammar_protocol' in value
+                  else ('original_schema_sha256', 'generation_schema_sha256'))
+    return {key: value[key] for key in ('protocol', 'backend', 'state_output_policy',
+                                       'contract_sha256', *identities)}
 
 
 def state_output_token_ids(token_ids, finish_reason, decoder):

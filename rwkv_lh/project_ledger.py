@@ -3,16 +3,19 @@ from contextlib import contextmanager, closing
 from copy import deepcopy
 import fcntl
 import json
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 import sqlite3
 from uuid import uuid4
 
-from .project_contracts import digest, make_assignment, validate_plan, text, strings, make_goal, validate_goal, work_map
+from .project_contracts import digest, make_assignment, text, strings, make_goal, validate_goal
+from .project_work_orders import validate_order, validate_report
+from .transcript.render import user_message, compact
+from .transcript.parse import validate_messages
 from .workspace_snapshot import tree_identity
 from .project_record_store import RecordStore
 from .project_materials import capture_materials, validate_initial_context
 
-PROTOCOL = 'rwkv-lh.coder.ledger.v1'
+PROTOCOL = 'rwkv-lh.coder.ledger.v2'
 
 
 class UncertainOperation(RuntimeError):
@@ -33,13 +36,26 @@ class ProjectLedger:
         validate_initial_context(state['request'], state['initial_context'])
         if state['goal']['request'] != state['request'] or state['goal']['protected_paths'] != state['protected_paths']:
             raise ValueError('original goal differs from owner authority')
-        if state['plan'] is not None:
-            validate_plan(state['plan'])
-            if state['active']['materials_digest'] != digest(state['initial_context']['materials']):
-                raise ValueError('initial materials differ from project assignment')
+        assignment = state['active']
+        expected = make_assignment(state['goal'], assignment_id=assignment['id'],
+            workspace_digest=assignment['workspace_digest'], materials_digest=digest(state['initial_context']['materials']))
+        if assignment != expected:
+            raise ValueError('unsupported or inconsistent persistent project assignment')
+        issued = []
+        for item in state['work_orders']:
+            validate_order(item['order'], issued_ids=issued)
+            issued.append(item['order']['id'])
+            if item['report'] is not None:
+                validate_report(item['report'])
+        if state['current_order'] is not None:
+            validate_order(state['current_order'])
+            if not state['work_orders'] or state['work_orders'][-1]['order'] != state['current_order']:
+                raise ValueError('current order differs from the issued history')
+        validate_messages(state['transcript'])
 
     @classmethod
-    def create(cls, root, *, request, workspace, max_calls, max_seconds, protected_paths=(), original_context=None):
+    def create(cls, root, *, request, workspace, max_calls, max_seconds, protected_paths=(), original_context=None,
+               no_progress_limit=3, rejection_limit=3):
         """Capture a new project, or preserve a verified source's task context.
 
         Offline corrections supply the original context from their verified
@@ -58,6 +74,9 @@ class ProjectLedger:
         if (type(max_calls) is not int or max_calls < 1 or type(max_seconds) not in (int, float)
                 or not math.isfinite(max_seconds) or max_seconds <= 0):
             raise ValueError('positive finite budgets required')
+        for limit in (no_progress_limit, rejection_limit):
+            if type(limit) is not int or limit < 1:
+                raise ValueError('positive integer stopping limits required')
         initial_digest = digest(tree_identity(workspace))
         if original_context is None:
             initial_workspace, materials = capture_materials(workspace, request, expected_digest=initial_digest)
@@ -66,14 +85,20 @@ class ProjectLedger:
             initial_context = deepcopy(validate_initial_context(request, original_context))
         root.mkdir(parents=True, exist_ok=False)
         state = {'protocol': PROTOCOL, 'request': text(request), 'workspace': str(workspace),
-            'workspace_digest': initial_digest, 'plan': None, 'plan_version': 0,
+            'workspace_digest': initial_digest,
             'initial_context': initial_context,
-            'goal': make_goal(request, protected_paths), 'active': None, 'current_step_id': None,
+            'goal': make_goal(request, protected_paths),
+            'active': make_assignment(make_goal(request, protected_paths), assignment_id='W-' + uuid4().hex,
+                workspace_digest=initial_digest, materials_digest=digest(initial_context['materials'])),
+            'current_step_id': None,
+            'work_orders': [], 'current_order': None, 'transcript': [], 'order_calls': 0,
+            'consecutive_rejections': 0, 'consecutive_no_progress': 0,
+            'no_progress_limit': no_progress_limit, 'rejection_limit': rejection_limit,
             'pending': None, 'evidence': {}, 'feedback': None, 'sessions': {},
-            'calls': 0, 'elapsed': 0.0, 'max_calls': max_calls, 'max_seconds': max_seconds,
+            'calls': 0, 'role_calls': {'planner': 0, 'executor': 0}, 'elapsed': 0.0, 'max_calls': max_calls, 'max_seconds': max_seconds,
             'status': 'running', 'final': None, 'final_claim': None,
             'role_rejections': {}, 'protected_paths': list(protected_paths),
-            'selected_evidence': {}, 'input_delivery': {}, 'inbox': None}
+            'inbox': None}
         with closing(sqlite3.connect(root / 'project.sqlite3')) as connection, connection:
             connection.execute('PRAGMA journal_mode=WAL')
             connection.execute('CREATE TABLE current (id INTEGER PRIMARY KEY CHECK(id=1), body TEXT NOT NULL)')
@@ -200,66 +225,69 @@ class ProjectLedger:
         current = self.workspace_digest()
         return self.update('workspace_observed', lambda s: self.invalidate(s, current))
 
-    def install_plan(self, plan):
-        plan = validate_plan(plan)
+    def issue_work_order(self, order):
         def change(state):
-            if state['plan'] is not None or state['active']:
-                raise ValueError('initial plan is already installed; no online replanning')
-            if {PurePosixPath(p) for p in state['protected_paths']} - {PurePosixPath(p) for p in plan['protected_paths']}:
-                raise ValueError('plan must preserve owner protected paths')
-            state['plan'] = plan
-            state['plan_version'] = 1
-            state['active'] = make_assignment(state['goal'], assignment_id='W-' + uuid4().hex,
-                plan_version=1, workspace_digest=state['workspace_digest'],
-                materials_digest=digest(state['initial_context']['materials']))
-            state['feedback'] = {'kind': 'plan_installed', 'authority': 'unreviewed_planner_plan'}
-            state['inbox'] = None
-        return self.update('plan_installed', change)
+            if state['current_order'] is not None or state['pending']:
+                raise ValueError('work order requires a confirmed handoff boundary')
+            accepted = validate_order(order, issued_ids=[x['order']['id'] for x in state['work_orders']],
+                total_remaining_calls=state['max_calls'] - state['calls'])
+            state['work_orders'].append({'order': accepted, 'report': None, 'receipt_ids': []})
+            state.update(current_order=accepted, current_step_id=accepted['id'], order_calls=0,
+                consecutive_rejections=0, inbox=None, feedback={'kind': 'work_order_issued', 'work_order_id': accepted['id']})
+            state['transcript'].append(user_message(compact(accepted)))
+        return self.update('work_order_issued', change)
 
     def begin_tool_operation(self, payload):
-        """Persist the model's chosen step with its tool intent, never in a prior update."""
+        """Persist the next prevalidated batch call before any effect can occur."""
         identifier = 'OP-' + uuid4().hex
         def change(state):
             if state['pending']:
                 raise UncertainOperation(state['pending']['id'])
             inbox = state['inbox']
-            if (not inbox or inbox['role'] != 'executor'
-                    or payload['source_operation_id'] != inbox['operation_id']
+            if not inbox or inbox['role'] != 'executor' or not inbox.get('batch'):
+                raise ValueError('tool intent requires a prevalidated assistant batch')
+            selected = inbox['batch'][inbox['cursor']]
+            if (payload['source_operation_id'] != inbox['operation_id']
                     or payload['assignment_id'] != inbox['lane']
-                    or inbox['command']['function'] != 'execute_tool'
-                    or payload['name'] != inbox['command']['params']['tool']
-                    or payload['step_id'] != inbox['command']['params']['step_id']
-                    or payload['requested_arguments'] != inbox['command']['params']['arguments']):
+                    or payload['name'] != selected['name']
+                    or payload['requested_arguments'] != selected['arguments']
+                    or payload['tool_call_id'] != selected['id']
+                    or payload['step_id'] != state['current_order']['id']):
                 raise ValueError('tool intent differs from the model-selected operation')
-            task_id = payload['step_id']
-            if task_id not in work_map(state):
-                raise ValueError('unknown tool step_id')
-            state['current_step_id'] = task_id
             state['pending'] = {'id': identifier, 'kind': 'tool', 'payload': deepcopy(payload),
                                 'workspace_digest': state['workspace_digest']}
         self.update('operation_started', change)
         return identifier
 
-    @staticmethod
-    def _claim(state, summary, evidence_ids):
-        from .project_evidence import executor_evidence_ids
-        text(summary); strings(evidence_ids)
-        if set(evidence_ids) - executor_evidence_ids(state):
-            raise ValueError('unknown or unauthorized report evidence')
-        return {'summary': summary, 'receipt_ids': list(evidence_ids),
-            'authority': 'executor_claim', 'source_operation_id': state['inbox']['operation_id'],
-            'workspace_digest': state['workspace_digest']}
-
-    def finish_work(self, outcome, summary, receipt_ids):
-        if outcome not in ('finished', 'blocked'):
-            raise ValueError('unknown final claim')
+    def return_work_order(self, report, *, reason, declaration_receipt=None):
         def change(state):
-            if state['pending'] or not state['active']:
-                raise ValueError('finish requires a confirmed execution boundary')
-            claim = {**self._claim(state, summary, receipt_ids), 'outcome': outcome}
+            if state['pending'] or state['current_order'] is None:
+                raise ValueError('handoff requires a confirmed execution boundary')
+            accepted = validate_report(report)
+            if accepted['work_order_id'] != state['current_order']['id']:
+                raise ValueError('report belongs to a different work order')
+            state['work_orders'][-1]['report'] = accepted
+            state['work_orders'][-1]['termination_reason'] = reason
+            state['consecutive_no_progress'] = (0 if accepted['committed_paths'] else state['consecutive_no_progress'] + 1)
+            if declaration_receipt is not None:
+                state['transcript'].append(deepcopy(declaration_receipt))
+            state['transcript'].append(user_message(compact(accepted)))
+            state.update(current_order=None, current_step_id=None, inbox=None,
+                feedback={'kind': 'work_order_returned', 'work_order_id': accepted['work_order_id'], 'reason': reason})
+        return self.update('work_order_returned', change)
+
+    def finish_project(self, outcome, summary):
+        if outcome not in ('finished', 'blocked'):
+            raise ValueError('unknown project declaration')
+        text(summary)
+        def change(state):
+            if state['pending'] or state['current_order'] is not None:
+                raise ValueError('project finish requires a confirmed handoff boundary')
+            claim = {'outcome': outcome, 'summary': summary, 'authority': 'planner_claim',
+                'source_operation_id': state['inbox']['operation_id'], 'workspace_digest': state['workspace_digest']}
             state.update(status=outcome, final=summary, final_claim=claim, inbox=None,
-                         feedback={'kind': 'executor_finished', 'claim': claim})
-        return self.update('executor_finished', change)
+                stop_reason='planner_finished', feedback={'kind': 'planner_finished', 'claim': claim})
+        return self.update('planner_finished', change)
 
     def begin_operation(self, kind, payload):
         identifier = 'OP-' + uuid4().hex
@@ -271,7 +299,7 @@ class ProjectLedger:
         self.update('operation_started', change)
         return identifier
 
-    def finish_operation(self, identifier, result, *, mutate=None, raw_result=None):
+    def finish_operation(self, identifier, result, *, mutate=None):
         def change(state):
             if not state['pending'] or state['pending']['id'] != identifier:
                 raise ValueError('operation receipt does not match intent')
@@ -279,9 +307,6 @@ class ProjectLedger:
                 'intent': state['pending']['payload'], 'result': deepcopy(result)}
             if mutate:
                 mutate(state)
-            if state['pending']['kind'] != 'model':
-                from .project_evidence import publish_executor_receipt
-                publish_executor_receipt(state, identifier, raw_result=raw_result)
             state['pending'] = None
         return self.update('operation_returned', change)
 

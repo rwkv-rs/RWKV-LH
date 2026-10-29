@@ -17,20 +17,17 @@ LOCK = json.loads(Path(__file__).with_name('irwkv.lock.json').read_text())
 def launch_configuration(registration, output):
     if registration.get('schema_version') != SCHEMA:
         raise ValueError('current irwkv deployment registration is required')
+    if registration.get('protocol') != 'executor':
+        raise ValueError('current Executor protocol is required; retired protocols cannot be deployed')
     device = gpu_uuid(registration['gpu_index'])
     if registration['gpu_uuid'] != device:
         raise ValueError('registered GPU identity differs')
-    mode = registration['protocol']
-    if mode not in ('executor', 'ccview'):
-        raise ValueError('unknown Executor protocol')
     context, port = registration['context_tokens'], registration['port']
     memory = registration['gpu_memory_utilization']
     if (type(context) is not int or context <= 0 or type(port) is not int or not 0 < port < 65536
             or type(memory) not in (int, float) or not 0 < memory < 1):
         raise ValueError('invalid context, port or explicit GPU memory fraction')
     plugins = ['rwkv_lh_state_worker', 'rwkv_lh_native']
-    if mode == 'ccview':
-        plugins = ['rwkv_lh_state_worker', 'rwkv_lh_ccview_decoder', 'rwkv_lh_ccview']
     output = Path(output).absolute()
     env = dict(CUDA_VISIBLE_DEVICES=device, IRWKV_PLUGINS=','.join(plugins),
         IRWKV_USE_V2_MODEL_RUNNER='1', IRWKV_USE_RUST_FRONTEND='0',

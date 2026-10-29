@@ -19,11 +19,13 @@ def role_boundaries(root, *, read_only=True):
                 initial = state['initial_context']
                 payload = planner.build_input(state['request'],
                     protected_paths=state['protected_paths'], workspace=initial['workspace'], materials=initial['materials'],
-                    remaining=source['remaining'], execution_capabilities=source['execution_capabilities'])
-                if digest(source['workspace']) != state['workspace_digest']:
-                    raise ValueError('planner workspace digest mismatch')
+                    remaining=source['remaining'], execution_capabilities=source['execution_capabilities'],
+                    work_orders=state['work_orders'])
+                if source['workspace'] != initial['workspace']:
+                    raise ValueError('planner initial workspace identity mismatch')
             elif role == 'executor':
-                payload = executor.build_input(state['active'], project_state=state, remaining=source['remaining'])
+                payload = executor.build_input(state['active'], project_state=state, remaining=source['remaining'],
+                    native_tools=source['native_tools'])
             else:
                 raise ValueError('unknown project role')
             if payload != source or digest(payload) != intent['input_digest']:

@@ -209,6 +209,9 @@ class JobTable:
 
     def read(self, job, *, max_bytes=65536):
         """Return output appended since the previous read of this job."""
+        from .harness import UncertainToolOutcome
+        if job.identity_matches() is not True:
+            raise UncertainToolOutcome('background job identity could not be verified')
         self.poll(job)
         chunks = {}
         for name, path in (('stdout', job.stdout_path), ('stderr', job.stderr_path)):
@@ -220,7 +223,7 @@ class JobTable:
         total = os.path.getsize(job.stdout_path) + os.path.getsize(job.stderr_path)
         consumed = job.cursors['stdout'] + job.cursors['stderr']
         return {'stdout': chunks['stdout'], 'stderr': chunks['stderr'],
-                'running': job.exit_code is None, 'exit_code': job.exit_code,
+                'running': not self._gone(job), 'exit_code': job.exit_code,
                 'unread_bytes': max(0, total - consumed)}
 
     def _gone(self, job):
@@ -238,7 +241,21 @@ class JobTable:
                 return True
             except PermissionError:
                 return False
-        return job.exit_code is not None
+        if job.exit_code is None:
+            return False
+        # A shell may exit while children still hold its workspace or log
+        # pipes. For an unsandboxed job, inspect the whole process group.
+        for entry in Path('/proc').iterdir():
+            if not entry.name.isdecimal():
+                continue
+            try:
+                raw = (entry / 'stat').read_bytes()
+                fields = raw[raw.rfind(b')') + 1:].split()
+                if int(fields[2]) == job.pid and fields[0] != b'Z':
+                    return False
+            except (FileNotFoundError, ProcessLookupError):
+                continue
+        return True
 
     @staticmethod
     def _signal(job, number):
@@ -267,8 +284,7 @@ class JobTable:
         from .harness import UncertainToolOutcome
         already = self.poll(job) is not None
         matched = job.identity_matches()
-        if matched is False:
-            self.jobs.pop(job.handle, None)
+        if matched is not True:
             return {'handle': job.handle, 'already_exited': already,
                     'exit_code': job.exit_code, 'identity_verified': False,
                     'outcome': 'unknown_process_identity'}
@@ -300,6 +316,8 @@ class JobTable:
                     'background job cleanup did not finish; preserve pending operation') from exc
         for reader in job.readers:
             reader.join(timeout=grace)
+            if reader.is_alive():
+                raise UncertainToolOutcome('background log pipe remains open; preserve private workspace')
         self.jobs.pop(job.handle, None)
         return {'handle': job.handle, 'already_exited': already, 'exit_code': job.exit_code,
                 'identity_verified': matched is not False, 'outcome': 'stopped'}

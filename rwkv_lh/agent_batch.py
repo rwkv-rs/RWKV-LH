@@ -1,28 +1,25 @@
-"""Schedule current Project and independent read-only jobs in separate processes."""
+"""Schedule current Project jobs in separate processes."""
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprocessing import get_context
 from pathlib import Path
 import math
-from .job_budget import unresolved_assistance
+import json
 
 
 def _execute(job, settings):
     from .agent_jobs import CodingJob
-    from .read_only_agent import ReadOnlyJob, run_read_only_job
     if type(job) is CodingJob:
         from .project_agent import run_project_job
         return run_project_job(job, settings=settings)
-    if type(job) is ReadOnlyJob:
-        return run_read_only_job(job, settings=settings)
-    raise ValueError('unsupported Agent job')
+    raise ValueError('only current Project coding jobs are supported')
 
 
 def _save_failure(job, result):
-    from .read_only_agent import _save
     try:
         output = Path(job.output_dir)
         output.mkdir(parents=True, exist_ok=True)
-        _save(output / 'BATCH_ERROR.json', result)
+        (output / 'BATCH_ERROR.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n',
+                                                encoding='utf-8')
     except Exception as exc:
         result['report_persistence_error'] = {'type': type(exc).__name__, 'message': str(exc)}
     return result
@@ -36,7 +33,7 @@ def _worker(arguments):
         return _save_failure(job, {'id': job.task_id, 'final': None, 'termination': 'error',
                 'termination_reason': 'job_dispatch_failed', 'acceptance': 'unreviewable',
                 'generation_started': None, 'trace_complete': False,
-                'assistance': unresolved_assistance(job),
+                'completed': False, 'model_finished': False,
                 'error': {'type': type(exc).__name__, 'message': str(exc)},
                 'output_dir': str(job.output_dir)})
 
@@ -48,17 +45,15 @@ def _overlap(a, b):
 def validate_agent_jobs(jobs, *, concurrency=1):
     """Preflight all jobs, then execute whole tasks in separate processes.
 
-    Coding jobs copy their source; read-only jobs do not mutate their source.
-    Shared input snapshots are allowed. Outputs cannot overlap any input or
+    Project jobs copy their source. Shared input snapshots are allowed. Outputs cannot overlap any input or
     other output. No result is automatically merged or marked accepted.
     """
     from .agent_jobs import CodingJob
-    from .read_only_agent import ReadOnlyJob
     jobs = list(jobs)
     if type(concurrency) is not int or concurrency < 1:
         raise ValueError('positive integer concurrency required')
-    if not all(type(job) in (CodingJob, ReadOnlyJob) for job in jobs):
-        raise ValueError('unsupported Agent job')
+    if not all(type(job) is CodingJob for job in jobs):
+        raise ValueError('only current Project coding jobs are supported')
     if len({job.task_id for job in jobs}) != len(jobs):
         raise ValueError('duplicate task IDs')
     sources = []
@@ -69,12 +64,7 @@ def validate_agent_jobs(jobs, *, concurrency=1):
                 or type(job.max_seconds) not in (int, float)
                 or not math.isfinite(job.max_seconds) or job.max_seconds <= 0):
             raise ValueError('positive finite task budgets required')
-        if type(job) is ReadOnlyJob:
-            if job.tool_scope not in ('files', 'inspect'):
-                raise ValueError('unknown read-only tool scope')
-            source = Path(job.workspace).resolve()
-        else:
-            source = Path(job.source_workspace).resolve()
+        source = Path(job.source_workspace).resolve()
         if not source.is_dir():
             raise ValueError('source workspace must be an existing directory')
         sources.append(source)
@@ -99,7 +89,7 @@ def run_agent_jobs(jobs, *, settings, concurrency=1):
         results[index] = _save_failure(job, {'id': job.task_id, 'final': None, 'termination': 'error',
             'termination_reason': 'worker_process_lost', 'acceptance': 'unreviewable',
             'generation_started': None, 'trace_complete': False,
-            'assistance': unresolved_assistance(job),
+            'completed': False, 'model_finished': False,
             'output_dir': str(job.output_dir),
             'error': {'type': type(exc).__name__, 'message': str(exc)}})
     try:

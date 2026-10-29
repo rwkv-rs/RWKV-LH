@@ -572,7 +572,9 @@ class RWKVNativeStateService:
             if pending_token_id is not None or stop:
                 raise ValueError('decoder requires generation with grammar-controlled termination')
             from irwkv.sampling_params import StructuredOutputsParams
-            structured = StructuredOutputsParams(json=decoder['generation_schema'])
+            structured = (StructuredOutputsParams(grammar=decoder['grammar'])
+                          if 'grammar_protocol' in decoder
+                          else StructuredOutputsParams(json=decoder['generation_schema']))
             structured._backend = DECODER_BACKEND
         await self._ensure_loaded(source)
         params = SamplingParams(

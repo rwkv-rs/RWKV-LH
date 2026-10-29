@@ -1,7 +1,7 @@
 """Versioned durable facts for the RWKV goal loop.
 
-Literal goals, model calls, Harness observations, artifact revisions, Strong
-plans and reviews are attributed causal facts. Recurrent model States are
+Literal goals, model calls, Harness observations and artifact revisions are
+attributed causal facts. Recurrent model States are
 derived caches and do not grant Harness execution authority.
 """
 
@@ -15,9 +15,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Mapping
 
-LEGACY_GOAL_SCHEMA_VERSION = "long-horizon.literal-request.v1"
 GOAL_SCHEMA_VERSION = "long-horizon.literal-request.v2"
-RUN_SCHEMA_VERSION = "long-horizon.run.v18"
+RUN_SCHEMA_VERSION = "long-horizon.run.v19"
 CAUSAL_EVENT_SCHEMA_VERSION = "rwkv-lh.causal-event.v2"
 
 CAUSAL_EVENT_PAYLOAD_SCHEMAS: dict[str, str] = {
@@ -32,74 +31,18 @@ CAUSAL_EVENT_PAYLOAD_SCHEMAS: dict[str, str] = {
     "state_saved": "rwkv-lh.state-saved.v1",
     "action_session_started": "rwkv-lh.action-session-started.v1",
     "action_session_rolled_over": "rwkv-lh.action-session-rollover.v1",
-    "selector_state_cache_rebuilt": "rwkv-lh.selector-state-cache-rebuilt.v1",
     "model_call_accepted": "rwkv-lh.model-decision.v1",
     "model_call_rejected": "rwkv-lh.model-decision.v1",
-    "tool_selection_accepted": "rwkv-lh.tool-selection.v1",
-    "tool_selection_rejected": "rwkv-lh.tool-selection.v1",
-    "tool_schema_disclosed": "rwkv-lh.tool-schema-disclosed.v1",
-    "exact_tool_selection_staged": "rwkv-lh.exact-tool-selection-staged.v1",
-    "exact_tool_selection_committed": "rwkv-lh.exact-tool-selection.v1",
-    "exact_tool_selection_consumed": "rwkv-lh.exact-tool-selection-consumed.v1",
-    "exact_tool_selection_discarded": "rwkv-lh.exact-tool-selection-discarded.v1",
-    "exact_tool_selection_rejected": "rwkv-lh.exact-tool-selection-rejected.v1",
     "protocol_rejection_recorded": "rwkv-lh.protocol-rejection.v1",
     "action_started": "rwkv-lh.action-started.v1",
     "action_finished": "rwkv-lh.action-finished.v1",
-    "idempotent_mutation_repeat_boundary": (
-        "rwkv-lh.idempotent-mutation-repeat-boundary.v1"
-    ),
+    "idempotent_mutation_repeat_boundary": "rwkv-lh.idempotent-mutation-repeat-boundary.v1",
     "action_observation_appended": "rwkv-lh.model-event-appended.v1",
-    "goal_plan_patch_committed": "rwkv-lh.goal-plan-patch-committed.v1",
-    "goal_role_input_boundary": "rwkv-lh.goal-role-input-boundary.v1",
-    "strong_planner_patch_rejected": "rwkv-lh.strong-planner-patch-rejected.v1",
-    "strong_planner_call_failed": "rwkv-lh.strong-planner-call-failed.v1",
-    "goal_stage_review_committed": "rwkv-lh.goal-stage-review-committed.v1",
-    "strong_stage_checker_call_failed": "rwkv-lh.strong-stage-checker-failed.v1",
-    "goal_auditor_session_started": "rwkv-lh.goal-auditor-session-started.v1",
-    "goal_finalizer_session_started": "rwkv-lh.goal-finalizer-session-started.v1",
-    "goal_audit_recorded": "rwkv-lh.goal-audit-recorded.v1",
-    "goal_audit_accepted": "rwkv-lh.goal-audit-accepted.v1",
-    "goal_audit_rejected": "rwkv-lh.goal-audit-rejected.v1",
-    "goal_step_evidence_gap_recorded": (
-        "rwkv-lh.goal-step-evidence-gap-recorded.v1"
-    ),
-    "goal_command_write_scope_violation": (
-        "rwkv-lh.goal-command-write-scope-violation.v1"
-    ),
-    "goal_final_rejected": "rwkv-lh.goal-final-rejected.v1",
-    "goal_action_plan_step_assigned": "rwkv-lh.goal-action-plan-step-assignment.v1",
-    "goal_action_plan_step_linked": "rwkv-lh.goal-action-plan-step-link.v1",
-    "goal_audit_boundary_opened": "rwkv-lh.goal-audit-boundary.v1",
-    "goal_audit_boundary_resolved": "rwkv-lh.goal-audit-boundary-resolution.v1",
-    "rwkv_contract_review_projected": "rwkv-lh.rwkv-contract-review-projection.v1",
     "stale_active_action_cleared": "rwkv-lh.action-recovery.v1",
     "idempotent_action_recovered": "rwkv-lh.action-recovery.v1",
     "committed_snapshot_action_recovered": "rwkv-lh.action-recovery.v1",
     "model_transport_failure": "rwkv-lh.model-transport-failure.v1",
-    "model_input_budget_exceeded": "rwkv-lh.model-input-budget-exceeded.v1",
-    "supervisor_plan_committed": "rwkv-lh.supervisor-plan-committed.v1",
-    "supervisor_directive_committed": "rwkv-lh.supervisor-directive-committed.v1",
-    "supervisor_stage_committed": "rwkv-lh.supervisor-stage-committed.v1",
-    "atom_attempt_started": "rwkv-lh.atom-attempt-started.v1",
-    "atom_outcome_committed": "rwkv-lh.atom-outcome-committed.v1",
-    "attempt_started": "rwkv-lh.atom-action-attempt.v1",
-    "action_returned": "rwkv-lh.atom-action-returned.v1",
-    "replan_applied": "rwkv-lh.parallel-replan-applied.v1",
-    "contract_graph_patch_committed": "rwkv-lh.contract-graph-patch-committed.v1",
-    "contract_graph_review_committed": "rwkv-lh.contract-graph-review-committed.v1",
-    "contract_final_presentation_review_committed": (
-        "rwkv-lh.contract-final-presentation-review-committed.v1"
-    ),
-    "contract_graph_batch_committed": "rwkv-lh.contract-graph-batch-committed.v1",
-    "contract_correction_signature_committed": "rwkv-lh.contract-correction-signature.v1",
-    "contract_correction_duplicate_blocked": "rwkv-lh.contract-correction-duplicate.v1",
-    "contract_graph_runtime_failed": "rwkv-lh.contract-graph-runtime-failed.v1",
-    "supervisor_review_recorded": "rwkv-lh.supervisor-review-recorded.v1",
-    "supervisor_call_failed": "rwkv-lh.supervisor-call-failed.v1",
-    "supervisor_call_pending": "rwkv-lh.supervisor-call-pending.v1",
-    "supervisor_call_resolved": "rwkv-lh.supervisor-call-resolved.v1",
-    "supervisor_configuration_missing": "rwkv-lh.supervisor-configuration-missing.v1",
+    "model_input_budget_exceeded": "rwkv-lh.model-input-budget-exceeded.v1"
 }
 
 
@@ -135,11 +78,6 @@ class RunStatus(str, Enum):
 
 class ModelLaneKind(str, Enum):
     ACTION = "action"
-    SELECTOR = "selector"
-    AUDIT = "audit"
-    FINALIZER = "finalizer"
-    STEP_AUDIT = "auditor_step"
-    FINAL_AUDIT = "auditor_final"
 
 
 class ModelCheckpointStatus(str, Enum):
@@ -148,12 +86,6 @@ class ModelCheckpointStatus(str, Enum):
     ROLLED_BACK = "rolled_back"
 
 
-class ToolSelectionStatus(str, Enum):
-    STAGED = "staged"
-    # Source compatibility for callers; new serialized records always say staged.
-    COMMITTED = "staged"
-    CONSUMED = "consumed"
-    DISCARDED = "discarded"
 
 
 @dataclass(frozen=True)
@@ -184,6 +116,8 @@ class GoalState:
         goal_id: str = "G1",
         runtime_policy: Mapping[str, Any] | None = None,
     ) -> "GoalState":
+        if set(runtime_policy or {}) & {"supervisor", "run_lifecycle", "atom_execution"}:
+            raise ValueError("retired role runtime policy is unsupported")
         request_text = str(request or "").strip()
         if not request_text:
             raise ValueError("request must be non-empty")
@@ -226,8 +160,7 @@ class GoalState:
             "workspace_root": self.workspace_root,
             "created_at": self.created_at,
         }
-        if self.schema_version != LEGACY_GOAL_SCHEMA_VERSION:
-            payload["runtime_policy"] = dict(self.runtime_policy)
+        payload["runtime_policy"] = dict(self.runtime_policy)
         return payload
 
     def verify_digest(self) -> bool:
@@ -253,11 +186,10 @@ class GoalState:
                 separators=(",", ":"),
             ),
         )
-        if literal.schema_version not in {
-            LEGACY_GOAL_SCHEMA_VERSION,
-            GOAL_SCHEMA_VERSION,
-        }:
+        if literal.schema_version != GOAL_SCHEMA_VERSION:
             raise ValueError(f"unsupported literal request schema: {literal.schema_version}")
+        if set(literal.runtime_policy) & {"supervisor", "run_lifecycle", "atom_execution"}:
+            raise ValueError("retired role runtime policy is unsupported")
         if not literal.request or not literal.verify_digest():
             raise ValueError("literal request digest mismatch")
         return literal
@@ -458,34 +390,17 @@ class DecisionRecord:
     transport: str
     accepted: bool
     error: str = ""
-    tool_selection_id: str = ""
-    selected_operation: str = ""
-    atom_execution_contract_digest: str = ""
-    tool_selection_binding_kind: str = ""
     created_at: str = field(default_factory=utc_now)
 
     def to_dict(self) -> dict[str, Any]:
         value = asdict(self)
         value["visible_event_ids"] = list(self.visible_event_ids)
-        # Keep historical decision projections byte-for-byte stable.  The exact
-        # Selector binding is a new, all-or-none extension used by independent
-        # Selector→Executor runs; legacy decisions have no such binding and must
-        # retain their original serialized shape so persisted snapshot digests
-        # remain recoverable without rewriting history.
-        if not (
-            self.tool_selection_id
-            or self.selected_operation
-            or self.atom_execution_contract_digest
-            or self.tool_selection_binding_kind
-        ):
-            value.pop("tool_selection_id")
-            value.pop("selected_operation")
-            value.pop("atom_execution_contract_digest")
-            value.pop("tool_selection_binding_kind")
         return value
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "DecisionRecord":
+        if set(value) - set(cls.__dataclass_fields__):
+            raise ValueError("unsupported decision fields")
         return cls(
             decision_id=str(value.get("decision_id") or ""),
             request_id=str(value.get("request_id") or ""),
@@ -502,206 +417,10 @@ class DecisionRecord:
             transport=str(value.get("transport") or "prompt_replay"),
             accepted=bool(value.get("accepted", False)),
             error=str(value.get("error") or ""),
-            tool_selection_id=str(value.get("tool_selection_id") or ""),
-            selected_operation=str(value.get("selected_operation") or ""),
-            atom_execution_contract_digest=str(
-                value.get("atom_execution_contract_digest") or ""
-            ),
-            tool_selection_binding_kind=str(
-                value.get("tool_selection_binding_kind") or ""
-            ),
             created_at=str(value.get("created_at") or utc_now()),
         )
 
 
-@dataclass(frozen=True)
-class ToolSelectionRecord:
-    """Non-authoritative Selector→Executor handoff with immutable bindings."""
-
-    selection_id: str
-    status: ToolSelectionStatus
-    selected_operation: str
-    selector_checkpoint_id: str
-    executor_parent_checkpoint_id: str
-    executor_parent_digest: str
-    input_projection_digest: str
-    menu_digest: str
-    tool_definition_digest: str
-    selector_model: str
-    selector_model_sha256: str
-    selector_decoder_id: str
-    selector_decoder_sha256: str
-    selector_decoder_protocol: str
-    selector_profile_id: str
-    selector_profile_sha256: str
-    executor_model: str
-    executor_model_sha256: str
-    executor_profile_id: str
-    executor_profile_sha256: str
-    raw_selection: dict[str, Any]
-    atom_execution_contract_digest: str = ""
-    authorizes_execution: bool = False
-    consumed_decision_id: str = ""
-    created_at: str = field(default_factory=utc_now)
-    consumed_at: str = ""
-    discarded_at: str = ""
-    discard_reason: str = ""
-
-    def __post_init__(self) -> None:
-        required = (
-            self.selection_id,
-            self.selected_operation,
-            self.selector_checkpoint_id,
-            self.executor_parent_checkpoint_id,
-            self.selector_model,
-            self.selector_decoder_id,
-            self.selector_decoder_protocol,
-            self.selector_profile_id,
-            self.executor_model,
-            self.executor_profile_id,
-        )
-        if any(not str(value).strip() for value in required):
-            raise ValueError("tool selection identity fields must be non-empty")
-        digests = {
-            "executor_parent_digest": self.executor_parent_digest,
-            "input_projection_digest": self.input_projection_digest,
-            "menu_digest": self.menu_digest,
-            "tool_definition_digest": self.tool_definition_digest,
-            "selector_model_sha256": self.selector_model_sha256,
-            "selector_decoder_sha256": self.selector_decoder_sha256,
-            "selector_profile_sha256": self.selector_profile_sha256,
-            "executor_model_sha256": self.executor_model_sha256,
-            "executor_profile_sha256": self.executor_profile_sha256,
-        }
-        if any(
-            len(value) != 64
-            or any(character not in "0123456789abcdef" for character in value)
-            for value in digests.values()
-        ):
-            raise ValueError("tool selection digest fields must be lowercase SHA-256")
-        contract_digest = self.atom_execution_contract_digest
-        if contract_digest and (
-            len(contract_digest) != 64
-            or any(
-                character not in "0123456789abcdef"
-                for character in contract_digest
-            )
-        ):
-            raise ValueError(
-                "atom_execution_contract_digest must be empty or lowercase SHA-256"
-            )
-        if not isinstance(self.raw_selection, Mapping):
-            raise TypeError("raw_selection must be an object")
-        if self.authorizes_execution is not False:
-            raise ValueError("tool selection handoff cannot authorize execution")
-        bindings = {
-            "selection_id": self.selection_id,
-            "selected_operation": self.selected_operation,
-            "selector_checkpoint_id": self.selector_checkpoint_id,
-            "input_digest": self.input_projection_digest,
-            "menu_digest": self.menu_digest,
-            "model": self.selector_model,
-            "model_sha256": self.selector_model_sha256,
-            "profile_id": self.selector_profile_id,
-            "profile_sha256": self.selector_profile_sha256,
-        }
-        if any(self.raw_selection.get(key) != value for key, value in bindings.items()):
-            raise ValueError("raw Selector output differs from handoff identity")
-        decoder_bindings = {
-            "decoder_id": self.selector_decoder_id,
-            "decoder_sha256": self.selector_decoder_sha256,
-            "decoder_protocol": self.selector_decoder_protocol,
-        }
-        if any(
-            self.raw_selection.get(key) != value
-            for key, value in decoder_bindings.items()
-        ):
-            raise ValueError(
-                "raw native Selector decoder differs from handoff identity"
-            )
-        if self.status is ToolSelectionStatus.STAGED:
-            if (
-                self.consumed_decision_id
-                or self.consumed_at
-                or self.discarded_at
-                or self.discard_reason
-            ):
-                raise ValueError("staged selection cannot carry terminal fields")
-        elif self.status is ToolSelectionStatus.CONSUMED:
-            if (
-                not self.consumed_decision_id
-                or not self.consumed_at
-                or self.discarded_at
-                or self.discard_reason
-            ):
-                raise ValueError(
-                    "consumed selection requires only decision identity and timestamp"
-                )
-        elif (
-            not self.discarded_at
-            or not self.discard_reason
-            or self.consumed_decision_id
-            or self.consumed_at
-        ):
-            raise ValueError(
-                "discarded selection requires only discard reason and timestamp"
-            )
-
-    def to_dict(self) -> dict[str, Any]:
-        value = asdict(self)
-        value["status"] = self.status.value
-        return value
-
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "ToolSelectionRecord":
-        return cls(
-            selection_id=str(value.get("selection_id") or ""),
-            status=ToolSelectionStatus(
-                "staged"
-                if str(value.get("status") or "") == "committed"
-                else str(value.get("status") or "")
-            ),
-            selected_operation=str(value.get("selected_operation") or ""),
-            selector_checkpoint_id=str(value.get("selector_checkpoint_id") or ""),
-            executor_parent_checkpoint_id=str(
-                value.get("executor_parent_checkpoint_id") or ""
-            ),
-            executor_parent_digest=str(value.get("executor_parent_digest") or ""),
-            input_projection_digest=str(
-                value.get("input_projection_digest") or ""
-            ),
-            menu_digest=str(value.get("menu_digest") or ""),
-            tool_definition_digest=str(value.get("tool_definition_digest") or ""),
-            selector_model=str(value.get("selector_model") or ""),
-            selector_model_sha256=str(value.get("selector_model_sha256") or ""),
-            selector_decoder_id=str(value.get("selector_decoder_id") or ""),
-            selector_decoder_sha256=str(
-                value.get("selector_decoder_sha256") or ""
-            ),
-            selector_decoder_protocol=str(
-                value.get("selector_decoder_protocol") or ""
-            ),
-            selector_profile_id=str(value.get("selector_profile_id") or ""),
-            selector_profile_sha256=str(
-                value.get("selector_profile_sha256") or ""
-            ),
-            executor_model=str(value.get("executor_model") or ""),
-            executor_model_sha256=str(value.get("executor_model_sha256") or ""),
-            executor_profile_id=str(value.get("executor_profile_id") or ""),
-            executor_profile_sha256=str(
-                value.get("executor_profile_sha256") or ""
-            ),
-            raw_selection=dict(value.get("raw_selection") or {}),
-            atom_execution_contract_digest=str(
-                value.get("atom_execution_contract_digest") or ""
-            ),
-            authorizes_execution=bool(value.get("authorizes_execution", False)),
-            consumed_decision_id=str(value.get("consumed_decision_id") or ""),
-            created_at=str(value.get("created_at") or utc_now()),
-            consumed_at=str(value.get("consumed_at") or ""),
-            discarded_at=str(value.get("discarded_at") or ""),
-            discard_reason=str(value.get("discard_reason") or ""),
-        )
 
 
 @dataclass(frozen=True)
@@ -767,7 +486,6 @@ class ActionRecord:
     observation_fingerprint: str = ""
     error: dict[str, Any] | None = None
     outcome_type: str = "pending"
-    atom_execution_contract_digest: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         value = asdict(self)
@@ -776,6 +494,8 @@ class ActionRecord:
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "ActionRecord":
+        if set(value) - set(cls.__dataclass_fields__):
+            raise ValueError("unsupported action fields")
         return cls(
             action_id=str(value.get("action_id") or ""),
             sequence=max(1, int(value.get("sequence", 1) or 1)),
@@ -797,9 +517,6 @@ class ActionRecord:
             observation_fingerprint=str(value.get("observation_fingerprint") or ""),
             error=dict(value["error"]) if isinstance(value.get("error"), Mapping) else None,
             outcome_type=str(value.get("outcome_type") or "pending"),
-            atom_execution_contract_digest=str(
-                value.get("atom_execution_contract_digest") or ""
-            ),
         )
 
 
@@ -1023,8 +740,6 @@ class RunState:
     lane_heads: dict[str, str] = field(default_factory=dict)
     model_events: dict[str, ModelEvent] = field(default_factory=dict)
     decisions: dict[str, DecisionRecord] = field(default_factory=dict)
-    tool_selections: dict[str, ToolSelectionRecord] = field(default_factory=dict)
-    pending_selection_id: str = ""
     rollovers: dict[str, ModelRolloverRecord] = field(default_factory=dict)
     temp_decisions: list[TempDecision] = field(default_factory=list)
     failure_budgets: dict[str, int] = field(default_factory=dict)
@@ -1037,21 +752,7 @@ class RunState:
     updated_at: str = field(default_factory=utc_now)
     schema_version: str = RUN_SCHEMA_VERSION
 
-    @property
-    def atom_execution_contract_digest(self) -> str:
-        execution = self.goal.runtime_policy.get("atom_execution")
-        if not isinstance(execution, Mapping):
-            return ""
-        contract = execution.get("contract")
-        if not isinstance(contract, Mapping):
-            return ""
-        return str(contract.get("contract_digest") or "")
 
-    def _validate_atom_execution_contract_digest(self, value: str) -> None:
-        if str(value or "") != self.atom_execution_contract_digest:
-            raise ValueError(
-                "runtime record atom execution contract differs from its Goal"
-            )
 
     def projection_payload(self) -> dict[str, Any]:
         payload = {
@@ -1075,22 +776,11 @@ class RunState:
             "final_decision_id": self.final_decision_id,
             "errors": list(self.errors),
         }
-        if self.tool_selections or self.pending_selection_id:
-            payload["tool_selections"] = {
-                key: value.to_dict() for key, value in self.tool_selections.items()
-            }
-            payload["pending_selection_id"] = self.pending_selection_id
         return payload
 
     def set_lane_head(self, role: str, checkpoint_id: str) -> None:
         normalized_role = str(role).strip().casefold()
-        if normalized_role not in {
-            "executor",
-            "auditor",
-            "auditor_step",
-            "finalizer_answer",
-            "auditor_final",
-        }:
+        if normalized_role != "executor":
             raise ValueError(f"unsupported model lane role: {role!r}")
         if checkpoint_id not in self.model_states:
             raise ValueError("model lane head must reference a stored checkpoint")
@@ -1100,95 +790,14 @@ class RunState:
 
     def lane_head(self, role: str) -> str:
         normalized_role = str(role).strip().casefold()
+        if normalized_role != "executor":
+            raise ValueError(f"unsupported model lane role: {role!r}")
         checkpoint_id = self.lane_heads.get(normalized_role, "")
         if not checkpoint_id and normalized_role == "executor":
             checkpoint_id = self.action_lane_checkpoint_id
         return checkpoint_id
 
-    def _consume_tool_selection(self, selection: ToolSelectionRecord) -> None:
-        if selection.status is not ToolSelectionStatus.CONSUMED:
-            raise ValueError("consumed tool selection must have consumed status")
-        self._validate_atom_execution_contract_digest(
-            selection.atom_execution_contract_digest
-        )
-        committed = self.tool_selections.get(selection.selection_id)
-        if committed is None or committed.status is not ToolSelectionStatus.STAGED:
-            raise ValueError("tool selection consumption has no staged parent")
-        if self.pending_selection_id != selection.selection_id:
-            raise ValueError("tool selection consumption is not the pending handoff")
-        immutable_fields = (
-            "selection_id",
-            "selected_operation",
-            "selector_checkpoint_id",
-            "executor_parent_checkpoint_id",
-            "executor_parent_digest",
-            "input_projection_digest",
-            "menu_digest",
-            "tool_definition_digest",
-            "selector_model",
-            "selector_model_sha256",
-            "selector_decoder_id",
-            "selector_decoder_sha256",
-            "selector_decoder_protocol",
-            "selector_profile_id",
-            "selector_profile_sha256",
-            "executor_model",
-            "executor_model_sha256",
-            "executor_profile_id",
-            "executor_profile_sha256",
-            "atom_execution_contract_digest",
-            "authorizes_execution",
-            "raw_selection",
-            "created_at",
-        )
-        if any(
-            getattr(committed, name) != getattr(selection, name)
-            for name in immutable_fields
-        ):
-            raise ValueError("tool selection consumption changed handoff identity")
-        self.tool_selections[selection.selection_id] = selection
-        self.pending_selection_id = ""
 
-    def _discard_tool_selection(self, selection: ToolSelectionRecord) -> None:
-        if selection.status is not ToolSelectionStatus.DISCARDED:
-            raise ValueError("discarded tool selection must have discarded status")
-        staged = self.tool_selections.get(selection.selection_id)
-        if staged is None or staged.status is not ToolSelectionStatus.STAGED:
-            raise ValueError("tool selection discard has no staged parent")
-        if self.pending_selection_id != selection.selection_id:
-            raise ValueError("tool selection discard is not the pending handoff")
-        immutable_fields = (
-            "selection_id",
-            "selected_operation",
-            "selector_checkpoint_id",
-            "executor_parent_checkpoint_id",
-            "executor_parent_digest",
-            "input_projection_digest",
-            "menu_digest",
-            "tool_definition_digest",
-            "selector_model",
-            "selector_model_sha256",
-            "selector_decoder_id",
-            "selector_decoder_sha256",
-            "selector_decoder_protocol",
-            "selector_profile_id",
-            "selector_profile_sha256",
-            "executor_model",
-            "executor_model_sha256",
-            "executor_profile_id",
-            "executor_profile_sha256",
-            "atom_execution_contract_digest",
-            "authorizes_execution",
-            "raw_selection",
-            "created_at",
-        )
-        if any(
-            getattr(staged, name) != getattr(selection, name)
-            for name in immutable_fields
-        ):
-            raise ValueError("tool selection discard changed handoff identity")
-        self.tool_selections[selection.selection_id] = selection
-        self.pending_selection_id = ""
 
     @property
     def projection_digest(self) -> str:
@@ -1205,8 +814,6 @@ class RunState:
         self.artifact_revisions = {}
         self.model_events = {}
         self.decisions = {}
-        self.tool_selections = {}
-        self.pending_selection_id = ""
         self.rollovers = {}
         self.temp_decisions = []
         self.failure_budgets = {}
@@ -1279,9 +886,6 @@ class RunState:
                     raise ValueError("action id was started more than once")
                 if action.sequence != self.next_action_sequence:
                     raise ValueError("action sequence is not contiguous")
-                self._validate_atom_execution_contract_digest(
-                    action.atom_execution_contract_digest
-                )
                 decision = self.decisions.get(action.decision_id)
                 if decision is None or not decision.accepted:
                     raise ValueError(
@@ -1289,51 +893,6 @@ class RunState:
                     )
                 if decision.request_id != action.request_id:
                     raise ValueError("action/model request identity mismatch")
-                if (
-                    decision.selected_operation
-                    and decision.selected_operation != action.action_type
-                ):
-                    raise ValueError("action/model selected operation mismatch")
-                if (
-                    decision.atom_execution_contract_digest
-                    and decision.atom_execution_contract_digest
-                    != action.atom_execution_contract_digest
-                ):
-                    raise ValueError("action/model atom contract mismatch")
-                if decision.tool_selection_id:
-                    selection = self.tool_selections.get(decision.tool_selection_id)
-                    common_invalid = (
-                        selection is None
-                        or selection.status is not ToolSelectionStatus.CONSUMED
-                        or selection.authorizes_execution is not False
-                        or selection.selected_operation != action.action_type
-                        or selection.atom_execution_contract_digest
-                        != action.atom_execution_contract_digest
-                    )
-                    direct_invalid = (
-                        decision.tool_selection_binding_kind == "consumed_handoff"
-                        and selection is not None
-                        and selection.consumed_decision_id != decision.decision_id
-                    )
-                    lineage_invalid = (
-                        decision.tool_selection_binding_kind
-                        == "non_authoritative_lineage"
-                        and selection is not None
-                        and selection.consumed_decision_id == decision.decision_id
-                    )
-                    if (
-                        common_invalid
-                        or direct_invalid
-                        or lineage_invalid
-                        or decision.tool_selection_binding_kind
-                        not in {
-                            "consumed_handoff",
-                            "non_authoritative_lineage",
-                        }
-                    ):
-                        raise ValueError(
-                            "action requires a consumed, reauthorized Selector handoff"
-                        )
                 if self.active_action_id is not None:
                     raise ValueError("more than one action is active")
                 self.actions[action.action_id] = action
@@ -1353,7 +912,6 @@ class RunState:
                     "action_id", "sequence", "action_type", "arguments", "wire_arguments",
                     "action_fingerprint", "idempotency_key", "decision_id", "request_id",
                     "started_at", "workspace_digest_before",
-                    "atom_execution_contract_digest",
                 )
                 if any(
                     getattr(started, name) != getattr(action, name)
@@ -1398,8 +956,6 @@ class RunState:
             elif event.event_type in {
                 "model_call_accepted",
                 "model_call_rejected",
-                "tool_selection_accepted",
-                "tool_selection_rejected",
             }:
                 decision_value = payload.get("decision")
                 if not isinstance(decision_value, Mapping):
@@ -1410,111 +966,11 @@ class RunState:
                 if decision.decision_id in self.decisions:
                     raise ValueError("model decision id was recorded more than once")
                 self.decisions[decision.decision_id] = decision
-                selection_value = payload.get("selection")
-                if isinstance(selection_value, Mapping):
-                    selection = ToolSelectionRecord.from_dict(selection_value)
-                    self._validate_atom_execution_contract_digest(
-                        selection.atom_execution_contract_digest
-                    )
-                    if selection.consumed_decision_id != decision.decision_id:
-                        raise ValueError(
-                            "model decision consumed a different tool selection"
-                        )
-                    if decision.tool_selection_id and (
-                        decision.tool_selection_id != selection.selection_id
-                        or decision.selected_operation
-                        != selection.selected_operation
-                        or decision.atom_execution_contract_digest
-                        != selection.atom_execution_contract_digest
-                    ):
-                        raise ValueError(
-                            "model decision changed its exact tool selection binding"
-                        )
-                    if decision.tool_selection_binding_kind != "consumed_handoff":
-                        raise ValueError(
-                            "direct selection consumption requires consumed_handoff binding"
-                        )
-                    self._consume_tool_selection(selection)
-                elif decision.tool_selection_id:
-                    inherited = self.tool_selections.get(
-                        decision.tool_selection_id
-                    )
-                    if (
-                        inherited is None
-                        or inherited.status is not ToolSelectionStatus.CONSUMED
-                        or decision.selected_operation
-                        != inherited.selected_operation
-                        or decision.atom_execution_contract_digest
-                        != inherited.atom_execution_contract_digest
-                    ):
-                        raise ValueError(
-                            "model decision inherited an invalid tool selection binding"
-                        )
-                    inheritance = payload.get("selection_inheritance")
-                    if (
-                        decision.tool_selection_binding_kind
-                        != "non_authoritative_lineage"
-                        or not isinstance(inheritance, Mapping)
-                        or inheritance.get("selection_id") != inherited.selection_id
-                        or inheritance.get("selected_operation")
-                        != inherited.selected_operation
-                        or inheritance.get("tool_definition_digest")
-                        != inherited.tool_definition_digest
-                    ):
-                        raise ValueError(
-                            "model decision selection lineage is not explicitly audited"
-                        )
+                if "selection" in payload or "selection_inheritance" in payload:
+                    raise ValueError("retired tool selection payload is unsupported")
                 temp_value = payload.get("temp_decision")
                 if isinstance(temp_value, Mapping):
                     self.temp_decisions.append(TempDecision(**dict(temp_value)))
-            elif event.event_type in {
-                "exact_tool_selection_staged",
-                "exact_tool_selection_committed",
-            }:
-                selection_value = payload.get("selection")
-                if not isinstance(selection_value, Mapping):
-                    raise ValueError(
-                        "exact tool selection staging requires a complete selection"
-                    )
-                selection = ToolSelectionRecord.from_dict(selection_value)
-                if event.subject_id != selection.selection_id:
-                    raise ValueError("tool selection subject mismatch")
-                if selection.status is not ToolSelectionStatus.STAGED:
-                    raise ValueError("new tool selection must be staged")
-                self._validate_atom_execution_contract_digest(
-                    selection.atom_execution_contract_digest
-                )
-                if selection.selection_id in self.tool_selections:
-                    raise ValueError("tool selection id was committed more than once")
-                if self.pending_selection_id:
-                    raise ValueError(
-                        "a new tool selection cannot replace an unconsumed selection"
-                    )
-                self.tool_selections[selection.selection_id] = selection
-                self.pending_selection_id = selection.selection_id
-            elif event.event_type == "exact_tool_selection_consumed":
-                selection_value = payload.get("selection")
-                if not isinstance(selection_value, Mapping):
-                    raise ValueError(
-                        "exact_tool_selection_consumed requires a complete selection"
-                    )
-                selection = ToolSelectionRecord.from_dict(selection_value)
-                self._validate_atom_execution_contract_digest(
-                    selection.atom_execution_contract_digest
-                )
-                if event.subject_id != selection.selection_id:
-                    raise ValueError("tool selection consumption subject mismatch")
-                self._consume_tool_selection(selection)
-            elif event.event_type == "exact_tool_selection_discarded":
-                selection_value = payload.get("selection")
-                if not isinstance(selection_value, Mapping):
-                    raise ValueError(
-                        "exact_tool_selection_discarded requires a complete selection"
-                    )
-                selection = ToolSelectionRecord.from_dict(selection_value)
-                if event.subject_id != selection.selection_id:
-                    raise ValueError("tool selection discard subject mismatch")
-                self._discard_tool_selection(selection)
             elif event.event_type == "action_observation_appended":
                 model_event_value = payload.get("model_event")
                 if not isinstance(model_event_value, Mapping):
@@ -1536,57 +992,6 @@ class RunState:
                 error_record = payload.get("error_record")
                 if isinstance(error_record, Mapping):
                     self.errors.append(dict(error_record))
-
-        for selection in self.tool_selections.values():
-            selector_checkpoint = self.model_states.get(
-                selection.selector_checkpoint_id
-            )
-            executor_checkpoint = self.model_states.get(
-                selection.executor_parent_checkpoint_id
-            )
-            if selector_checkpoint is None or executor_checkpoint is None:
-                raise ValueError("tool selection references a missing model checkpoint")
-            if (
-                selector_checkpoint.lane_kind is not ModelLaneKind.SELECTOR
-                or selector_checkpoint.model != selection.selector_model
-                or selector_checkpoint.state_profile_id
-                != selection.selector_profile_id
-                or selector_checkpoint.state_profile_sha256
-                != selection.selector_profile_sha256
-            ):
-                raise ValueError("tool selection Selector checkpoint identity mismatch")
-            selector_metadata = selector_checkpoint.native_state_metadata or {}
-            if selector_metadata.get("model_sha256") != (
-                selection.selector_model_sha256
-            ):
-                raise ValueError("tool selection Selector artifact identity mismatch")
-            decoder_matches = (
-                selector_metadata.get("decoder_id")
-                == selection.selector_decoder_id
-                and selector_metadata.get("decoder_sha256")
-                == selection.selector_decoder_sha256
-                and selector_metadata.get("decoder_protocol")
-                == selection.selector_decoder_protocol
-            )
-            if not decoder_matches:
-                raise ValueError("tool selection Selector decoder identity mismatch")
-            if (
-                executor_checkpoint.lane_kind is not ModelLaneKind.ACTION
-                or executor_checkpoint.model != selection.executor_model
-                or executor_checkpoint.transcript_digest
-                != selection.executor_parent_digest
-                or executor_checkpoint.state_profile_id
-                != selection.executor_profile_id
-                or executor_checkpoint.state_profile_sha256
-                != selection.executor_profile_sha256
-            ):
-                raise ValueError("tool selection Executor checkpoint identity mismatch")
-            executor_metadata = executor_checkpoint.native_state_metadata or {}
-            if (
-                executor_metadata.get("model_sha256")
-                != selection.executor_model_sha256
-            ):
-                raise ValueError("tool selection Executor artifact identity mismatch")
 
         if len(seen) != len(self.causal_records):
             raise ValueError("causal record set contains unordered events")
@@ -1614,6 +1019,9 @@ class RunState:
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "RunState":
+        allowed = set(cls.__dataclass_fields__) | {"projection_digest"}
+        if set(value) - allowed:
+            raise ValueError("unsupported run fields")
         schema_version = str(value.get("schema_version") or "")
         if schema_version != RUN_SCHEMA_VERSION:
             raise ValueError(f"unsupported run schema: {schema_version}")
@@ -1648,13 +1056,7 @@ class RunState:
             updated_at=str(value.get("updated_at") or ""),
         )
         for role, checkpoint_id in state.lane_heads.items():
-            if role not in {
-                "executor",
-                "auditor",
-                "auditor_step",
-                "finalizer_answer",
-                "auditor_final",
-            }:
+            if role != "executor":
                 raise ValueError(f"unsupported stored model lane role: {role!r}")
             if checkpoint_id not in state.model_states:
                 raise ValueError("stored model lane head references a missing checkpoint")
@@ -1688,8 +1090,6 @@ __all__ = [
     "RunStatus",
     "TaskAction",
     "TempDecision",
-    "ToolSelectionRecord",
-    "ToolSelectionStatus",
     "ValidationSpec",
     "action_fingerprint",
     "utc_now",

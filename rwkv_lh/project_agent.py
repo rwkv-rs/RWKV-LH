@@ -24,7 +24,7 @@ def _deliver(output, runtime):
     counts = count_generation_traces(execution_model_traces(output))
     result.update(project_generation_accounting(counts, budget_reserved=state['calls'],
         pending_operation=state['pending'], evidence=state['evidence'].values()))
-    termination = ('model_finished' if result['status'] == 'finished' else
+    termination = ('planner_finished' if result['termination_reason'] == 'planner_finished' else
                    'budget' if result['termination_reason'] in ('resource_budget_exhausted', 'wall_budget_exhausted',
                        'model_output_budget_exhausted', 'model_input_budget_exhausted') else 'blocked')
     result.update(id=state.get('task_id', output.name), termination=termination,
@@ -49,7 +49,8 @@ def run_project_job(job, *, settings, session_factory=create_model_session, role
     original = copy_verified_workspace(source, output / 'workspace', audit_path=output / 'SOURCE_COPY.json')
     (output / 'INITIAL_TREE.json').write_text(json.dumps(original, ensure_ascii=False, indent=2) + '\n')
     db = ProjectLedger.create(output / 'execution', request=job.request, workspace=output / 'workspace',
-        max_calls=job.max_calls, max_seconds=job.max_seconds, protected_paths=job.protected_paths)
+        max_calls=job.max_calls, max_seconds=job.max_seconds, protected_paths=job.protected_paths,
+        no_progress_limit=job.no_progress_limit, rejection_limit=job.rejection_limit)
     db.update('project_bound', lambda state: state.update(task_id=job.task_id, source_workspace=str(source),
         elapsed=time.monotonic() - started, record_generation_snapshots=job.record_generation_snapshots))
     ports = roles or ProjectSessions(settings, db.root, session_factory=session_factory, max_calls=job.max_calls)

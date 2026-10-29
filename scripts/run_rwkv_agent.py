@@ -1,4 +1,4 @@
-"""Run coding projects with one initial strong plan and autonomous RWKV execution or explicit read-only utilities."""
+"""Run Project work orders with a Planner and persistent autonomous RWKV execution."""
 import argparse
 import json
 from pathlib import Path
@@ -6,7 +6,6 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from rwkv_lh.agent_batch import run_agent_jobs
 from rwkv_lh.agent_jobs import CodingJob
-from rwkv_lh.read_only_agent import ReadOnlyJob
 from rwkv_lh.runtime.settings import direct_agent_settings, RuntimeSettings, load_local_env
 
 
@@ -112,7 +111,7 @@ def main(argv=None):
         overrides = {name: getattr(args, name) for name in ('base_url', 'model', 'model_sha256') if getattr(args, name) is not None}
         result = resume_project(args.resume, settings=RuntimeSettings.from_env(overrides=overrides))
         print(json.dumps(result, ensure_ascii=False, indent=2))
-        return 0 if result['termination'] in ('submitted', 'model_finished') else 1
+        return 0 if result['termination'] == 'planner_finished' else 1
     jobs = []
     if args.source_workspace:
         if not args.request or not args.output_dir:
@@ -133,27 +132,25 @@ def main(argv=None):
         if not isinstance(parents, list):
             parser.error('depends_on must be an array of task IDs')
         if parents:
-            parser.error('project dependencies belong in the project plan; depends_on is retired from this entry')
+            parser.error('project dependencies belong in work orders; depends_on is retired from this entry')
         if 'assistance' in row:
-            parser.error('project uses one initial plan; assistance jobs are retired')
-        scope = row.pop('tool_scope', 'files')
+            parser.error('project uses the work-order loop; assistance jobs are retired')
+        scope = row.pop('tool_scope', 'coding')
         recovery = row.pop('on_stall', None)
         if recovery is not None:
             parser.error('on_stall is retired; Executor controls its own execution and finish')
         if scope == 'coding':
             row['source_workspace'] = row.pop('workspace')
             jobs.append(CodingJob(**row))
-        elif scope in ('files', 'inspect'):
-            jobs.append(ReadOnlyJob(**row, tool_scope=scope))
         else:
-            parser.error('tool_scope must be files, inspect or coding')
+            parser.error('tool_scope must be coding; files and inspect execution are retired')
     load_local_env(Path(__file__).resolve().parents[1] / '.env.local')
     overrides = {name: getattr(args, name) for name in ('base_url', 'model', 'model_sha256')
                  if getattr(args, name) is not None}
     settings = direct_agent_settings(RuntimeSettings.from_env(overrides=overrides))
     results = run_agent_jobs(jobs, settings=settings, concurrency=args.concurrency)
     print(json.dumps(results, ensure_ascii=False, indent=2))
-    exit_code = 0 if all(r['termination'] in ('submitted', 'model_finished') for r in results) else 1
+    exit_code = 0 if all(r['termination'] == 'planner_finished' for r in results) else 1
     if args.serve:
         from rwkv_lh.project_preview import serve_preview
         print(f'Agent termination: {results[0]["termination"]}; preview does not change task completion.', flush=True)

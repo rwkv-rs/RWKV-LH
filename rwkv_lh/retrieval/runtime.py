@@ -275,10 +275,8 @@ def operation_allowed_by_retrieval_policy(
 ) -> bool:
     """Return whether an operation may enter this run's model-visible menu.
 
-    Stable Selector deployments keep all class definitions registered so the
-    head's class order never changes.  Registration is not authorization: an
-    offline Goal must remove network classes from its eligible menu before
-    selection, while the complete logits and frozen class identity remain intact.
+    Registration is not authorization: an offline Goal cannot authorize
+    network operations, even when their generic Harness handlers are registered.
     """
 
     access = str(network_access or "none").strip()
@@ -289,27 +287,9 @@ def operation_allowed_by_retrieval_policy(
     return retrieval_policy_from_goal(goal).mode != NetworkPolicyMode.OFFLINE
 
 
-def runtime_policy_document(
-    config: RetrievalRuntimeConfig,
-    *,
-    supervisor_mode: str = "stateful_goal",
-    execution_mode: str = "bounded",
-) -> dict[str, Any]:
-    from rwkv_lh.run_lifecycle import (
-        RUN_LIFECYCLE_POLICY_KEY,
-        run_lifecycle_policy_document,
-    )
-
-    selected_supervisor = str(supervisor_mode or "stateful_goal").strip()
-    if selected_supervisor not in {"stateful_goal", "none", "contract_graph"}:
-        raise ValueError(
-            "supervisor mode must be stateful_goal, none, or contract_graph"
-        )
-    return {
-        "retrieval": config.to_dict(),
-        "supervisor": {"mode": selected_supervisor},
-        RUN_LIFECYCLE_POLICY_KEY: run_lifecycle_policy_document(execution_mode),
-    }
+def runtime_policy_document(config: RetrievalRuntimeConfig) -> dict[str, Any]:
+    """Bind only retrieval authorization; Project owns work-order stopping rules."""
+    return {"retrieval": config.to_dict()}
 
 
 def build_product_harness(

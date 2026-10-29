@@ -4,8 +4,7 @@ import hashlib
 import json
 from pathlib import PurePosixPath
 
-PLAN_PROTOCOL = 'rwkv-lh.coder.plan.v1'
-ASSIGNMENT_PROTOCOL = 'rwkv-lh.coder.assignment.v1'
+ASSIGNMENT_PROTOCOL = 'rwkv-lh.coder.assignment.v2'
 GOAL_PROTOCOL = 'rwkv-lh.coder.user-goal.v1'
 GOAL_ID = 'original-goal'
 WORKSPACE_PATH_SCHEMA = {
@@ -80,71 +79,6 @@ def scope_path(value, *, field=None):
     return value
 
 
-def make_task(task_id, stage, objective, requirements, *, dependencies=(), interfaces=(),
-              scope=('.',), completion='Deliver the stated objective', checks=()):
-    return {'id': task_id, 'stage': stage, 'objective': objective, 'requirements': list(requirements),
-        'dependencies': list(dependencies), 'interfaces': list(interfaces),
-        'scope': list(scope), 'completion': completion, 'checks': list(checks)}
-
-
-def make_plan(requirements, tasks, *, rationale, protected_paths=()):
-    return validate_plan({'protocol': PLAN_PROTOCOL, 'requirements': deepcopy(requirements),
-        'tasks': deepcopy(tasks), 'rationale': rationale, 'protected_paths': list(protected_paths)})
-
-
-def validate_plan(value):
-    fields(value, ('protocol', 'requirements', 'tasks', 'rationale', 'protected_paths'))
-    if value['protocol'] != PLAN_PROTOCOL:
-        raise ValueError('unsupported plan protocol')
-    text(value['rationale']); strings(value['protected_paths'])
-    for path in value['protected_paths']:
-        scope_path(path)
-    if not isinstance(value['requirements'], list) or not value['requirements']:
-        raise ValueError('requirements required')
-    requirements = {}
-    for requirement in value['requirements']:
-        fields(requirement, ('id', 'text'))
-        key = text(requirement['id']); text(requirement['text'])
-        if key in requirements:
-            raise ValueError('duplicate requirement')
-        requirements[key] = requirement['text']
-    if not isinstance(value['tasks'], list) or not value['tasks']:
-        raise ValueError('tasks required')
-    tasks, covered = {}, set()
-    for task in value['tasks']:
-        fields(task, ('id', 'stage', 'objective', 'requirements', 'dependencies', 'interfaces', 'scope',
-                      'completion', 'checks'))
-        for key in ('id', 'stage', 'objective', 'completion'):
-            text(task[key])
-        if task['id'] in tasks or task['id'] == GOAL_ID:
-            raise ValueError('duplicate or reserved task identity')
-        for key in ('requirements', 'dependencies', 'interfaces', 'scope', 'checks'):
-            strings(task[key], empty=key in ('dependencies', 'interfaces', 'scope', 'checks'))
-        if set(task['requirements']) - requirements.keys():
-            raise ValueError('unknown requirement')
-        covered.update(task['requirements'])
-        for index, path in enumerate(task['scope']):
-            scope_path(path, field=f"tasks[{task['id']}].scope[{index}]")
-        tasks[task['id']] = task
-    if covered != requirements.keys():
-        raise ValueError('uncovered requirements: ' + ', '.join(sorted(requirements.keys() - covered)))
-    for task in tasks.values():
-        if set(task['dependencies']) - tasks.keys():
-            raise ValueError('unknown dependency')
-    waiting, resolved = {key: set(t['dependencies']) for key, t in tasks.items()}, set()
-    while waiting:
-        ready = {key for key, deps in waiting.items() if deps <= resolved}
-        if not ready:
-            raise ValueError('dependency cycle')
-        resolved.update(ready)
-        waiting = {key: deps for key, deps in waiting.items() if key not in ready}
-    return deepcopy(value)
-
-
-def task_map(plan):
-    return {task['id']: task for task in plan['tasks']}
-
-
 def make_goal(request, protected_paths=()):
     return {'protocol': GOAL_PROTOCOL, 'id': GOAL_ID, 'request': text(request),
             'scope': ['.'], 'protected_paths': list(protected_paths)}
@@ -162,26 +96,13 @@ def validate_goal(goal):
     return goal
 
 
-def work_items(state):
-    return deepcopy(state['plan']['tasks']) if state['plan'] is not None else []
-
-
-def work_map(state):
-    return {item['id']: item for item in work_items(state)}
-
-
 def protected_paths(state):
-    paths = state['goal']['protected_paths']
-    if state['plan'] is not None:
-        paths = [*paths, *state['plan']['protected_paths']]
-    return list(dict.fromkeys(paths))
+    return list(state['goal']['protected_paths'])
 
 
-def make_assignment(goal, *, assignment_id, plan_version, workspace_digest, materials_digest):
-    # This stable project contract outlives step focus changes.
-    task = make_task(GOAL_ID, 'project', goal['request'], [GOAL_ID], scope=goal['scope'],
-                     completion=goal['request'])
-    return {'protocol': ASSIGNMENT_PROTOCOL, 'id': assignment_id, 'task': task,
-            'contract_digest': digest(task), 'plan_version': plan_version,
-            'workspace_digest': workspace_digest, 'materials_digest': materials_digest,
-            'protected_paths': list(goal['protected_paths'])}
+def make_assignment(goal, *, assignment_id, workspace_digest, materials_digest):
+    """One stable project identity, unchanged across work orders."""
+    validate_goal(goal)
+    return {'protocol': ASSIGNMENT_PROTOCOL, 'id': text(assignment_id),
+            'goal_digest': digest(goal), 'workspace_digest': workspace_digest,
+            'materials_digest': materials_digest, 'protected_paths': list(goal['protected_paths'])}

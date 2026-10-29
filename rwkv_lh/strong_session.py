@@ -1,36 +1,23 @@
-"""Audited strong-model transport for the existing direct execution protocol."""
+"""Audited Planner completion and model-session binding."""
 import hashlib
 import json
 from types import SimpleNamespace
-from .supervisor_openai import OpenAICompatibleSupervisorClient, SupervisorGenerationInterrupted
-from .read_only_agent import ReadOnlyBudgetExpired
+from .strong_transport import AuditedStrongClient, StrongGenerationInterrupted, render_user_payload
 from .model_session import ModelSession
 from .model_io import canonical_json
 from .token_budget import get_token_count
 
 
-class KnownStrongOutputBudgetExpired(ReadOnlyBudgetExpired):
+class KnownStrongOutputBudgetExpired(TimeoutError):
     """A complete provider envelope proves truncation, not an unknown request."""
     def __init__(self, response):
-        super().__init__('teacher output budget exhausted before action content', 'output_budget_exhausted')
+        super().__init__('Planner output budget exhausted before action content')
+        self.reason = 'output_budget_exhausted'
         self.provider_response = response
 
 
-class AuditedStrongClient(OpenAICompatibleSupervisorClient):
-    def __init__(self, settings, **kwargs):
-        from .deepseek_api import BACKEND_PROFILE
-        if settings.backend_profile != BACKEND_PROFILE:
-            raise ValueError('strong model calls require the official DeepSeek backend')
-        super().__init__(settings, **kwargs)
-
-    def _post_completion(self, endpoint, body, *, audit_context):
-        self._emit({'type': 'strong_execution_wire_request', 'endpoint': endpoint,
-                    'body': dict(body), **audit_context})
-        return super()._post_completion(endpoint, body, audit_context=audit_context)
-
-
 class StrongCompletion:
-    def __init__(self, settings, output, max_calls, *, input_builder=None, phase='explicit_takeover'):
+    def __init__(self, settings, output, max_calls, *, input_builder=None, phase='project_planning'):
         self.model_name = settings.model
         self.events, self.output, self.calls, self.max_calls = [], output, 0, max_calls
         self.client = AuditedStrongClient(settings, audit_hook=self.audit)
@@ -55,10 +42,9 @@ class StrongCompletion:
 
     def wire_request(self, prompt, max_tokens):
         """Build the actual request shape without sending or reserving a call."""
-        from .supervisor_openai import _render_user_payload
         system, payload, contract = self._input(prompt)
         endpoint, body, _ = self.client._wire_request(phase=self.phase, selected_model=self.model_name,
-            system_prompt=system, payload_text=_render_user_payload(payload),
+            system_prompt=system, payload_text=render_user_payload(payload),
             max_tokens=max_tokens, tool_contract=contract)
         return {'endpoint': endpoint, 'body': body}
 
@@ -79,7 +65,7 @@ class StrongCompletion:
                 request_digest=hashlib.sha256(prompt.encode()).hexdigest(), system_prompt=system_prompt,
                 request_payload=request_payload, schema={'type': 'object'}, max_tokens=max_tokens,
                 return_raw_content=True, **({'tool_contract': contract} if contract is not None else {}))
-        except SupervisorGenerationInterrupted:
+        except StrongGenerationInterrupted:
             interrupted = [e for e in self.events[start:]
                 if e['type'] == 'supervisor_response_envelope_received']
             if len(interrupted) != 1:

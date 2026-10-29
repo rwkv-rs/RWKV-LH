@@ -104,15 +104,16 @@ function renderTopology() {
   if (!app.topology) return;
   const topology = app.topology;
   const cards = [
-    { index: "01", name: "RWKV Agent", ok: topology.executor?.available, detail: `${topology.executor?.model || "RWKV"} · 工具选择、参数与回答` },
-    { index: "04", name: "Evidence Harness", ok: topology.harness?.available, detail: `${topology.harness?.scope || "isolated"} · append-only` },
+    { index: "01", name: "计划模型", ok: null, detail: '循环派单 · 接收宿主事实报告' },
+    { index: "02", name: "RWKV Executor", ok: topology.executor?.available, detail: `${topology.executor?.model || "RWKV"} · 持续执行、自测与交回` },
+    { index: "03", name: "工具与事实报告", ok: topology.harness?.available, detail: '隔离工作区 · 实际结果与变更' },
   ];
   $("topologyCards").innerHTML = cards.map((card) => `
-    <article class="${card.ok ? "online" : "offline"}">
+    <article class="${card.ok === null ? 'pending' : card.ok ? "online" : "offline"}">
       <span class="node-index">${card.index}</span><strong>${escapeHtml(card.name)}</strong><p>${escapeHtml(card.detail)}</p>
     </article>`).join("");
   $("topologyDetail").innerHTML = cards.map((card) => `
-    <div class="topology-row"><span>${escapeHtml(card.name)}</span><strong>${escapeHtml(card.detail)}</strong><code>${card.ok ? "READY" : "UNAVAILABLE"}</code></div>`).join("")
+    <div class="topology-row"><span>${escapeHtml(card.name)}</span><strong>${escapeHtml(card.detail)}</strong><code>${card.ok === null ? '未检查连接' : card.ok ? "READY" : "UNAVAILABLE"}</code></div>`).join("")
     + `<details class="raw-event"><summary><code>IDENTITY</code><strong>完整运行身份</strong></summary><pre>${escapeHtml(pretty(topology))}</pre></details>`;
 }
 
@@ -266,198 +267,98 @@ async function pollRun() {
   return flight.promise;
 }
 
-function contractData() {
-  const patches = app.events.filter((item) => item.type === "goal_plan_patch_committed").map((item) => item.data?.patch || {});
-  const activeSteps = new Map();
-  const stagedSteps = (patch, field) => (patch[field] || []).flatMap((stage) =>
-    (stage.steps || []).map((step) => ({ ...step, stage: stage.stage }))
-  );
-  patches.forEach((patch) => {
-    (patch.discard_step_ids || []).forEach((stepId) => activeSteps.delete(stepId));
-    [...(patch.replace_steps || []), ...stagedSteps(patch, "replace_stages")]
-      .forEach((step) => activeSteps.set(step.step_id, step));
-    [...(patch.add_steps || []), ...stagedSteps(patch, "add_stages")]
-      .forEach((step) => activeSteps.set(step.step_id, step));
-  });
-  const reviews = app.events.filter((item) => item.type === "goal_audit_accepted").map((item) => item.data?.audit || {});
-  const latestReview = reviews.at(-1) || {};
-  const verdicts = {};
-  reviews.forEach((audit) => {
-    (audit.completed_steps || []).forEach((step) => {
-      verdicts[step.step_id] = { obligation_id: step.step_id, status: "satisfied", evidence_refs: step.evidence_refs || [] };
-    });
-    if (audit.verdict === "repair" && audit.step_id) {
-      verdicts[audit.step_id] = { obligation_id: audit.step_id, status: "insufficient", gaps: audit.gaps || [] };
-    }
-  });
-  const steps = [...activeSteps.values()];
-  const obligations = steps.map((step) => ({ obligation_id: step.step_id, predicate: step.objective }));
-  const nodes = steps.map((step) => ({ node_id: step.step_id, atom: { ...step, atom_id: step.step_id } }));
-  const outcomes = Object.fromEntries(steps.map((step) => [step.step_id, { status: verdicts[step.step_id]?.status || "pending" }]));
-  return { patches, obligations, nodes, reviews, latestReview, verdicts, outcomes };
-}
-
-function currentPhase(contract, status) {
-  if (status === "completed") return "complete";
-  if (contract.reviews.length) return "verify";
-  if (Object.keys(contract.outcomes).length || (app.summary?.state?.actions || []).length) return "build";
-  if (contract.patches.length) return "plan";
-  return "understand";
-}
-
 function renderRun() {
   const summary = app.summary || {};
   const metadata = summary.metadata || {};
-  const state = summary.state || {};
   const project = summary.project;
-  const direct = summary.request?.runtime === "direct_rwkv";
-  const projectStatus = metadata.active ? project?.status : summary.result?.status || project?.status;
-  const status = statusClass(direct ? (metadata.status || metadata.phase) : (projectStatus || state.status || metadata.status || metadata.phase));
-  const contract = contractData();
-  const satisfied = Object.values(contract.verdicts).filter((item) => item.status === "satisfied").length;
-  const current = project ? (project.status === 'finished' ? 'complete' :
-    project.active ? 'build' : 'plan') : currentPhase(contract, status);
-  const actions = project?.actions || summary.result?.actions || state.actions || [];
-  const evidenceEvents = app.events.filter(isEvidenceEvent);
-
+  const status = statusClass(metadata.active ? (project?.status || metadata.status || metadata.phase)
+    : (summary.result?.status || project?.status || metadata.status || metadata.phase));
+  const orders = project?.work_orders || [];
+  const actions = project?.actions || [];
   $("runId").textContent = metadata.run_id || app.selectedRun;
-  $("runObjective").textContent = state.request || summary.request?.request || "—";
+  $("runObjective").textContent = summary.request?.request || "—";
   $("runStatus").textContent = status;
   $("runStatus").className = `status-chip ${status}`;
-  $("runStatus").textContent = status;
   $("exportButton").href = `/api/runs/${encodeURIComponent(app.selectedRun)}/export`;
-  const resumable = !direct && !metadata.active && metadata.state_created && ["interrupted", "stopped", "failed", "blocked"].includes(status);
+  const resumable = summary.request?.tool_scope === 'coding' && !metadata.active && metadata.state_created
+    && ["interrupted", "stopped", "failed", "blocked"].includes(status);
   $("resumeButton").classList.toggle("hidden", !resumable);
-
-  $("obligationMetric").textContent = project ? `${project.step_progress.filter(s => s.tool_calls > 0).length} / ${project.work_items.length}` : direct ? "未评审" : `${satisfied} / ${contract.obligations.length}`;
+  $("obligationMetric").textContent = `${orders.filter(item => item.report !== null).length} / ${orders.length}`;
   $("actionMetric").textContent = actions.length;
-  $("evidenceMetric").textContent = project ? project.actions.length : evidenceEvents.length;
+  $("evidenceMetric").textContent = actions.length;
   $("fileMetric").textContent = app.files.length;
-  $("requestMetric").textContent = project?.calls ?? summary.result?.generation_started ?? state.model_request_count ?? app.traces.filter((item) => item.type === "model_request_started").length;
-  $("contractCount").textContent = project?.work_items.length ?? contract.obligations.length;
+  $("requestMetric").textContent = project?.calls ?? summary.result?.generation_started ?? 0;
+  $("contractCount").textContent = orders.length;
   $("executionCount").textContent = actions.length;
-  $("evidenceCount").textContent = project ? project.actions.length : evidenceEvents.length;
+  $("evidenceCount").textContent = actions.length;
   $("artifactCount").textContent = app.files.length;
   $("rawCount").textContent = app.traces.length + app.events.length;
-  $("currentPhaseLabel").textContent = project ? (projectStatus === 'finished' ? '模型已结束（未验收）' : projectStatus === 'blocked' ? '模型报告阻塞' : projectStatus === 'failed' ? '初始计划失败' : projectStatus === 'interrupted' ? '运行已中断' : project.active ? 'RWKV 正在执行' : '生成初始计划') : direct ? (summary.result?.termination_reason || "RWKV 执行中") : phaseLabel(current);
-
-  renderPhases(current, status);
-  renderOverview(summary, contract);
-  renderContract(summary, contract);
-  renderActions(project?.progress || actions);
-  renderEvidence(contract, evidenceEvents);
+  $("currentPhaseLabel").textContent = status === 'finished' ? '模型已结束（未验收）'
+    : status === 'blocked' ? '模型报告阻塞' : status === 'failed' ? '执行失败'
+    : status === 'interrupted' ? '运行已中断' : project?.current_order ? 'RWKV 正在执行工单' : '等待计划模型派单';
+  renderOverview(summary);
+  renderContract(summary);
+  renderActions(actions);
+  renderEvidence(project);
   renderFiles();
   renderRaw();
 }
 
-function phaseLabel(phase) {
-  return ({ understand: "正在理解目标", plan: "正在拆解计划", build: "RWKV 正在创建", verify: "正在审核证据", complete: "项目已交付" })[phase] || "运行中";
-}
-
-function renderPhases(current, status) {
-  const order = ["understand", "plan", "build", "verify", "complete"];
-  const index = order.indexOf(current);
-  document.querySelectorAll(".phase-track [data-phase]").forEach((row) => {
-    const rowIndex = order.indexOf(row.dataset.phase);
-    row.classList.toggle("done", rowIndex < index || status === "completed");
-    row.classList.toggle("active", rowIndex === index && status !== "completed");
-  });
-}
-
 function eventHeadline(item) {
   const data = item.data || {};
-  return data.operation || data.atom_id || data.stage_id || data.patch_id || data.review_id || data.reason || item.kind || item.type;
+  return data.operation || data.work_order_id || data.reason || item.kind || item.type;
 }
 
-function renderOverview(summary, contract) {
+function renderOverview(summary) {
   const recent = app.events.slice(-10).reverse();
   $("liveActivity").innerHTML = recent.length ? recent.map((item) => `
-    <div class="activity-item"><i></i><time>${escapeHtml(time(item.timestamp))}</time><strong>${escapeHtml(eventHeadline(item))}</strong></div>`).join("") : '<p class="empty-copy">等待第一个因果事件。</p>';
-  const output = summary.project?.final ?? summary.result?.final_output ?? summary.state?.final_output ?? "";
-  $("finalOutput").textContent = !summary.metadata ? "正在加载任务记录…" : output || (summary.metadata?.active ? "RWKV 执行中，尚无回答。" : "本次运行未提交回答。");
-  const verdicts = Object.values(contract.verdicts);
-  const allPassed = Boolean(contract.obligations.length) && verdicts.length >= contract.obligations.length && verdicts.every((item) => item.status === "satisfied");
-  const contradicted = verdicts.some((item) => item.status === "contradicted");
-  $("acceptanceBadge").textContent = summary.project ? '模型声明与工具事实分开记录；未做验收' : summary.request?.runtime === "direct_rwkv" ? "未进行外部验收" : allPassed ? "证据验收通过" : contradicted ? "发现矛盾" : "等待验收";
-  $("acceptanceBadge").className = `review-badge ${allPassed ? "pass" : contradicted ? "fail" : "pending"}`;
-  const errors = [summary.metadata?.error, ...(summary.state?.errors || []).map(pretty)].filter(Boolean);
+    <div class="activity-item"><i></i><time>${escapeHtml(time(item.timestamp))}</time><strong>${escapeHtml(eventHeadline(item))}</strong></div>`).join("") : '<p class="empty-copy">等待第一条运行记录。</p>';
+  const output = summary.project?.final ?? summary.result?.final_output ?? "";
+  $("finalOutput").textContent = !summary.metadata ? "正在加载任务记录…" : output || (summary.metadata?.active ? "项目执行中，尚无结束声明。" : "本次运行未提交结束声明。");
+  $("acceptanceBadge").textContent = '模型声明与工具事实分开记录；未做验收';
+  $("acceptanceBadge").className = 'review-badge pending';
+  const errors = [summary.metadata?.error].filter(Boolean);
   $("errorPanel").classList.toggle("hidden", !errors.length);
   $("errorOutput").textContent = errors.join("\n\n");
 }
 
-function renderContract(summary, contract) {
-  if (summary.project) {
-    const project = summary.project;
-    $("goalDigest").textContent = project.plan ? '初始计划' : '等待初始计划';
-    $("goalRequest").textContent = summary.request?.request || '—';
-    $("obligationBoard").innerHTML = (project.plan?.requirements || [{id: project.goal.id, text: project.goal.request}]).map(item =>
-      `<article class="obligation"><header><code>${escapeHtml(item.id)}</code></header><p>${escapeHtml(item.text)}</p></article>`).join('');
-    const tasks = project.work_items;
-    $("nodeCount").textContent = `${tasks.length} tasks`;
-    $("graphNodes").innerHTML = tasks.map(task =>
-      `<article class="graph-node"><header><code>${escapeHtml(task.id)}</code><span>${escapeHtml(project.current_step_id === task.id ? '最近执行' : '计划步骤')}</span></header><strong>${escapeHtml(task.objective)}</strong><p>阶段：${escapeHtml(task.stage)} · 依赖：${escapeHtml(task.dependencies.join(', ') || '无')}</p><p>工具 ${project.step_progress.find(s => s.step_id === task.id)?.tool_calls || 0} 次 · 失败 ${project.step_progress.find(s => s.step_id === task.id)?.failed_tool_calls || 0} 次 · 文件变更 ${project.step_progress.find(s => s.step_id === task.id)?.mutation_count || 0} 次 · ${project.current_step_id === task.id ? '当前步骤' : ''}</p></article>`).join('');
-    return;
-  }
-  $("goalDigest").textContent = summary.state?.goal_digest || "尚未创建";
-  $("goalRequest").textContent = summary.state?.request || summary.request?.request || "—";
-  $("obligationBoard").innerHTML = contract.obligations.length ? contract.obligations.map((item) => {
-    const verdict = contract.verdicts[item.obligation_id] || {};
-    const status = verdict.status || "open";
-    return `<article class="obligation ${escapeHtml(status)}"><header><code>${escapeHtml(item.obligation_id)}</code><span>${escapeHtml(status)}</span></header><p>${escapeHtml(item.predicate || item.request_clause || "待解析义务")}</p></article>`;
-  }).join("") : '<p class="empty-copy">按用户目标验收，不要求固定步骤。</p>';
-  $("nodeCount").textContent = `${contract.nodes.length} steps`;
-  $("graphNodes").innerHTML = contract.nodes.length ? contract.nodes.map((node) => {
-    const atom = node.atom || {};
-    const outcome = contract.outcomes[atom.atom_id || node.node_id] || {};
-    return `<article class="graph-node"><header><code>${escapeHtml(node.node_id || atom.atom_id)}</code><span>${escapeHtml(outcome.status || "pending")}</span></header><strong>${escapeHtml(atom.objective || "RWKV step")}</strong><p>依赖：${escapeHtml((atom.depends_on || node.depends_on || []).join(", ") || "无")}</p></article>`;
-  }).join("") : '<p class="empty-copy">RWKV 自主选择下一步；工具调用见执行页。</p>';
+function renderContract(summary) {
+  const project = summary.project;
+  const orders = project?.work_orders || [];
+  $("goalDigest").textContent = project?.current_order?.id || (orders.length ? '已交回当前工单' : '等待首张工单');
+  $("goalRequest").textContent = summary.request?.request || '—';
+  $("obligationBoard").innerHTML = project ? `<article class="obligation"><header><code>${escapeHtml(project.goal.id)}</code></header><p>${escapeHtml(project.goal.request)}</p></article>` : '<p class="empty-copy">等待创建项目记录。</p>';
+  $("nodeCount").textContent = `${orders.length} orders`;
+  $("graphNodes").innerHTML = orders.map(item => {
+    const order = item.order, report = item.report;
+    const label = project.current_order?.id === order.id ? '当前工单' : report ? '已交回（未验收）' : '已派发';
+    return `<article class="graph-node"><header><code>${escapeHtml(order.id)}</code><span>${label}</span></header>
+      <strong>${escapeHtml(order.goal)}</strong><p>可写范围：${escapeHtml(order.scope.join(', ') || '只读')}</p>
+      <p>检查命令：${escapeHtml(order.checks.join(' · ') || '无')}</p>
+      <p>模型调用：${report ? report.calls_used : '待交回'} / ${order.call_budget}</p>
+      ${report ? `<details><summary>宿主事实报告</summary><pre>${escapeHtml(pretty(report))}</pre></details>` : ''}</article>`;
+  }).join('') || '<p class="empty-copy">计划模型尚未派发工单。</p>';
 }
 
 function renderActions(actions) {
-  if (app.summary?.project) {
-    $("actionList").innerHTML = actions.map((row, index) => `
-      <article class="action-card">
-        <span class="sequence">${String(index + 1).padStart(2, "0")}</span>
-        <code>${escapeHtml(row.command?.function || 'operation')}</code>
-        <p>${escapeHtml(row.role)} · ${escapeHtml(row.step_id || '尚未选择步骤')}</p>
-        <span class="action-status">${escapeHtml(row.feedback?.kind || row.status)}</span>
-        <details><summary>原始命令、模型输出与实际反馈</summary><pre>${escapeHtml(pretty(row))}</pre></details>
-      </article>`).join('') || '<p class="empty-copy">等待第一条操作记录。</p>';
-    return;
-  }
-  $("actionList").innerHTML = actions.length ? actions.map((action, index) => `
+  $("actionList").innerHTML = actions.map((action, index) => `
     <article class="action-card ${escapeHtml(statusClass(action.status))}">
       <span class="sequence">${String(index + 1).padStart(2, "0")}</span>
-      <code>${escapeHtml(action.operation || action.action_type || "operation")}</code>
-      <p>${escapeHtml(action.action_id || "")} · ${escapeHtml((action.artifact_refs || []).join(", ") || "无产物")}</p>
-      <span class="action-status">${escapeHtml(action.status || "pending")}</span>
-      ${action.arguments ? `<details><summary>真实调用与工具结果</summary><pre>${escapeHtml(pretty({arguments: action.arguments, result: action.result}))}</pre></details>` : ""}
-    </article>`).join("") : '<p class="empty-copy">等待 RWKV Action。</p>';
+      <code>${escapeHtml(action.operation)}</code>
+      <p>${escapeHtml(action.work_order_id || '')} · ${escapeHtml(action.action_id)}</p>
+      <span class="action-status">${escapeHtml(action.status)}</span>
+      <details><summary>真实调用与工具结果</summary><pre>${escapeHtml(pretty({arguments: action.arguments, result: action.result}))}</pre></details>
+    </article>`).join('') || '<p class="empty-copy">等待第一条工具回执。</p>';
 }
 
-function isEvidenceEvent(item) {
-  return /audit|evidence|artifact|action_finished|run_completed/.test(item.type || "");
-}
-
-function renderEvidence(contract, events) {
-  if (app.summary?.project) {
-    const project = app.summary.project;
-    $("reviewSummary").textContent = `工具回执 ${project.actions.length} 条；步骤活动和结束声明不代表验收通过。`;
-    $("evidenceTimeline").innerHTML = project.actions.map(action =>
-      `<article class="evidence-card"><strong>实际工具回执</strong><pre>${escapeHtml(pretty(action))}</pre></article>`).join('') +
-      (project.final_claim ? `<article class="evidence-card"><strong>最终报告（模型声明）</strong><pre>${escapeHtml(pretty(project.final_claim))}</pre></article>` : '');
-    return;
-  }
-  const verdicts = Object.values(contract.verdicts);
-  const satisfied = verdicts.filter((item) => item.status === "satisfied").length;
-  const contradicted = verdicts.filter((item) => item.status === "contradicted").length;
-  const insufficient = verdicts.filter((item) => item.status === "insufficient").length;
-  $("reviewSummary").innerHTML = `
-    <article><span>SATISFIED</span><strong>${satisfied}</strong></article>
-    <article><span>INSUFFICIENT</span><strong>${insufficient}</strong></article>
-    <article><span>CONTRADICTED</span><strong>${contradicted}</strong></article>`;
-  $("evidenceTimeline").innerHTML = events.length ? events.slice().reverse().map((item) => `
-    <article class="evidence-card"><time>${escapeHtml(time(item.timestamp))}<br>rev ${escapeHtml(item.revision)}</time><strong>${escapeHtml(item.type)}</strong><pre>${escapeHtml(pretty(item.data))}</pre></article>`).join("") : '<p class="empty-copy">尚未产生验收证据。</p>';
+function renderEvidence(project) {
+  const actions = project?.actions || [];
+  const reports = (project?.work_orders || []).filter(item => item.report !== null);
+  $("reviewSummary").textContent = `工具回执 ${actions.length} 条，工单报告 ${reports.length} 份；结束声明不代表验收通过。`;
+  $("evidenceTimeline").innerHTML = reports.map(item =>
+    `<article class="evidence-card"><strong>工单 ${escapeHtml(item.order.id)} 的宿主事实报告</strong><pre>${escapeHtml(pretty(item.report))}</pre></article>`).join('') +
+    actions.map(action => `<article class="evidence-card"><strong>实际工具回执</strong><pre>${escapeHtml(pretty(action))}</pre></article>`).join('') +
+    (project?.final_claim ? `<article class="evidence-card"><strong>项目结束声明</strong><pre>${escapeHtml(pretty(project.final_claim))}</pre></article>` : '');
 }
 
 function renderFiles() {

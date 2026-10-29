@@ -33,7 +33,6 @@ dev = [
 [project.scripts]
 rwkv-lh = "scripts.run_rwkv_agent:main"
 rwkv-lh-coding = "scripts.run_rwkv_coding_agent:main"
-rwkv-lh-data = "scripts.run_trace_correction_pipeline:main"
 rwkv-lh-runtime-smoke = "scripts.runtime_smoke:main"
 rwkv-lh-stack = "scripts.manage_runtime_stack:main"
 rwkv-lh-web = "scripts.run_web_ui:main"
@@ -43,12 +42,10 @@ rwkv-lh-artifact = "scripts.prepare_rwkv_irwkv_artifact:main"
 rwkv-lh-seal-export = "scripts.seal_skyrl_export:main"
 
 [project.entry-points."irwkv.general_plugins"]
-rwkv_lh_ccview_decoder = "rwkv_lh.cc_view_service:install_decoder_backend"
 rwkv_lh_state_worker = "rwkv_lh.inference.irwkv_plugin:register_worker"
 
 [project.entry-points."irwkv.endpoint_plugins"]
 rwkv_lh_native = "rwkv_lh.inference.irwkv_plugin:endpoint"
-rwkv_lh_ccview = "rwkv_lh.cc_view_service:endpoint_plugin"
 
 [tool.setuptools.packages.find]
 include = ["rwkv_lh*", "scripts*"]

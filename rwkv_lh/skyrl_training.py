@@ -96,26 +96,9 @@ def verify_chunk_gradient(python, source_root):
 
 
 def token_row(row):
-    tokens = row['token_ids']
-    spans, supervised = row['target_spans'], row['supervised']
-    if (not isinstance(tokens, list) or len(tokens) < 2
-            or any(type(v) is not int or v < 0 for v in tokens)
-            or len(spans) != len(supervised)):
-        raise ValueError('invalid complete episode tokens or supervision')
-    mask, previous = [0] * len(tokens), 1
-    for span, enabled in zip(spans, supervised):
-        if (not isinstance(span, (list, tuple)) or len(span) != 2
-                or any(type(v) is not int for v in span) or type(enabled) is not bool):
-            raise ValueError('invalid target span')
-        start, length = span
-        if start < previous or length <= 0 or start + length > len(tokens):
-            raise ValueError('overlapping, first-token or out-of-range target span')
-        mask[start:start + length] = [int(enabled)] * length
-        previous = start + length
-    if not any(mask):
-        raise ValueError('episode has no supervised next-token targets')
-    return dict(input_ids=tokens, loss_mask=mask, episode_id=row['episode_id'],
-                source=row.get('source', row.get('source_group')), input_protocol=row['input_protocol'])
+    """Current complete tokens only; legacy span episodes are never converted."""
+    from .transcript.frozen import validate_token_row
+    return validate_token_row(row)
 
 
 def export_rows(rows, output, *, provenance):
@@ -220,6 +203,11 @@ def validate_registration(registration):
 
 
 def prepare(registration, output):
+    from .transcript.frozen import FORMAT, load_split, read_manifest
+    dataset = registration.get('dataset', {})
+    if not isinstance(dataset, dict) or dataset.get('format') != FORMAT:
+        raise ValueError('registration must select current transcript_tokens; retired episode formats are rejected')
+    read_manifest(dataset['path'], dataset['sha256'])
     validate_registration(registration)
     engine = registration['skyrl_source']
     verified = verify_manifest(Path(engine['path']), engine['sha256'], expected_schema=ENGINE_SCHEMA,
@@ -233,20 +221,14 @@ def prepare(registration, output):
     artifact = verify_artifact(Path(model['root']), expected_manifest=registration['model_manifest'])
     from .token_budget import VOCAB_PATH
     verify_vocabulary(model['root'], VOCAB_PATH)
-    dataset = registration['dataset']
-    if dataset.get('format') == 'ccview_episodes':
-        from .cc_view_training_freeze import load_split
-        rows, manifest = load_split(dataset['path'], dataset['sha256'], 'train',
-                                    context_tokens=registration['data_context_tokens'])
-    elif dataset.get('format') == 'executor_episodes':
-        from .statetune_episodes import load_split
-        cfg = json.loads((Path(model['root'])/'config.json').read_text())
-        manifest, rows = load_split(Path(dataset['path']), dataset['sha256'], 'train.jsonl',
-            context_tokens=registration['data_context_tokens'], vocab_size=cfg['vocab_size'],
-            bos_token_id=cfg['bos_token_id'], model_sha256=artifact['source']['sha256'],
-            tokenizer_sha256=artifact['source_vocabulary_sha256'])
-    else:
-        raise ValueError('registration must select ccview_episodes or executor_episodes')
+    from .project_runtime import role_definitions
+    from .harness import ActionHarness
+    from .token_budget import tokenizer
+    cfg = json.loads((Path(model['root']) / 'config.json').read_text())
+    manifest, rows = load_split(dataset['path'], dataset['sha256'], 'train',
+        context_tokens=registration['data_context_tokens'], vocab_size=cfg['vocab_size'],
+        model_sha256=artifact['source']['sha256'], tokenizer_sha256=artifact['source_vocabulary_sha256'],
+        tokenizer=tokenizer(), native_tools=role_definitions('executor', ActionHarness()))
     if manifest['tokenizer_sha256'] != artifact['source_vocabulary_sha256']:
         raise ValueError('frozen dataset and model vocabulary identities differ')
     if manifest['model_sha256'] != artifact['source']['sha256']:

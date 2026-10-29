@@ -21,9 +21,6 @@ from urllib.parse import urlparse
 from rwkv_lh.runtime.openai_compat import OpenAICompatibleRWKVClient
 from rwkv_lh.runtime.native_state import NATIVE_STATE_PROTOCOL_VERSION
 from rwkv_lh.runtime.role_config import role_env, role_int
-from rwkv_lh.exact_tool_selector.native_network_client import (
-    NativeNetworkSelectorSettings,
-)
 from rwkv_lh.runtime.settings import PROJECT_ROOT, load_local_env
 
 
@@ -349,42 +346,6 @@ class RuntimeStackManager:
         finally:
             client.close()
 
-    def _selector_health(self) -> dict[str, Any]:
-        settings = NativeNetworkSelectorSettings.from_env()
-        if settings is None:
-            return {
-                "available": False,
-                "enabled": False,
-                "error": "independent Selector identity is not configured",
-            }
-        try:
-            with urllib.request.urlopen(
-                settings.base_url.rstrip("/") + "/healthz",
-                timeout=2,
-            ) as response:
-                value = json.loads(response.read().decode("utf-8"))
-        except (OSError, ValueError, urllib.error.URLError) as exc:
-            return {
-                "available": False,
-                "enabled": True,
-                "error": f"{type(exc).__name__}: {exc}",
-            }
-        if not isinstance(value, Mapping):
-            raise RuntimeError("network Selector health response is not an object")
-        if value.get("status") != "ok":
-            raise RuntimeError("network Selector health status is not ok")
-        identity = value.get("runtime_identity")
-        expected = settings.runtime_identity()
-        if identity != expected:
-            raise RuntimeError(
-                "network Selector health identity mismatch: "
-                f"expected={expected}, actual={identity}"
-            )
-        return {
-            "available": True,
-            "enabled": True,
-            "runtime_identity": identity,
-        }
 
     @staticmethod
     def _wait(probe, *, timeout_seconds: float, name: str) -> dict[str, Any]:
@@ -441,57 +402,6 @@ class RuntimeStackManager:
         )
         return {"required": True, "owned": True, "process": record}
 
-    def _ensure_selector(self) -> dict[str, Any]:
-        settings = NativeNetworkSelectorSettings.from_env()
-        if settings is None:
-            return {"enabled": False, "owned": False}
-        health = self._selector_health()
-        if health.get("available") is True:
-            record = self._owned_record("selector")
-            if record is not None and not self._record_alive(record):
-                record = self._refresh_reexecuted_record("selector", record)
-            owned = bool(record and self._record_alive(record))
-            return {
-                "enabled": True,
-                "owned": owned,
-                "adopted_ready_endpoint": not owned,
-                "health": health,
-                **({"process": record} if owned else {}),
-            }
-        launcher_value = role_env(
-            "selector",
-            "launcher",
-            legacy="RWKV_SELECTOR_LAUNCHER",
-        )
-        if not launcher_value:
-            raise RuntimeError(
-                "Selector is configured but unavailable; set "
-                "RWKV_LH_SELECTOR_LAUNCHER or start the endpoint externally"
-            )
-        launcher = Path(launcher_value).expanduser().resolve()
-        if not launcher.is_file() or not os.access(launcher, os.X_OK):
-            raise RuntimeError(
-                f"network Selector launcher is missing or not executable: {launcher}"
-            )
-        environment = dict(os.environ)
-        existing = environment.get("PYTHONPATH", "")
-        environment["PYTHONPATH"] = os.pathsep.join(
-            [str(PROJECT_ROOT), *([existing] if existing else [])]
-        )
-        selector_devices = role_env(
-            "selector",
-            "cuda_visible_devices",
-            legacy="RWKV_SELECTOR_CUDA_VISIBLE_DEVICES",
-        )
-        if selector_devices:
-            environment["CUDA_VISIBLE_DEVICES"] = selector_devices
-        record = self._spawn(
-            "selector",
-            [str(launcher)],
-            cwd=PROJECT_ROOT,
-            environment=environment,
-        )
-        return {"enabled": True, "owned": True, "process": record}
 
     def _ensure_product_process(self, name: str, module: str) -> dict[str, Any]:
         environment = dict(os.environ)
@@ -549,26 +459,6 @@ class RuntimeStackManager:
                 timeout_seconds=timeout_seconds,
                 name="main RWKV endpoint",
             )
-            selector = self._ensure_selector()
-            selector_health = (
-                self._wait(
-                    self._selector_health,
-                    timeout_seconds=timeout_seconds,
-                    name="independent Selector endpoint",
-                )
-                if selector.get("enabled") is True
-                else {"available": False, "enabled": False}
-            )
-            if selector.get("owned") is True:
-                refreshed_selector = self._refresh_reexecuted_record(
-                    "selector",
-                    dict(selector.get("process") or {}),
-                )
-                if refreshed_selector is None:
-                    raise RuntimeError(
-                        "owned Selector changed PID/start identity during startup"
-                    )
-                selector["process"] = refreshed_selector
             product: dict[str, Any] = {}
             if web:
                 product["web"] = self._ensure_product_process(
@@ -580,8 +470,6 @@ class RuntimeStackManager:
                 "remote": remote,
                 "tunnel": tunnel,
                 "main_health": main_health,
-                "selector": selector,
-                "selector_health": selector_health,
                 "product": product,
             }
             _atomic_json(self.state_dir / "last_up.json", result)
@@ -592,7 +480,7 @@ class RuntimeStackManager:
             retired_router_stopped = self._stop_owned("router")
             stopped = {
                 name: self._stop_owned(name)
-                for name in ("worker", "web", "selector", "tunnel")
+                for name in ("worker", "web", "tunnel")
             }
             remote_stopped = False
             if self.remote_record.is_file():
@@ -621,7 +509,7 @@ class RuntimeStackManager:
 
     def status(self, *, probe: bool = True) -> dict[str, Any]:
         processes: dict[str, Any] = {}
-        for name in ("tunnel", "selector", "web", "worker"):
+        for name in ("tunnel", "web", "worker"):
             record = self._owned_record(name)
             processes[name] = {
                 "owned": record is not None,
@@ -639,13 +527,6 @@ class RuntimeStackManager:
                 result["main_health"] = self._main_health()
             except Exception as exc:
                 result["main_health"] = {
-                    "available": False,
-                    "error": f"{type(exc).__name__}: {exc}",
-                }
-            try:
-                result["selector_health"] = self._selector_health()
-            except Exception as exc:
-                result["selector_health"] = {
                     "available": False,
                     "error": f"{type(exc).__name__}: {exc}",
                 }
