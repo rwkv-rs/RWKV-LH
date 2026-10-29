@@ -96,6 +96,22 @@ class RWKVNativeStateService:
         self.source_identity: dict[str, Any] = {}
         self.gc_last_error = ""
         self.storage_epoch = uuid4().hex
+        self.decoder_self_test = {}
+
+    async def verify_decoder(self):
+        from .decoder_self_test import verify_runtime_decoder
+        evidence = {}
+        try:
+            self.decoder_self_test = await verify_runtime_decoder(self.engine_client, evidence)
+        except BaseException as exc:
+            evidence.update(passed=False,error=f'{type(exc).__name__}: {exc}')
+            self.ready=False
+            self.error=str(exc)
+            raise
+        finally:
+            if self.journal is not None:
+                (self.journal.path.parent / 'decoder_self_test.json').write_text(
+                    json.dumps(evidence,ensure_ascii=False,indent=2)+'\n')
 
     async def initialize(self) -> None:
         if self.engine_client is None:
@@ -168,6 +184,7 @@ class RWKVNativeStateService:
             from importlib.metadata import version
             decoder = {'protocol': DECODER_PROTOCOL, 'backend': DECODER_BACKEND,
                        'llguidance_version': version('llguidance'),
+                       'runtime_self_test': self.decoder_self_test,
                        'source_identity': self.source_identity}
         return {
             "schema_version": PROTOCOL_VERSION,
@@ -1000,8 +1017,8 @@ class RWKVNativeStateService:
                 published = True
             except Exception as exc:
                 # Only known request-validation errors are safe to return as 4xx.
-                from irwkv.exceptions import IrwkvValidationError
-                if isinstance(exc, IrwkvValidationError):
+                from irwkv.exceptions import IRWKVValidationError
+                if isinstance(exc, IRWKVValidationError):
                     raise HTTPException(status_code=400, detail=str(exc)) from exc
                 raise
             finally:
@@ -1237,6 +1254,9 @@ class RWKVNativeStateEndpointPlugin:
         service = RWKVNativeStateService(engine_client, args)
         state.rwkv_native_state = service
         await service.initialize()
+        if not service.ready:
+            raise RuntimeError('Native service initialization failed: ' + service.error)
+        await service.verify_decoder()
 
 
 __all__ = ["RWKVNativeStateEndpointPlugin", "RWKVNativeStateService"]

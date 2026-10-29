@@ -39,7 +39,7 @@ def launch_configuration(registration, output):
         env['RWKV_NATIVE_'+scope+'_SOURCE_MANIFEST'] = registration[key]['path']
         env['RWKV_NATIVE_'+scope+'_SOURCE_MANIFEST_SHA256'] = registration[key]['sha256']
     from rwkv_lh.runtime.structured_output import DECODER_BACKEND
-    argv = [str(registration['python']), '-m', 'irwkv.entrypoints.cli.main', 'serve',
+    argv = [str(registration['python']), '-m', 'rwkv_lh.inference.native_server', 'serve',
         registration['model_root'], '--served-model-name', registration['model_name'],
         '--host', '127.0.0.1', '--port', str(port), '--dtype', 'bfloat16',
         '--generation-config', 'irwkv',
