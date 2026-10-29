@@ -301,6 +301,16 @@ class RWKV7ModelState(RwkvModelState):
         index=self.req_id_to_index[request_id]
         return self._finalize_native_snapshot(write,self._snapshot_row(self.req_slot_to_row[index]),sampled_token_id)
 
+    def reset_kv_cache_blocks(self, block_ids):
+        # Scheduler zeroing must not destroy an owned, materialized recurrence.
+        # Free/reassigned slots still take the upstream reset path; preprocess
+        # restores a new request's immutable snapshot after that reset.
+        owned = set(self.req_slot_to_row.values())
+        free = [int(row) for row in block_ids if int(row) not in owned]
+        if free:
+            return super().reset_kv_cache_blocks(free)
+        return True
+
     def remove_request(self, req_id):
         index=self.req_id_to_index.get(req_id)
         if index is not None:
