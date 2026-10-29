@@ -295,8 +295,19 @@ class RWKV7ModelState(RwkvModelState):
             request['tokens']+=int(input_batch.num_scheduled_tokens[batch_row])
             self._elapsed_by_row[row]=request['base_tokens']+request['tokens']
 
-    def capture_native_request(self, request_id, sampled_token_id):
+    def capture_native_request(self, request_id, sampled_token_id, *, state_ref=None):
         write=self.req_native_state_writes.get(request_id)
+        if write is not None and state_ref is not None and write.state_ref != state_ref:
+            raise ValueError('Native capture target differs from request write identity')
+        if write is None and state_ref is not None:
+            # irwkv randomizes external request IDs. The exact write State ref
+            # survives that boundary and identifies the owned recurrent row.
+            matches = [(key, item) for key, item in self.req_native_state_writes.items()
+                       if item.state_ref == state_ref]
+            if len(matches) > 1:
+                raise ValueError('Native capture target has multiple active owners')
+            if matches:
+                request_id, write = matches[0]
         if write is None:raise KeyError('Native request is no longer active')
         index=self.req_id_to_index[request_id]
         return self._finalize_native_snapshot(write,self._snapshot_row(self.req_slot_to_row[index]),sampled_token_id)

@@ -25,6 +25,7 @@ from irwkv.engine.protocol import EngineClient
 from irwkv.sampling_params import RequestOutputKind, SamplingParams
 
 from rwkv_lh.inference.native_source_identity import verify_native_source_identity
+from rwkv_lh.inference.sampling_policy import validate_rwkv_sampling
 from rwkv_lh.runtime.native_request_recovery import (
     NATIVE_REQUEST_RECOVERY_VERSION,
     NativeRequestConflict,
@@ -305,10 +306,10 @@ class RWKVNativeStateService:
             raise HTTPException(status_code=409, detail="state profile mismatch")
         return profile_id, profile_sha256
 
-    def _tokens(self, text: str, *, initial: bool) -> list[int]:
+    def _tokens(self, text: str) -> list[int]:
         assert self.engine_client is not None
         tokenizer = self.engine_client.renderer.get_tokenizer()
-        token_ids = tokenizer.encode(text, add_special_tokens=initial)
+        token_ids = tokenizer.encode(text, add_special_tokens=False)
         if not isinstance(token_ids, list) or any(
             not isinstance(item, int) or item < 0 for item in token_ids
         ):
@@ -816,17 +817,15 @@ class RWKVNativeStateService:
         if exact_fields & payload.keys():
             ids = payload.get('input_token_ids')
             if (payload.get('input_token_protocol') != EXACT_TOKEN_INPUT_PROTOCOL or 'delta' in payload
-                    or not isinstance(ids, list) or not ids or ids[0] != 0
+                    or not isinstance(ids, list) or not ids
                     or any(type(token) is not int or token < 0 for token in ids)
-                    or type(payload.get('input_bos_token_count')) is not int or payload['input_bos_token_count'] != 1):
-                raise HTTPException(status_code=400, detail='exact token input requires its current protocol and original BOS')
-            return list(ids), 1
-        token_ids = self._tokens(str(payload.get('delta') or ''), initial=True)
-        plain_ids = self._tokens(str(payload.get('delta') or ''), initial=False)
-        bos_count = len(token_ids) - len(plain_ids)
-        if bos_count < 0 or token_ids[bos_count:] != plain_ids:
-            raise HTTPException(status_code=409, detail='initial token encoding has an unsupported special-token layout')
-        return token_ids, bos_count
+                    or type(payload.get('input_bos_token_count')) is not int
+                    or payload['input_bos_token_count'] != int(ids[0] == 0)):
+                raise HTTPException(status_code=400, detail='exact token input requires its current protocol and actual BOS count')
+            return list(ids), payload['input_bos_token_count']
+        # Production transcript training and every Native append use the same
+        # unmodified token stream; artifact postprocessors must not add BOS.
+        return self._tokens(str(payload.get('delta') or '')), 0
 
     async def create(self, payload: dict[str, Any]) -> dict[str, Any]:
         self._require_ready()
@@ -902,7 +901,7 @@ class RWKVNativeStateService:
             or profile_sha256 != parent.state_profile_sha256
         ):
             raise HTTPException(status_code=409, detail="parent state profile mismatch")
-        delta_tokens = self._tokens(str(payload.get("delta") or ""), initial=False)
+        delta_tokens = self._tokens(str(payload.get("delta") or ""))
         target = _StateRecord(
             state_ref=self._new_ref(),
             state_digest=_digest(
@@ -934,6 +933,10 @@ class RWKVNativeStateService:
     async def generate(self, payload: dict[str, Any]) -> dict[str, Any]:
         self._require_ready()
         self._validate_model(payload)
+        try:
+            validate_rwkv_sampling(payload.get('sampling'))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         decoder = payload.get('decoder')
         if 'decoder' in payload:
             try:

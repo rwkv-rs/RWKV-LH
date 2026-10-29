@@ -320,7 +320,7 @@ class OpenAICompatibleRWKVClient:
 
     def token_completion(self, request: TextCompletionRequest, *, record: AuditHook | None = None,
                          decoder: Mapping[str, Any] | None = None) -> CompletionResponse:
-        """Generate from an exact recorded prefix, including its existing BOS.
+        """Generate from an exact recorded prefix without changing special tokens.
 
         Native append boundaries can tokenize differently from the concatenated
         text. Offline State comparisons must preserve those original token IDs.

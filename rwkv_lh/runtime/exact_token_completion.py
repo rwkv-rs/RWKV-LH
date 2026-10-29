@@ -11,8 +11,9 @@ from .structured_output import validate_decoder_contract, decoder_receipt, state
 
 def constrained_token_completion(client, request, decoder, *, record):
     validate_decoder_contract(decoder)
-    if request.stop or request.stop_token_ids or request.min_tokens or request.prompt[:1] != [0]:
-        raise ValueError('constrained exact prefix requires original BOS and grammar-controlled termination')
+    if request.stop or request.stop_token_ids or request.min_tokens:
+        raise ValueError('constrained exact prefix requires grammar-controlled termination')
+    bos_count = int(request.prompt[0] == 0)
     identity = native_result_digest({'request_id': request.request_id})
     prefix_digest = native_result_digest({'input_token_ids': request.prompt})
     binding = NativeStateCacheBinding(lane_id='role-evaluation-' + identity, lane_kind='action',
@@ -47,7 +48,7 @@ def constrained_token_completion(client, request, decoder, *, record):
     try:
         created = native('create', client._native_payload(binding, lane_id=binding.lane_id,
             request_id='EVALCREATE-' + identity, input_token_protocol=EXACT_TOKEN_INPUT_PROTOCOL,
-            input_token_ids=list(request.prompt), input_bos_token_count=1))
+            input_token_ids=list(request.prompt), input_bos_token_count=bos_count))
         try:
             parent = client._native_snapshot(created, expected_binding=binding)
         except (KeyError, TypeError, ValueError) as exc:
@@ -55,7 +56,7 @@ def constrained_token_completion(client, request, decoder, *, record):
         if (parent.metadata.get('prompt_token_ids') != request.prompt
                 or parent.metadata.get('prompt_token_ids_scope') != 'full_context'
                 or parent.server_build != capabilities.get('server_build')
-                or parent.metadata.get('input_bos_token_count') != 1):
+                or parent.metadata.get('input_bos_token_count') != bos_count):
             raise RWKVProtocolError('exact token prefill echo differs from original prefix')
         sampling = {name: getattr(request, name) for name in ('temperature', 'top_p', 'top_k',
             'presence_penalty', 'frequency_penalty', 'penalty_decay', 'seed')}
@@ -68,7 +69,7 @@ def constrained_token_completion(client, request, decoder, *, record):
         metadata = candidate.get('metadata', {})
         if (candidate.get('parent_state_digest') != parent.state_digest
                 or candidate.get('parent_cache_binding_digest') != binding.digest
-                or metadata.get('prompt_token_ids') != request.prompt or metadata.get('input_bos_token_count') != 1
+                or metadata.get('prompt_token_ids') != request.prompt or metadata.get('input_bos_token_count') != bos_count
                 or metadata.get('prompt_token_ids_scope') != 'full_context'
                 or metadata.get('decoder') != decoder_receipt(decoder)
                 or metadata.get('response_id') != request.request_id):

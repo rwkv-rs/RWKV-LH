@@ -50,6 +50,8 @@ def launch_configuration(registration, output):
         registration['model_root'], '--served-model-name', registration['model_name'],
         '--host', '127.0.0.1', '--port', str(port), '--dtype', 'bfloat16',
         '--generation-config', 'irwkv',
+        '--enable-scale-out',
+        '--middleware', 'rwkv_lh.inference.sampling_policy.reject_unsupported_sampling',
         '--mamba-ssm-cache-dtype', 'float32', '--mamba-cache-mode', 'none',
         '--tensor-parallel-size', '1', '--pipeline-parallel-size', '1',
         '--max-model-len', str(context), '--max-num-seqs', '1',

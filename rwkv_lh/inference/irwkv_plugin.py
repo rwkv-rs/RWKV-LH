@@ -29,7 +29,7 @@ class NativeStateWorkerExtension:
         if action == 'capture':
             target = args.pop('state_ref')
             try:
-                result = state.capture_native_request(**args)
+                result = state.capture_native_request(**args, state_ref=target)
             except KeyError:
                 result = state.finalize_staged_native_state(target, args['sampled_token_id'])
         else:
