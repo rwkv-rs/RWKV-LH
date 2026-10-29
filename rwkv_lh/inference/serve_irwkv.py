@@ -28,6 +28,9 @@ def launch_configuration(registration, output):
     eager = registration.get('enforce_eager', True)
     if type(eager) is not bool:
         raise ValueError('enforce_eager must be an explicit boolean')
+    tuning = registration.get('flashrwkv_tuning_mode', 'tune')
+    if tuning not in ('inspect', 'require', 'tune'):
+        raise ValueError('invalid FlashRWKV2 tuning mode')
     if (type(context) is not int or context <= 0 or type(port) is not int or not 0 < port < 65536
             or type(memory) not in (int, float) or not 0 < memory < 1):
         raise ValueError('invalid context, port or explicit GPU memory fraction')
@@ -35,6 +38,7 @@ def launch_configuration(registration, output):
     output = Path(output).absolute()
     env = dict(CUDA_VISIBLE_DEVICES=device, IRWKV_PLUGINS=','.join(plugins),
         IRWKV_USE_V2_MODEL_RUNNER='1', IRWKV_USE_RUST_FRONTEND='0',
+        IRWKV_RWKV_TUNING_MODE=tuning,
         IRWKV_RWKV7_NATIVE_STATE_DIR=str(output/'state_tensors'),
         IRWKV_RWKV7_NATIVE_STATE_STORE_CAPACITY='0', IRWKV_RWKV7_NATIVE_STATE_CACHE_CAPACITY='8',
         RWKV_NATIVE_REQUEST_JOURNAL=str(output/'journal.sqlite3'))
