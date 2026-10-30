@@ -11,6 +11,7 @@ import hashlib
 from pathlib import Path
 
 from ..project_contracts import digest, fields, text
+from ..evaluation_policy import assert_training_record_allowed, assert_training_source_allowed
 from .parse import loads, parse_transcript, parse_assistant, validate_messages
 from .render import PROTOCOL, compact
 from .tools import TOOL_PROTOCOL, canonical_definitions
@@ -83,6 +84,7 @@ def validate_row_acceptance(value, *, episode_id):
 
 
 def validate_token_row(row, *, vocab_size=None, context_tokens=None, require_acceptance=True):
+    assert_training_record_allowed(row)
     expected = ('episode_id', 'source', 'input_protocol', 'input_ids', 'loss_mask')
     fields(row, expected + (('acceptance',) if 'acceptance' in row else ()))
     text(row['episode_id']); text(row['source'])
@@ -141,6 +143,8 @@ def _production_sources(manifest, base, native_tools):
         if entry['input_protocol'] != PROTOCOL:
             raise ValueError('retired production input protocol cannot be relabelled')
         reference = {key: entry[key] for key in ('path', 'sha256')}
+        source = Path(reference['path'])
+        assert_training_source_allowed(source if source.is_absolute() else source_path.parent / source)
         raw, path = _bytes(reference, source_path.parent)
         if entry['sha256'] in sources:
             raise ValueError('duplicate production source identity')

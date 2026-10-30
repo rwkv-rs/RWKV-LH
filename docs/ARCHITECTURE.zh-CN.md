@@ -136,4 +136,6 @@ irwkv 负责模型、FlashRWKV2、调度、原生采样与 guidance；项目插�
 
 开发题、验收轨迹、私有参考与 Holdout 不进入训练；Real Agent Holdout V2、`acceptance_tests/` 和 `data/acceptance/` 不在日常回归、迁移或清理范围。固定回归和任务族隔离保持原身份。工程回归、GPU 推理、实际 optimizer 更新和 Agent 验收分别报告；未运行时明确写未运行。
 
+日常分级评测的题目、参考解、私有检查和运行证据仅本地维护，必须原创且与训练来源无关。每题携带 `evaluation_only=true`、`training_eligible=false` 与 `usage_policy=evaluation_only_never_train`；来源目录及运行目录保留 `.rwkv-evaluation-only.json`。`evaluation_policy` 提供未来筛选器共用的排除检查，训练准入同时拒绝显式排除标签和带目录标记的来源（包括符号链接实际指向的祖先）。复制时须保留来源和排除标记；丢失来源不能取得训练资格，未发现排除标记也不能替代生产授权与审计。分级判定复用 `benchmark_verifier.run_isolated_verifier`；L2/L3 对候选自测进行行为扰动验证，参考解、空实现和假通过负控全部达标后才部署实跑。私有检查与期望输出不进入模型工作区或工具回执。
+
 GitHub 仅发布 README、本架构、维护源码和必要构建配置。tests、acceptance_tests、benchmarks、data、temp、AGENTS 与其他文档仅本地维护。清理先登记路径、逐文件 SHA 与依赖检查，保留有效夹具和模型/State 等受保护材料，不留旧实现归档。完整本地回归不得跳过 Torch、State 注入或必需浏览器测试；同轮完成并全绿后本地提交，owner 负责 push。
