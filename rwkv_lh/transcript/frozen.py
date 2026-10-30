@@ -52,9 +52,44 @@ def data_digest(manifest):
     return digest({key: manifest[key] for key in IDENTITY_FIELDS})
 
 
-def validate_token_row(row, *, vocab_size=None, context_tokens=None):
-    fields(row, ('episode_id', 'source', 'input_protocol', 'input_ids', 'loss_mask'))
+ACCEPTANCE_SCHEMA = 'rwkv-lh.transcript-row-acceptance.v1'
+
+
+def validate_row_acceptance(value, *, episode_id):
+    """Require independent evidence that this episode actually delivered.
+
+    A model's own ending declaration is not acceptance, and neither is a
+    workspace mutation or an exit code the model itself observed. Admission
+    needs an external verifier that ran real checks against the sealed
+    workspace and reported which ones held, so `verifiable` without any check
+    is rejected rather than read as a pass.
+    """
+    fields(value, ('schema_version', 'run_id', 'verifier_sha256', 'verifiable', 'passed', 'checks'))
+    if value['schema_version'] != ACCEPTANCE_SCHEMA:
+        raise ValueError('unsupported row acceptance schema')
+    if text(value['run_id']) != episode_id:
+        raise ValueError('acceptance evidence belongs to a different episode')
+    _sha(value['verifier_sha256'])
+    checks = value['checks']
+    if not isinstance(checks, dict) or not checks:
+        raise ValueError('acceptance evidence must report the checks that ran')
+    if any(type(outcome) is not bool for outcome in checks.values()):
+        raise ValueError('each acceptance check records a real boolean outcome')
+    if value['verifiable'] is not True or value['passed'] is not True:
+        raise ValueError('only an externally verified, passing episode is admissible')
+    if not all(checks.values()):
+        raise ValueError('a passing episode cannot contain a failed check')
+    return deepcopy(value)
+
+
+def validate_token_row(row, *, vocab_size=None, context_tokens=None, require_acceptance=True):
+    expected = ('episode_id', 'source', 'input_protocol', 'input_ids', 'loss_mask')
+    fields(row, expected + (('acceptance',) if 'acceptance' in row else ()))
     text(row['episode_id']); text(row['source'])
+    if require_acceptance or 'acceptance' in row:
+        if 'acceptance' not in row:
+            raise ValueError('training admission requires external acceptance evidence')
+        validate_row_acceptance(row['acceptance'], episode_id=row['episode_id'])
     if row['input_protocol'] != PROTOCOL:
         raise ValueError('only current complete transcript tokens are accepted')
     tokens, mask = row['input_ids'], row['loss_mask']

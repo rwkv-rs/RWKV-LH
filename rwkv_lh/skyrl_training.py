@@ -101,7 +101,7 @@ def export_rows(rows, output, *, provenance):
         raise FileExistsError(output)
     output.parent.mkdir(parents=True, exist_ok=True)
     count = token_count = targets = 0
-    ids = set()
+    ids, verifiers, checks = set(), set(), 0
     with tempfile.TemporaryDirectory(prefix='.skyrl-', dir=output.parent) as staging:
         staging = Path(staging)
         with (staging / 'train.jsonl').open('w') as stream:
@@ -110,6 +110,8 @@ def export_rows(rows, output, *, provenance):
                 if row['episode_id'] in ids:
                     raise ValueError('duplicate source episode identity')
                 ids.add(row['episode_id'])
+                verifiers.add(row['acceptance']['verifier_sha256'])
+                checks += len(row['acceptance']['checks'])
                 stream.write(json.dumps(row, ensure_ascii=False, separators=(',', ':')) + '\n')
                 count += 1
                 token_count += len(row['input_ids'])
@@ -121,7 +123,11 @@ def export_rows(rows, output, *, provenance):
         result = dict(schema_version=STORE_SCHEMA, episodes=count, input_tokens=token_count,
                       supervised_tokens=targets, provenance=provenance,
                       train_file=dict(path='train.jsonl', sha256=sha(staging / 'train.jsonl')),
-                      truncated_tokens=0, added_tokens=0)
+                      truncated_tokens=0, added_tokens=0,
+                      # Every admitted episode carries passing external checks;
+                      # the verifier identities say which program produced them.
+                      acceptance=dict(verified_episodes=count, passing_checks=checks,
+                                      verifier_sha256=sorted(verifiers)))
         # Only train.jsonl is passed to SkyRL, never this metadata JSON.
         (staging / 'MANIFEST.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
         os.rename(staging, output)
