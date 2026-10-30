@@ -90,6 +90,7 @@ class ProjectLaunch:
             raise ValueError('launch receipts must be outside the source workspace')
         self.kind, self.port, self.timeout, self.npm_script = kind, port, timeout, npm_script
         self.process = self.server = self.thread = self.log = None
+        self._sandbox_info_read = None
         self.copy = self.output / 'workspace'
         self.receipt = dict(kind=kind, source=str(self.workspace), status='new', url=None,
                             reason=None, commands=[], health=None, source_files={},
@@ -172,8 +173,17 @@ class ProjectLaunch:
         self.receipt['commands'].append(row)
         self._save()
         self.log = log_path.open('xb')
-        self.process = subprocess.Popen(command, env=environment, cwd=self.copy,
-                                        stdout=self.log, stderr=subprocess.STDOUT, start_new_session=True)
+        info_read, info_write = os.pipe()
+        command = [command[0], '--info-fd', str(info_write), *command[1:]]
+        try:
+            self.process = subprocess.Popen(command, env=environment, cwd=self.copy,
+                stdout=self.log, stderr=subprocess.STDOUT, start_new_session=True, pass_fds=(info_write,))
+        except BaseException:
+            os.close(info_read)
+            raise
+        finally:
+            os.close(info_write)
+        self._sandbox_info_read = info_read
         row['pid'] = self.process.pid
         if background:
             self._save()
@@ -191,9 +201,20 @@ class ProjectLaunch:
             self.log = None
             row['ended_at'] = time.time()
             self._save()
+        self._await_sandbox_exit()
         if row['exit_code'] != 0:
             raise LaunchError(f'{stage} failed with exit {row["exit_code"]}; see {log_path}')
         self.process = None
+
+    def _await_sandbox_exit(self):
+        descriptor, self._sandbox_info_read = self._sandbox_info_read, None
+        if descriptor is not None:
+            try:
+                # The outer bwrap can exit before its namespace has released
+                # listeners and files. Use the same completion boundary as Bash.
+                ActionHarness._await_sandbox_exit(descriptor)
+            finally:
+                os.close(descriptor)
 
     def _stop_process(self):
         if self.process is None:
@@ -208,6 +229,7 @@ class ProjectLaunch:
             except subprocess.TimeoutExpired:
                 os.killpg(self.process.pid, signal.SIGKILL)
                 self.process.wait(timeout=3)
+        self._await_sandbox_exit()
         if self.log:
             self.log.close()
             self.log = None
