@@ -275,15 +275,27 @@ def prepare(registration, output):
     return result
 
 
+def trainer_environment(registration, device):
+    # Ray sets OMP_NUM_THREADS=1 inside actors unless the driver sets it; with CPU
+    # offload the gradient accumulation and AdamW step would then use one core.
+    threads = registration.get('cpu_threads')
+    if type(threads) is not int or threads <= 0:
+        raise ValueError('a positive integer cpu_threads is required for the CPU-offloaded optimizer')
+    env = dict(os.environ, CUDA_VISIBLE_DEVICES=device, RAY_ADDRESS='local',
+               OMP_NUM_THREADS=str(threads), MKL_NUM_THREADS=str(threads))
+    env.pop('PYTHONPATH', None)
+    return env
+
+
 def run(registration, output):
+    trainer_environment(registration, registration['gpu_uuid'])  # refuse before the slow preparation
     prepared = prepare(registration, output)
     expected = gpu_uuid(registration['gpu_index'])
     if expected != registration['gpu_uuid']:
         raise ValueError('physical GPU UUID differs; no training started')
     snapshot = require_idle_gpu(expected)
     (Path(output) / 'GPU_START.json').write_text(json.dumps(snapshot, indent=2) + '\n')
-    env = dict(os.environ, CUDA_VISIBLE_DEVICES=expected, RAY_ADDRESS='local')
-    env.pop('PYTHONPATH', None)
+    env = trainer_environment(registration, expected)
     with (Path(output) / 'skyrl.log').open('xb') as log:
         process = subprocess.run(prepared['command'], cwd=prepared['source_root'], env=env,
                                  stdout=log, stderr=subprocess.STDOUT, check=False)
