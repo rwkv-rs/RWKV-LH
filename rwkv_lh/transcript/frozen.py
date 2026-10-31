@@ -159,6 +159,12 @@ def _production_sources(manifest, base, native_tools):
     return sources
 
 
+def training_messages(messages, native_tools):
+    """The one source -> training message mapping: the current Executor system turn."""
+    from ..project_protocols.executor import current_system
+    return current_system(messages, native_tools)
+
+
 def read_manifest(path, expected_sha256):
     """Reject retired/relabelled formats before any model, source or GPU checks."""
     path = Path(path).absolute()
@@ -221,8 +227,9 @@ def load_split(path, expected_sha256, split, *, context_tokens, vocab_size,
                 # Re-read each sealed source when used, so later replacement cannot
                 # mix a frozen manifest with different model-visible source bytes.
                 document, _ = _json({'path': str(source['path']), 'sha256': row['source']}, base)
-                expected = tokenize_transcript(document['messages'], tokenizer=tokenizer,
-                                               native_tools=native_tools, max_tokens=context_tokens)
+                expected = tokenize_transcript(training_messages(document['messages'], native_tools),
+                                               tokenizer=tokenizer, native_tools=native_tools,
+                                               max_tokens=context_tokens)
                 if row['input_ids'] != expected['input_ids'] or row['loss_mask'] != expected['loss_mask']:
                     raise ValueError('complete transcript tokens or supervision mask differ from the production source')
                 count += 1

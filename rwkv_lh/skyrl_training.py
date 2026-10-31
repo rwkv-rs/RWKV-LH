@@ -134,15 +134,30 @@ def export_rows(rows, output, *, provenance):
     return result
 
 
+# Settings that change speed or memory, never the optimisation trajectory.
+PERFORMANCE_KEYS = ('fsdp_config.reshard_after_forward', 'fsdp_config.sync_gradients_each_microbatch',
+                    'logprobs_chunk_size', 'use_torch_compile', 'dataloader_num_workers')
+SCHEDULERS = ('constant_with_warmup', 'cosine_with_min_lr')
+
+
 def native_config(*, model, train_file, output, batch_size, learning_rate, seed,
-                  epochs, max_steps, chunk_size, checkpoint_interval, resume_from='',
-                  cpu_offload=True):
+                  epochs, max_steps, chunk_size, checkpoint_interval, warmup_steps, scheduler,
+                  min_lr_rate=None, resume_from='', cpu_offload=True, performance=None):
     if (any(type(v) is not int or v <= 0 for v in
             (batch_size, epochs, max_steps, chunk_size, checkpoint_interval))
-            or type(seed) is not int or not math.isfinite(learning_rate) or learning_rate <= 0):
+            or type(seed) is not int or not math.isfinite(learning_rate) or learning_rate <= 0
+            or type(warmup_steps) is not int or not 0 <= warmup_steps < max_steps):
         raise ValueError('explicit positive SkyRL training budget is required')
+    if scheduler not in SCHEDULERS:
+        raise ValueError('scheduler must be one of ' + ', '.join(SCHEDULERS))
+    if (scheduler == 'cosine_with_min_lr') != (min_lr_rate is not None) or (
+            min_lr_rate is not None and not 0 < min_lr_rate < 1):
+        raise ValueError('cosine_with_min_lr requires 0 < min_lr_rate < 1; other schedulers take none')
+    performance = dict(performance or {})
+    if set(performance) - set(PERFORMANCE_KEYS):
+        raise ValueError('only registered math-preserving performance settings may be overridden')
     output = Path(output).absolute()
-    return {
+    config = {
         'strategy': 'fsdp', 'model.path': str(model), 'model.lora.rank': 0,
         'model_config_kwargs': {'wkv_mode': 'fp32io16'},
         'pretokenized_dataset_paths': [str(train_file)], 'max_length': None,
@@ -155,8 +170,9 @@ def native_config(*, model, train_file, output, batch_size, learning_rate, seed,
         'fsdp_config.sync_gradients_each_microbatch': cpu_offload,
         'fsdp_config.mixed_precision': {'param_dtype': 'bf16', 'reduce_dtype': 'fp32', 'buffer_dtype': 'fp32'},
         'optimizer_config.lr': learning_rate, 'optimizer_config.weight_decay': 0.0,
-        'optimizer_config.max_grad_norm': 1.0, 'optimizer_config.scheduler': 'constant_with_warmup',
-        'optimizer_config.num_warmup_steps': 0, 'optimizer_config.offload_after_step': False,
+        'optimizer_config.max_grad_norm': 1.0, 'optimizer_config.scheduler': scheduler,
+        'optimizer_config.num_warmup_steps': warmup_steps, 'optimizer_config.offload_after_step': False,
+        'optimizer_config.scheduler_specific_kwargs': {} if min_lr_rate is None else {'min_lr_rate': min_lr_rate},
         'seed': seed, 'sampler': 'sequential', 'num_workers': 0,
         'dataloader_num_workers': 0, 'dataloader_persistent_workers': False,
         'async_batch_collation': False, 'ckpt_path': str(output / 'checkpoints'),
@@ -166,6 +182,8 @@ def native_config(*, model, train_file, output, batch_size, learning_rate, seed,
         'eval_command': None, 'logger': 'console', 'project_name': 'rwkv-lh',
         'run_name': output.name, 'enable_ray_gpu_monitor': False,
     }
+    config.update(performance)
+    return config
 
 
 def command(python, configuration):
@@ -241,7 +259,9 @@ def prepare(registration, output):
         output=output, batch_size=registration['batch_size'], learning_rate=registration['learning_rate'],
         seed=registration['seed'], epochs=registration['epochs'], max_steps=registration['max_steps'],
         chunk_size=registration['chunk_size'], checkpoint_interval=registration['checkpoint_interval'],
-        resume_from=registration.get('resume_from', ''), cpu_offload=registration.get('cpu_offload', True))
+        warmup_steps=registration['warmup_steps'], scheduler=registration['scheduler'],
+        min_lr_rate=registration.get('min_lr_rate'), resume_from=registration.get('resume_from', ''),
+        cpu_offload=registration.get('cpu_offload', True), performance=registration.get('performance'))
     result = dict(schema_version=RUN_SCHEMA, configuration=config, dataset=exported,
                   model_manifest=registration['model_manifest'], chunk_gradient=chunk_gradient,
                   command=command(registration['python'], config), source_root=str(root),

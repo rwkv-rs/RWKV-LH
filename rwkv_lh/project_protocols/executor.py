@@ -1,5 +1,6 @@
 """One persistent Executor conversation and the frozen native tool vocabulary."""
 from copy import deepcopy
+import hashlib
 from rwkv_lh.project_contracts import (ASSIGNMENT_PROTOCOL, fields, text, resource_budget,
     digest, make_goal, strings, scope_path)
 from rwkv_lh.project_work_orders import ORDER_PROTOCOL, validate_order
@@ -42,6 +43,30 @@ def action_definitions(tools):
 def _system(native_tools):
     catalog(native_tools)
     return system_message(RULES + '\nTools:\n' + compact(canonical_definitions(native_tools)))
+
+
+# Instructions the nine-tool production collector showed the teacher. Only the
+# host's system turn differs from the current protocol; collected turns do not.
+COLLECTED_RULES_SHA256 = '0049348a8af0fc6a9789a02af9e530671b6bf2aad62c7bad9af32bd3d191c2dd'
+
+
+def current_system(messages, native_tools):
+    """Rebuild a collected episode's system turn with the current builder.
+
+    The stored system turn must be exactly the collector's builder output for
+    this catalog; every other message is returned unchanged. This updates host
+    instructions to the protocol the model is trained and served with; it never
+    rewrites a model turn, receipt or host report.
+    """
+    if not isinstance(messages, list) or not messages or messages[0].get('role') != 'system':
+        raise ValueError('collected episode must start with its system turn')
+    suffix = '\nTools:\n' + compact(canonical_definitions(native_tools))
+    content = messages[0].get('content')
+    if (not isinstance(content, str) or not content.endswith(suffix)
+            or hashlib.sha256(content[:-len(suffix)].encode('utf-8')).hexdigest() != COLLECTED_RULES_SHA256
+            or set(messages[0]) != {'role', 'content'}):
+        raise ValueError('system turn is not the nine-tool collector instruction for this catalog')
+    return [_system(native_tools), *deepcopy(messages[1:])]
 
 
 def _request_message(request, protected_paths, material_identities):
