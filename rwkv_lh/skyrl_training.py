@@ -138,6 +138,9 @@ def export_rows(rows, output, *, provenance):
 PERFORMANCE_KEYS = ('fsdp_config.reshard_after_forward', 'fsdp_config.sync_gradients_each_microbatch',
                     'logprobs_chunk_size', 'use_torch_compile', 'dataloader_num_workers')
 SCHEDULERS = ('constant_with_warmup', 'cosine_with_min_lr')
+# A full-parameter optimizer checkpoint is ~16 B/param; keep the newest two so an
+# interrupted write never leaves no resumable state. HF exports are all kept.
+KEEP_CHECKPOINTS = 2
 
 
 def native_config(*, model, train_file, output, batch_size, learning_rate, seed,
@@ -177,7 +180,7 @@ def native_config(*, model, train_file, output, batch_size, learning_rate, seed,
         'dataloader_num_workers': 0, 'dataloader_persistent_workers': False,
         'async_batch_collation': False, 'ckpt_path': str(output / 'checkpoints'),
         'export_path': str(output / 'hf_exports'), 'ckpt_interval': checkpoint_interval,
-        'hf_save_interval': checkpoint_interval, 'max_ckpts_to_keep': -1,
+        'hf_save_interval': checkpoint_interval, 'max_ckpts_to_keep': KEEP_CHECKPOINTS,
         'resume_from': str(resume_from), 'eval_before_train': False, 'eval_interval': 0,
         'eval_command': None, 'logger': 'console', 'project_name': 'rwkv-lh',
         'run_name': output.name, 'enable_ray_gpu_monitor': False,
