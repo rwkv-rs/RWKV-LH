@@ -8,7 +8,7 @@ current protocol cannot represent are excluded with a reason, never repaired or
 truncated. Validation is held out by scenario family so near-duplicate tasks of
 one scenario never straddle the split.
 
-    python -m rwkv_lh.transcript.dataset ADMITTED_EXPORT PRODUCTION_ROOT OUTPUT \
+    python -m rwkv_lh.transcript.dataset PRODUCTION_ROOT OUTPUT ADMITTED_EXPORT [ADMITTED_EXPORT ...] \
         --model-sha256 SHA --context-tokens N --owner-instruction FILE
 """
 import argparse
@@ -66,16 +66,23 @@ def similarity_audit(prompts):
 
 def build_dataset(admitted, production_root, output, *, model_sha256, context_tokens, owner_instruction,
                   native_tools, tokenizer, tokenizer_sha256):
-    admitted, production_root, output = Path(admitted), Path(production_root), Path(output).absolute()
+    # One export directory, or the shard directories of the collector's bulk export.
+    shards = [Path(admitted)] if isinstance(admitted, (str, Path)) else [Path(item) for item in admitted]
+    production_root, output = Path(production_root), Path(output).absolute()
+    if not shards:
+        raise ValueError('at least one admitted export is required')
     if output.exists():
         raise FileExistsError('dataset versions are immutable; choose a new output directory')
     if not isinstance(owner_instruction, str) or not owner_instruction.strip():
         raise ValueError('the owner instruction authorizing this dataset is required')
-    upstream = loads((admitted / 'sources.json').read_bytes())
-    if upstream.get('origin') != 'production':
-        raise ValueError('admitted export must come from production sources')
+    sources, upstream_rows = {}, []
+    for shard in shards:
+        upstream = loads((shard / 'sources.json').read_bytes())
+        if upstream.get('origin') != 'production':
+            raise ValueError('admitted export must come from production sources')
+        sources.update({entry['sha256']: shard / entry['path'] for entry in upstream['files']})
+        upstream_rows += (shard / 'train.jsonl').read_text(encoding='utf-8').splitlines()
     catalog = canonical_definitions(native_tools)
-    sources = {entry['sha256']: admitted / entry['path'] for entry in upstream['files']}
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.dataset-', dir=output.parent) as staging:
         stage = Path(staging) / 'dataset'
@@ -83,7 +90,7 @@ def build_dataset(admitted, production_root, output, *, model_sha256, context_to
         rows, files, excluded = {'train': [], 'validation': []}, [], Counter()
         excluded_runs, prompts, coverage = {}, {}, {'train': Counter(), 'validation': Counter()}
         lengths, seen = {'train': [], 'validation': []}, set()
-        for line in (admitted / 'train.jsonl').read_text(encoding='utf-8').splitlines():
+        for line in upstream_rows:
             upstream_row = loads(line)
             episode, digest = upstream_row['episode_id'], upstream_row['source']
             def skip(reason):
@@ -166,6 +173,7 @@ def build_dataset(admitted, production_root, output, *, model_sha256, context_to
         manifest['audit_references'] = [_ref(stage / 'audit.json', stage)]
         (stage / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
         report = {'output': str(output), 'manifest_sha256': _sha((stage / 'manifest.json').read_bytes()),
+                  'admitted': [str(shard) for shard in shards],
                   'rows': {split: len(items) for split, items in rows.items()},
                   'excluded': dict(excluded), 'excluded_runs': excluded_runs, 'audits': audits}
         (stage / 'BUILD_REPORT.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
@@ -178,9 +186,9 @@ def main(argv=None):
     from ..project_runtime import role_definitions
     from ..token_budget import VOCAB_PATH, tokenizer
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    parser.add_argument('admitted', type=Path)
     parser.add_argument('production_root', type=Path)
     parser.add_argument('output', type=Path)
+    parser.add_argument('admitted', type=Path, nargs='+', help='export directory or bulk-export shard directories')
     parser.add_argument('--model-sha256', required=True)
     parser.add_argument('--context-tokens', type=int, required=True)
     parser.add_argument('--owner-instruction', type=Path, required=True)

@@ -190,7 +190,9 @@ def native_config(*, model, train_file, output, batch_size, learning_rate, seed,
 
 
 def command(python, configuration):
-    return ['uv', 'run', '--isolated', '--no-project', str(python), '-m', 'skyrl.train.main_sft',
+    # Run the pinned interpreter directly; `uv run --isolated` makes Ray launch its
+    # workers outside the pinned environment, where they cannot import ray.
+    return [str(python), '-m', 'skyrl.train.main_sft',
             *(key + '=' + json.dumps(value, ensure_ascii=False, separators=(',', ':'))
               for key, value in configuration.items())]
 
