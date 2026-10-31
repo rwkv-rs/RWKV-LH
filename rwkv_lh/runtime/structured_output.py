@@ -8,7 +8,7 @@ from .native_request_protocol import native_result_digest
 DECODER_PROTOCOL = 'rwkv-lh.structured-output.v2'
 DECODER_BACKEND = 'guidance'
 STATE_OUTPUT_POLICY = 'exclude_terminal_eos'
-TRANSCRIPT_GRAMMAR_PROTOCOL = 'rwkv-lh.transcript-guidance.v1'
+TRANSCRIPT_GRAMMAR_PROTOCOL = 'rwkv-lh.transcript-guidance.v2'
 
 
 def _generation_schema(schema, path='$', deferred=None):
@@ -62,7 +62,7 @@ def build_transcript_decoder_contract(native_tools: list[dict[str, Any]]) -> dic
     cannot be authorized merely by replacing its digest.
     """
     from rwkv_lh.transcript.grammar import build_grammar
-    from rwkv_lh.transcript.render import PROTOCOL
+    from rwkv_lh.transcript.wire import PROTOCOL
     from rwkv_lh.transcript.tools import TOOL_PROTOCOL
 
     if not isinstance(native_tools, list) or not native_tools:

@@ -12,15 +12,15 @@ from pathlib import Path
 
 from ..project_contracts import digest, fields, text
 from ..evaluation_policy import assert_training_record_allowed, assert_training_source_allowed
-from .parse import loads, parse_transcript, parse_assistant, validate_messages
-from .render import PROTOCOL, compact
+from .parse import STORAGE_PROTOCOL, loads, parse_transcript, validate_assistant, validate_messages
+from .wire import PROTOCOL
 from .tools import TOOL_PROTOCOL, canonical_definitions
 from .tokenize import tokenize_transcript
 
 MANIFEST_SCHEMA = 'rwkv-lh.transcript-token-manifest.v1'
 SOURCE_SCHEMA = 'rwkv-lh.transcript-production-sources.v1'
 FORMAT = 'transcript_tokens'
-PROTOCOL_FILES = ('render.py', 'parse.py', 'tools.py', 'tokenize.py')
+PROTOCOL_FILES = ('wire.py', 'render.py', 'parse.py', 'tools.py', 'tokenize.py')
 IDENTITY_FIELDS = ('schema_version', 'input_protocol', 'tool_protocol', 'model_sha256',
     'tokenizer_sha256', 'protocol_sources', 'generation_script', 'source_manifest', 'splits')
 
@@ -140,8 +140,8 @@ def _production_sources(manifest, base, native_tools):
     sources = {}
     for entry in files:
         fields(entry, ('path', 'sha256', 'input_protocol'))
-        if entry['input_protocol'] != PROTOCOL:
-            raise ValueError('retired production input protocol cannot be relabelled')
+        if entry['input_protocol'] != STORAGE_PROTOCOL:
+            raise ValueError('production sources must declare the native message storage protocol')
         reference = {key: entry[key] for key in ('path', 'sha256')}
         source = Path(reference['path'])
         assert_training_source_allowed(source if source.is_absolute() else source_path.parent / source)
@@ -154,7 +154,7 @@ def _production_sources(manifest, base, native_tools):
             raise ValueError('production source must use the current frozen nine-tool catalog')
         for message in document['messages']:
             if message['role'] == 'assistant':
-                parse_assistant(compact(message), native_tools)
+                validate_assistant(message, native_tools)
         sources[entry['sha256']] = {'path': path}
     return sources
 
@@ -221,7 +221,8 @@ def load_split(path, expected_sha256, split, *, context_tokens, vocab_size,
                 # Re-read each sealed source when used, so later replacement cannot
                 # mix a frozen manifest with different model-visible source bytes.
                 document, _ = _json({'path': str(source['path']), 'sha256': row['source']}, base)
-                expected = tokenize_transcript(document['messages'], tokenizer=tokenizer, max_tokens=context_tokens)
+                expected = tokenize_transcript(document['messages'], tokenizer=tokenizer,
+                                               native_tools=native_tools, max_tokens=context_tokens)
                 if row['input_ids'] != expected['input_ids'] or row['loss_mask'] != expected['loss_mask']:
                     raise ValueError('complete transcript tokens or supervision mask differ from the production source')
                 count += 1

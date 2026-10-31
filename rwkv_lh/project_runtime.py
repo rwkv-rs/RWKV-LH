@@ -14,7 +14,7 @@ from .project_workspace import explicit_write_targets, violations as write_viola
 from .schema import GoalState, TaskAction
 from .workspace_snapshot import tree_identity, copy_verified_workspace, invalid_entries
 from .transcript.render import tool_result, user_message, compact
-from .transcript.parse import parse_assistant, validate_messages, loads
+from .transcript.parse import validate_assistant, validate_messages, loads
 from .transcript.tools import native_call
 from .project_work_orders import build_report
 from .job_budget import WallDeadlineExpired
@@ -207,7 +207,7 @@ class ProjectRuntime:
             raise ValueError('Executor requires a native assistant message')
         fields(params, ('message',))
         if 'batch' not in inbox:
-            message = parse_assistant(compact(params['message']), definitions)
+            message = validate_assistant(params['message'], definitions)
             validate_messages([*s['transcript'], message])
             batch = []
             for call in message.get('tool_calls', []):

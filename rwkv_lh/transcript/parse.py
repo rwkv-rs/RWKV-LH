@@ -5,6 +5,9 @@ from copy import deepcopy
 from ..schema_validation import validate_schema
 from .tools import canonical_definitions, native_name
 
+# Stored production messages; model-visible text is versioned by wire.PROTOCOL.
+STORAGE_PROTOCOL = 'rwkv-lh.coder.native-messages.v1'
+
 
 def loads(raw):
     """Reject duplicate keys and non-JSON numbers, including inside arguments."""
@@ -37,7 +40,7 @@ def _text(value, *, nonempty=False):
 
 
 def validate_message(message):
-    """Validate the wire envelope, without accepting a recorded action for execution."""
+    """Validate the stored native message, without accepting a recorded action for execution."""
     if not isinstance(message, dict):
         raise ValueError('message object required')
     role = message.get('role')
@@ -76,7 +79,7 @@ def validate_messages(messages, *, allow_pending=True):
 
     A source transcript can contain an invalid model argument string or a
     terminal assistant call whose outcome is unknown. Parsing that evidence
-    does not authorize executing or replaying it. Live calls use parse_assistant.
+    does not authorize executing or replaying it. Live calls use validate_assistant.
     """
     if not isinstance(messages, list):
         raise ValueError('messages array required')
@@ -145,17 +148,22 @@ def validate_call(call, schemas):
     return arguments
 
 
-def parse_assistant(raw, native_tools):
-    """Validate every call before any call in a multi-call turn can execute."""
-    message = loads(raw)
+def validate_assistant(message, native_tools=None, *, schemas=None):
+    """Validate one structured assistant message before any call can execute.
+
+    Every turn makes at least one call: the protocol has no text-only turn in
+    which an action could be written as prose instead of being executed.
+    """
+    if (native_tools is None) == (schemas is None):
+        raise ValueError('exactly one of native_tools or schemas required')
     validate_message(message)
     if message['role'] != 'assistant':
         raise ValueError('assistant message required')
-    schemas = catalog(native_tools)
-    seen = set()
+    schemas = catalog(native_tools) if schemas is None else schemas
     calls = message.get('tool_calls', [])
-    if not calls and not (message.get('content') or message.get('reasoning_content')):
-        raise ValueError('empty assistant message')
+    if not calls:
+        raise ValueError('assistant turn requires at least one tool call')
+    seen = set()
     for index, call in enumerate(calls):
         if call['id'] in seen:
             raise ValueError('duplicate tool call id')

@@ -16,7 +16,7 @@ from copy import deepcopy
 import hashlib
 import json
 
-CONTROL_PROTOCOL = 'rwkv-lh.transcript-mask-controls.v1'
+CONTROL_PROTOCOL = 'rwkv-lh.transcript-mask-controls.v2'
 
 
 def _allowed(mask, token):
@@ -64,9 +64,8 @@ def probe(contract, *, prefix, violation, legal, llguidance, tokenizer_wrapper):
 def reach(contract, seed, *, llguidance, tokenizer_wrapper, steps=200):
     """Advance from `seed` through every byte the grammar forces, and stop.
 
-    Hand-written prefixes drift as the grammar evolves: a transcript call is
-    wrapped in a message envelope whose exact shape -- content, then
-    reasoning_content, then tool_calls -- is the grammar's to decide, not ours.
+    Hand-written prefixes drift as the grammar evolves: which tags and
+    parameter names follow a choice is the grammar's to decide, not ours.
     Following `compute_ff_bytes` derives the prefix from the live grammar, so a
     control always probes a position the decoder really visits.
     """
@@ -102,8 +101,11 @@ def control_cases(contract, *, llguidance, tokenizer_wrapper):
                             tokenizer_wrapper=tokenizer_wrapper)
         return reached
 
-    # Reaching this point already forces id/type/function and the "name": key.
-    named = at('{"role":"assistant","content":null,"reasoning_content":n', '{"id":"c1",')
+    # The opening of a call forces "<function=", so the probe sits on the name.
+    think = '<think>\nx\n</think>\n'
+    named = at(think, '<tool_call>\n')
+    # After ListDir the shared '<' of its optional parameters and the close is forced.
+    closed = at(named, 'ListDir', '/function>\n</tool_call>\n')
     return [
         {'case': 'unknown_tool',
          'prefix': named, 'violation': 'Nonexistent', 'legal': 'Read',
@@ -111,23 +113,28 @@ def control_cases(contract, *, llguidance, tokenizer_wrapper):
         {'case': 'retired_action',
          'prefix': named, 'violation': 'submit_plan', 'legal': 'Edit',
          'why': 'a retired action name must be unreachable'},
-        # The comma is legal -- Read has optional parameters -- and the opening
-        # quote after it is forced, so the probe sits on the key's first byte,
-        # where only a declared name may begin.
+        # Read has optional parameters, so after its required one only a
+        # declared name may follow the shared parameter opening.
         {'case': 'additional_property',
-         'prefix': at(named, 'Read', 'a.txt\\",'), 'violation': 'extra', 'legal': 'start_byte',
-         'why': 'additionalProperties is false, so only a declared key may open'},
+         'prefix': at(named, 'Read', 'a.txt\n</parameter>\n<parameter='), 'violation': 'extra',
+         'legal': 'start_byte', 'why': 'additionalProperties is false, so only a declared key may open'},
+        {'case': 'missing_think',
+         'prefix': '', 'violation': 'I will', 'legal': think,
+         'why': 'every turn opens with its think block'},
+        {'case': 'text_after_calls',
+         'prefix': closed, 'violation': 'Done.', 'legal': '<tool_call>',
+         'why': 'after a call only another call may follow; prose cannot stand in for an action'},
     ], tools
 
 
 def forced_cases(contract, *, llguidance, tokenizer_wrapper):
     """Classes the grammar settles by forcing bytes rather than by masking.
 
-    Where a tool's argument object has one reachable continuation, the decoder
-    emits the parameter name itself: the native spelling and a wrong key order
-    are not rejected at a branch, they are unreachable because no branch exists.
-    That is the stronger property, so it is asserted as forcing rather than
-    recorded as a masked alternative.
+    Where a tool's arguments have one reachable continuation, the decoder emits
+    the parameter name itself: the native spelling and a wrong key order are not
+    rejected at a branch, they are unreachable because no branch exists. That is
+    the stronger property, so it is asserted as forcing rather than recorded as
+    a masked alternative.
     """
     def at(*parts):
         reached = ''
@@ -136,7 +143,7 @@ def forced_cases(contract, *, llguidance, tokenizer_wrapper):
                             tokenizer_wrapper=tokenizer_wrapper)
         return reached
 
-    named = at('{"role":"assistant","content":null,"reasoning_content":n', '{"id":"c1",')
+    named = at('<think>\nx\n</think>\n', '<tool_call>\n')
     rows = []
     for case, tool, expected, forbidden in (
             ('native_parameter_name', 'Read', 'file_path', 'path'),
@@ -145,8 +152,8 @@ def forced_cases(contract, *, llguidance, tokenizer_wrapper):
         reached = at(named, tool)
         tail = reached[len(named) + len(tool):]
         rows.append({'case': case, 'tool': tool, 'forced_tail': tail,
-                     'forces_expected_key': ('\\"%s\\"' % expected) in tail,
-                     'never_emits_forbidden': ('\\"%s\\"' % forbidden) not in tail,
+                     'forces_expected_key': ('<parameter=%s>' % expected) in tail,
+                     'never_emits_forbidden': ('<parameter=%s>' % forbidden) not in tail,
                      'why': 'the grammar forces this key, so the violation has no branch to take'})
         rows[-1]['passed'] = rows[-1]['forces_expected_key'] and rows[-1]['never_emits_forbidden']
     return rows

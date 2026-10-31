@@ -19,8 +19,8 @@ from .project_protocols import planner, executor
 from .project_output_validation import validate_role_output
 from .project_model_io import parse_role_call
 from .token_budget import get_token_count
-from .transcript.parse import parse_assistant, validate_messages
-from .transcript.render import PROTOCOL as TRANSCRIPT_PROTOCOL, render_message, render_turns
+from .transcript.parse import validate_messages
+from .transcript.wire import PROTOCOL as TRANSCRIPT_PROTOCOL, generation_prompt, parse_assistant, render_turns
 from .transcript.tools import TOOL_PROTOCOL
 
 
@@ -37,15 +37,16 @@ class ProjectInputBudgetError(InputBudgetError):
             'tokenizer_sha256': hashlib.sha256(VOCAB_PATH.read_bytes()).hexdigest(), **original_input}
 
 
-def _suffix(messages, checkpoint):
+def _suffix(messages, checkpoint, native_tools):
+    """Host text not yet in the State, ending with the assistant generation prompt."""
     validate_messages(messages, allow_pending=False)
-    if checkpoint is None:
-        return ''.join(render_turns(messages))
-    old = checkpoint.get('messages')
+    old = [] if checkpoint is None else checkpoint.get('messages')
     if not isinstance(old, list) or messages[:len(old)] != old:
         raise ValueError('Executor conversation changed before its committed State boundary')
-    # Validate the complete conversation before rendering a tool-only suffix.
-    return ''.join(render_message(message) + '\n' for message in messages[len(old):])
+    if len(messages) == len(old):
+        raise ValueError('Executor request has no new host turn after its State boundary')
+    # Render the complete conversation so the suffix is validated in context.
+    return ''.join(render_turns(messages, native_tools)[len(old):]) + generation_prompt()
 
 
 def _event_renderer(event, visible_definitions=(), **kwargs):
@@ -134,7 +135,7 @@ class ProjectSessions:
         else:
             if payload['native_tools'] != definitions:
                 raise ValueError('Executor input tool catalog differs from live definitions')
-            delta = _suffix(payload['messages'], checkpoint)
+            delta = _suffix(payload['messages'], checkpoint, definitions)
             selected, reserved = self.settings, 1
             count, original = get_token_count(delta), {'input_text': delta}
             transport = 'native_delta' if checkpoint else 'native_bootstrap'
@@ -162,8 +163,10 @@ class ProjectSessions:
             decoder = build_transcript_decoder_contract(definitions) if self.constrained_decoding else None
             binding['decoder_digest'] = decoder['contract_sha256'] if decoder else None
             binding['instruction_digest'] = digest(executor.RULES)
+            # Call IDs are host bookkeeping: unique by conversation position.
+            id_prefix = 'call_' + str(len(payload['messages']))
             def parse(raw):
-                message = parse_assistant(raw, definitions)
+                message = parse_assistant(raw, definitions, id_prefix=id_prefix)
                 command = ModelCommand('assistant', {'message': message})
                 return command, ModelCommandNormalization(input_payload=message, normalized_payload=message,
                     transformations=(), normalizer_version=TRANSCRIPT_PROTOCOL)
@@ -181,15 +184,14 @@ class ProjectSessions:
             parent = session.bootstrap(ModelLaneKind.ACTION, canonical_json(payload), definitions, lane_id=lane)
         elif checkpoint:
             parent = session.import_checkpoint(checkpoint['checkpoint'])
-            suffix = _suffix(payload['messages'], checkpoint)
-            if suffix:
-                if checkpoint.get('needs_newline'):
-                    suffix = '\n' + suffix
-                parent = session.append(parent, ModelEvent(event_type='transcript_append',
-                    event_id='PT-' + digest([payload['messages'], parent.checkpoint_id]), scope_id=lane,
-                    payload={'text': suffix}))
+            suffix = _suffix(payload['messages'], checkpoint, definitions)
+            if checkpoint.get('needs_newline'):
+                suffix = '\n' + suffix
+            parent = session.append(parent, ModelEvent(event_type='transcript_append',
+                event_id='PT-' + digest([payload['messages'], parent.checkpoint_id]), scope_id=lane,
+                payload={'text': suffix}))
         else:
-            rendered = _suffix(payload['messages'], None)
+            rendered = _suffix(payload['messages'], None, definitions)
             parent = session.bootstrap(ModelLaneKind.ACTION, rendered, definitions, lane_id=lane)
         started = time.monotonic()
         event_start = len(session.client.events) if role == 'planner' else 0

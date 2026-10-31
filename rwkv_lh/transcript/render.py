@@ -1,9 +1,8 @@
-"""One native message layout for host turns, receipts and model targets.
+"""Builders for stored native messages and receipts, never model-visible text.
 
 The source document renderer uses the production collector's UTF-8 JSON
-layout. Individual model turns use compact JSON plus one newline; callers
-must use render_turns for both incremental serving and token supervision.
-This module does not convert source vocabularies or export a dataset.
+layout. Model-visible turns are rendered only by ``wire.py``. This module does
+not convert source vocabularies or export a dataset.
 """
 from copy import deepcopy
 import json
@@ -11,10 +10,6 @@ import json
 from ..schema_validation import validate_schema
 from .parse import catalog, validate_message, validate_messages
 
-PROTOCOL = 'rwkv-lh.coder.transcript.v1'
-MESSAGE_KEYS = {'system': ('role', 'content'), 'user': ('role', 'content'),
-                'assistant': ('role', 'content', 'reasoning_content', 'tool_calls'),
-                'tool': ('role', 'tool_call_id', 'content')}
 CALL_KEYS = ('id', 'type', 'function')
 FUNCTION_KEYS = ('name', 'arguments')
 
@@ -80,20 +75,6 @@ def tool_result(identifier, result):
             result['metadata'].pop(key, None)
     return validate_message({'role': 'tool', 'tool_call_id': identifier,
         'content': json.dumps(result, ensure_ascii=False, allow_nan=False)})
-
-
-def render_message(message):
-    validate_message(message)
-    value = {key: deepcopy(message[key]) for key in MESSAGE_KEYS[message['role']] if key in message}
-    if 'tool_calls' in value:
-        value['tool_calls'] = [{key: (dict((k, call['function'][k]) for k in FUNCTION_KEYS)
-            if key == 'function' else call[key]) for key in CALL_KEYS} for call in value['tool_calls']]
-    return compact(value)
-
-
-def render_turns(messages):
-    validate_messages(messages)
-    return [render_message(message) + '\n' for message in messages]
 
 
 def render_transcript(document):

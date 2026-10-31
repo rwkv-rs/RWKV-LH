@@ -9,14 +9,16 @@ from rwkv_lh.transcript.tools import canonical_definitions
 
 PROTOCOL = 'rwkv-lh.coder.executor-input.v2'
 ACTION_PROTOCOL = 'rwkv-lh.coder.executor-actions.v2'
-INSTRUCTION = 'Return one native assistant message with content, reasoning_content and tool_calls.'
+INSTRUCTION = ('Reply in this exact layout: <think>, your reasoning, </think>; optional short narration; then '
+    'one or more calls, each <tool_call> <function=NAME> with one <parameter=KEY> per argument, closed by '
+    '</parameter>, </function>, </tool_call>, every tag on its own line. String values are written literally, '
+    'without quotes or escaping; other values are compact JSON. Every reply makes at least one call.')
 RULES = (
     'Execute the current work order while preserving the original request and protected paths. '
     'You choose tools, read files, implement, test and repair. All orders share your persistent '
     'State. The order scope grants literal write paths; empty scope is read-only. Checks are '
     'commands you decide whether and when to run. A tool result is an observed fact, not '
-    'acceptance. Use the frozen tool catalog; tool arguments are JSON strings in native '
-    'tool_calls with unique ids. Reasoning belongs in reasoning_content, not think tags. '
+    'acceptance. Use the frozen tool catalog. '
     'You may issue multiple tool calls; all are validated before execution and run in order. '
     'finish_work must be last and returns only this work order to the Planner. Its finished '
     'or blocked outcome is your declaration. Host reports arrive as User turns and state '

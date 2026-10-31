@@ -38,7 +38,8 @@ CLI、批量任务和 Web 统一进入 `project_agent.run_project_job()`，恢�
 |Planner 输入|`project_protocols/planner.py::build_input`|每轮派单或结束声明；材料只给身份|
 |Executor 输入|`project_protocols/executor.py::build_input`|同一原生 transcript 和当前工单|
 |工具词表|`transcript/tools.py`|固定九工具；唯一规范名与底层参数映射|
-|消息、回执与解码|`transcript/render.py`、`parse.py`、`grammar.py`|生产、trace、token 化共享真实消息形状|
+|模型可见文本|`transcript/wire.py`、`grammar.py`|唯一一次结构→文本转换；生产、trace、token 化、grammar 共用|
+|存储消息与回执|`transcript/render.py`、`parse.py`|原生消息存储形状；不生成模型可见文本|
 |完整 token 与监督|`transcript/tokenize.py`、`frozen.py`|无损 token/mask；核验已封存来源，不生成数据|
 |实际传输|`project_sessions.py`、`strong_transport.py`|Planner 原始 provider 回执；Executor Native State 增量|
 |Planner 配置|`project_planner_settings.py`|只包含实际使用的传输、模型与预算配置|
@@ -47,13 +48,13 @@ CLI、批量任务和 Web 统一进入 `project_agent.run_project_job()`，恢�
 |工具实现|`harness.py`、`project_tools.py`、`background_jobs.py`|同一 schema 驱动执行、能力与解码|
 |外部预览与检查|`project_launch.py`、`project_browser.py`|隔离启动与浏览器证据；不进入 RWKV 工具菜单|
 
-Planner 输入/chat、Executor 输入/actions、assignment、ledger 和 architecture 当前为 `rwkv-lh.coder.*.v2`。工单为 `rwkv-lh.coder.work-order.v1`，transcript 为 `rwkv-lh.coder.transcript.v1`；这些独立版本以各模块常量为准，attestation 不硬编码版本。旧版和未知版协议、账本、数据及不兼容 State 拒绝加载或改标签重用。
+Planner 输入/chat、Executor 输入/actions、assignment、ledger 和 architecture 当前为 `rwkv-lh.coder.*.v2`。工单为 `rwkv-lh.coder.work-order.v1`，模型可见 transcript 为 `rwkv-lh.coder.transcript.v2`，存储消息为 `rwkv-lh.coder.native-messages.v1`；这些独立版本以各模块常量为准，attestation 不硬编码版本。旧版和未知版协议、账本、数据及不兼容 State 拒绝加载或改标签重用。
 
 旧五角色链、独立 exact_tool_selector、一次性初始计划协议、cc-view 实验实现及相应入口已退出生产；不保留兼容路由。irwkv 和 State Router 动态插件继续维护，不能仅因静态不可达而删除。后端或模型变化不重写角色协议。
 
 ## 原生 assistant transcript 与九工具
 
-Executor 返回原生 assistant 消息：`role/content/reasoning_content/tool_calls`。每个调用有唯一 `id`、`type=function`、`function.name` 和 JSON 字符串 `function.arguments`；思考位于 `reasoning_content`，不使用 think 标签。一轮可包含多个工具调用，整批先验证，再按顺序执行；`finish_work` 必须最后出现。所有工具参数来自同一冻结 schema，宿主不补语义字段、不修复转义、不接受底层旧工具拼写或未知字段。
+存储仍为原生 assistant 消息（`role/content/reasoning_content/tool_calls`，`function.arguments` 为 JSON 字符串）。模型可见文本只由 `wire.py` 一次转换：角色头沿用 g1k 模板（`### System/User/Assistant/Tool Output`），宿主追加 `### Assistant`，模型只生成正文——`<think>` 推理、可选简短叙述、随后一个或多个 Qwen3-Coder 标签调用（`<tool_call>`/`<function=NAME>`/`<parameter=KEY>`）。字符串参数原文写出，不做 JSON 转义；其他类型为紧凑 JSON；参数按 schema 顺序。每轮至少一个调用，没有纯文本轮。call ID 由宿主按对话位置分配，不进入模型文本。接受的输出必须满足 `render_body(parse_assistant(raw)) == raw`，State 中字节与训练渲染一致。回执为紧凑 JSON 事实头加原文 `<output>`，不嵌套序列化字符串。词表无跨 `\n#`/`\n<` 的 token，分段编码与整体编码一致。一轮可包含多个工具调用，整批先验证，再按顺序执行；`finish_work` 必须最后出现。所有工具参数来自同一冻结 schema，宿主不补语义字段、不修复转义、不接受底层旧工具拼写或未知字段。
 
 |规范名|作用|
 |---|---|
@@ -69,7 +70,7 @@ Executor 返回原生 assistant 消息：`role/content/reasoning_content/tool_ca
 
 工具回执是对应原始 `tool_call_id` 的 tool 轮，content 为结构化 JSON，保留 `action_type/success/output/metadata/outcome_type` 等实际存在的字段。`finish_work` 的对应回执仅携带 `declaration` 原始参数。文件正文、命令输出和错误保持原文；渲染器仅去除宿主记账和重复元数据，不推断正确性、存活或完成。完整原始回执另存供身份核验。宿主报告只能作为 User 轮，不能伪造一个模型未发起调用的 tool 回执。
 
-约束解码由 irwkv 内置 guidance 执行，grammar 从相同工具 schema 派生，保留 `additionalProperties:false` 和目标渲染键序。完整消息结构、跨轮 call ID 唯一性和工具参数仍由宿主校验。真实来源的 parse/render 逐字节往返只证明编解码一致；已有七工具轨迹可用于该项工程验证，不能当作当前九工具训练来源。
+约束解码由 irwkv 内置 guidance 执行，grammar 从 `wire.py` 的标签与相同工具 schema 派生，保留 `additionalProperties:false` 和 schema 键序；原文值与其结束标签合为一个词素（guidance 词法器贪婪且不回溯），叙述与思考不得包含各自的结束定界符。完整消息结构、跨轮 call ID 唯一性和工具参数仍由宿主校验。真实来源的 parse/render 逐字节往返只证明编解码一致；已有七工具轨迹可用于该项工程验证，不能当作当前九工具训练来源。
 
 ## 权限、后台作业与恢复
 
@@ -122,7 +123,7 @@ RecordStore 以 64 MiB 字节预算复用已校验节点；可变展开结果不
 
 训练 reader 只接受 `dataset.format=transcript_tokens` 和当前 `rwkv-lh.transcript-token-manifest.v1`。manifest 绑定模型/tokenizer、协议源码、生成脚本、生产来源清单、切分文件、owner 授权和 split/similarity/coverage 审计。逐来源核对当前九工具与原生 transcript，逐行复核完整 `input_ids` 和同长度 `loss_mask` 与共享 codec 一致；返回原行，不生成、转换、重标或补齐数据。旧 episode 格式直接拒绝。
 
-每个消息轮次按与 Native 增量相同的渲染编码；assistant token 监督为 1，system/user/tool 为 0，被 mask 的 token 仍在原位置提供上下文。mask 不位移，不添加 BOS/EOS，不静默截断；容量不足直接拒绝。交接配置 `max_length=null`，chunk_size 来自登记；完整 split 文件 SHA 和行数核对完成后才发布 token store。新数据版本和训练预算必须由 owner 明确授权，本轮接线与清理不新增授权，也不采集或转换旧轨迹。
+每段按与 Native 增量相同的渲染分别编码；assistant 正文监督为 1，`### Assistant` 头及 system/user/tool 为 0，被 mask 的 token 仍在原位置提供上下文。mask 不位移，不添加 BOS/EOS，不静默截断；容量不足直接拒绝。交接配置 `max_length=null`，chunk_size 来自登记；完整 split 文件 SHA 和行数核对完成后才发布 token store。新数据版本和训练预算必须由 owner 明确授权，本轮接线与清理不新增授权，也不采集或转换旧轨迹。
 
 训练使用 BF16 权重/计算，递归 State 中 wkv 为 FP32、两个 token-shift 池为 BF16。推理统一使用 irwkv 的 `irwkv-native` profile，同样为 BF16 权重/计算、wkv FP32、两个 token-shift 池 BF16。两种运行分别登记实际精度与资源，不能笼统写作 State FP32。版本固定在 `skyrl.lock.json` 和 `inference/irwkv.lock.json`；训练、推理各用隔离的 Python 3.12+ 环境。
 

@@ -2,14 +2,13 @@
 from .schema_validation import validate_schema
 from .project_protocols import planner, executor
 from .project_work_orders import validate_order
-from .transcript.parse import parse_assistant
-from .transcript.render import compact
+from .transcript.parse import validate_assistant
 
 
 def validate_role_output(role, payload, command, definitions):
     if role == 'executor':
         executor.validate_references(payload, command.to_wire_dict())
-        parse_assistant(compact(command.arguments['message']), definitions)
+        validate_assistant(command.arguments['message'], definitions)
         return
     if role != 'planner':
         raise ValueError('unknown Project role')
