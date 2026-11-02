@@ -145,10 +145,11 @@ async function submitGoal(event) {
   event.preventDefault();
   const start = $("startButton");
   start.disabled = true;
-  $("formMessage").textContent = "正在创建不可变 Goal 与隔离工作区…";
+  $("formMessage").textContent = "正在创建会话与隔离工作区…";
   try {
     const payload = {
-      request: $("goalInput").value.trim(),
+      request: $("goalInput").value,
+      writable_paths: $("writablePaths").value.split("\n").filter(item => item.trim()).map(item => item.trim()),
       constraints: $("constraintInput").value.split("\n").map((item) => item.trim()).filter(Boolean),
       max_transitions: Number($("transitionBudget").value),
       max_seconds: Number($("secondsBudget").value),
@@ -156,7 +157,7 @@ async function submitGoal(event) {
       seed_files: seedFiles(),
     };
     const result = await api("/api/runs", { method: "POST", body: JSON.stringify(payload) });
-    $("formMessage").textContent = `Goal 已启动：${result.run.run_id}`;
+    $("formMessage").textContent = `会话已启动：${result.run.run_id}`;
     await loadRuns();
     await selectRun(result.run.run_id);
   } catch (error) {
@@ -281,7 +282,10 @@ function renderRun() {
   $("exportButton").href = `/api/runs/${encodeURIComponent(app.selectedRun)}/export`;
   const resumable = summary.request?.tool_scope === 'coding' && !metadata.active && metadata.state_created
     && ["interrupted", "stopped", "failed", "blocked"].includes(status);
-  $("resumeButton").classList.toggle("hidden", !resumable);
+  $("resumeButton").classList.toggle("hidden", !resumable || Boolean(summary.can_continue));
+  $("followupButton").disabled = !summary.can_continue;
+  $("followupInput").disabled = !summary.can_continue;
+  $("followupMessage").textContent = summary.can_continue ? '下一条请求沿用本会话的权限。' : '等待当前请求结束并确认所有操作后，可发送下一条请求。';
   $("obligationMetric").textContent = `${requests.filter(item => item.termination_reason !== null).length} / ${requests.length}`;
   $("actionMetric").textContent = actions.length;
   $("evidenceMetric").textContent = actions.length;
@@ -328,6 +332,8 @@ function renderContract(summary) {
   $("goalDigest").textContent = project?.session_id || '等待创建会话';
   $("goalRequest").textContent = summary.request?.request || '—';
   $("obligationBoard").innerHTML = project ? `<article class="obligation"><header><code>权限</code></header><p>可写：${escapeHtml(project.permissions.writable.join(', ') || '只读')}；受保护：${escapeHtml(project.permissions.protected.join(', ') || '无')}</p></article>` : '<p class="empty-copy">等待创建会话记录。</p>';
+  $("hostNotices").innerHTML = (project?.host_notices || []).map(message =>
+    `<article class="graph-node host-notice"><header><code>宿主通知</code></header><pre>${escapeHtml(message.content)}</pre></article>`).join('');
   $("nodeCount").textContent = `${requests.length} requests`;
   $("graphNodes").innerHTML = requests.map(item => {
     const label = item === current && !item.termination_reason ? '执行中' : item.declaration ? `模型声明：${item.declaration.outcome}（未验收）` : (item.termination_reason || '未结束');
@@ -409,6 +415,28 @@ function switchTab(tab) {
   $(`${tab}Tab`).classList.add("active");
 }
 
+async function submitFollowup(event) {
+  event.preventDefault();
+  const runId = app.selectedRun;
+  if (!runId || !app.summary?.can_continue) return;
+  $("followupButton").disabled = true;
+  try {
+    await api(`/api/runs/${encodeURIComponent(runId)}/continue`, {method: 'POST', body: JSON.stringify({
+      request: $("followupInput").value, extra_calls: Number($("extraCalls").value), extra_seconds: Number($("extraSeconds").value)
+    })});
+    if (app.selectedRun === runId) {
+      $("followupInput").value = '';
+      await pollRun();
+      if (!app.polling) app.polling = setInterval(pollRun, 1700);
+    }
+  } catch (error) {
+    if (app.selectedRun === runId) {
+      $("followupMessage").textContent = error.message;
+      $("followupButton").disabled = !app.summary?.can_continue;
+    }
+  }
+}
+
 async function runAction(action) {
   if (!app.selectedRun) return;
   try {
@@ -423,6 +451,7 @@ async function runAction(action) {
 
 document.addEventListener("DOMContentLoaded", async () => {
   $("goalForm").addEventListener("submit", submitGoal);
+  $("followupForm").addEventListener("submit", submitFollowup);
   $("newGoalButton").addEventListener("click", newGoal);
   $("addSeedButton").addEventListener("click", () => addSeedFile());
   $("resumeButton").addEventListener("click", () => runAction("resume"));

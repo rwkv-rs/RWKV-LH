@@ -30,8 +30,9 @@ class UncertainOperation(RuntimeError):
 
 
 def _budgets(max_calls, max_seconds):
-    if (type(max_calls) is not int or max_calls < 1 or type(max_seconds) not in (int, float)
-            or not math.isfinite(max_seconds) or max_seconds <= 0):
+    if ((max_calls is not None and (type(max_calls) is not int or max_calls < 1))
+            or (max_seconds is not None and (type(max_seconds) not in (int, float)
+                or not math.isfinite(max_seconds) or max_seconds <= 0))):
         raise ValueError('positive finite budgets required')
 
 
@@ -226,8 +227,10 @@ class ProjectLedger:
                 raise ValueError('a follow-up request requires an ended, confirmed session boundary')
             state['requests'].append(_request_record(len(state['requests']) + 1, request, len(state['transcript'])))
             state['transcript'].append(agent.request_message(request))
-            state['max_calls'] += extra_calls
-            state['max_seconds'] += extra_seconds
+            if state['max_calls'] is not None:
+                state['max_calls'] += extra_calls
+            if state['max_seconds'] is not None:
+                state['max_seconds'] += extra_seconds
             state.update(status='running', stop_reason=None, final=None, final_claim=None, consecutive_rejections=0,
                          error=None, feedback={'kind': 'user_request', 'request_id': state['requests'][-1]['id']})
         return self.update('user_request', change)

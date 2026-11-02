@@ -24,6 +24,7 @@ import tempfile
 
 from . import frozen
 from ..project_protocols.agent import is_host_notice
+from ..evaluation_policy import assert_training_record_allowed, assert_training_source_allowed
 from .parse import STORAGE_PROTOCOL, loads, parse_transcript, validate_messages
 from .render import compact
 from .tokenize import tokenize_transcript
@@ -78,12 +79,19 @@ def build_dataset(admitted, production_root, output, *, model_sha256, context_to
         raise FileExistsError('dataset versions are immutable; choose a new output directory')
     if not isinstance(owner_instruction, str) or not owner_instruction.strip():
         raise ValueError('the owner instruction authorizing this dataset is required')
+    assert_training_source_allowed(production_root)
     sources, upstream_rows = {}, []
     for shard in shards:
+        assert_training_source_allowed(shard)
         upstream = loads((shard / 'sources.json').read_bytes())
+        assert_training_record_allowed(upstream)
         if upstream.get('origin') != 'production':
             raise ValueError('admitted export must come from production sources')
-        sources.update({entry['sha256']: shard / entry['path'] for entry in upstream['files']})
+        for entry in upstream['files']:
+            assert_training_record_allowed(entry)
+            source = shard / entry['path']
+            assert_training_source_allowed(source)
+            sources[entry['sha256']] = source
         upstream_rows += (shard / 'train.jsonl').read_text(encoding='utf-8').splitlines()
     catalog = canonical_definitions(native_tools)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -95,6 +103,7 @@ def build_dataset(admitted, production_root, output, *, model_sha256, context_to
         lengths, seen = {'train': [], 'validation': []}, set()
         for line in upstream_rows:
             upstream_row = loads(line)
+            assert_training_record_allowed(upstream_row)
             episode, digest = upstream_row['episode_id'], upstream_row['source']
             def skip(reason):
                 excluded[reason] += 1
@@ -102,7 +111,10 @@ def build_dataset(admitted, production_root, output, *, model_sha256, context_to
             raw = sources[digest].read_bytes()
             if _sha(raw) != digest:
                 raise ValueError('admitted source bytes differ from their identity: ' + episode)
+            assert_training_source_allowed(production_root / episode)
             freeze = loads((production_root / episode / 'freeze.json').read_bytes())
+            assert_training_record_allowed(freeze)
+            assert_training_record_allowed(freeze['task'])
             sealed = loads((production_root / episode / 'manifest.json').read_bytes())
             if sealed.get('native_messages.json') != digest:
                 raise ValueError('admitted source is not the sealed production transcript: ' + episode)

@@ -11,6 +11,10 @@ from .job_budget import WallDeadlineExpired
 def project_deadline(seconds):
     if threading.current_thread() is not threading.main_thread():
         raise ValueError('project execution requires a process main thread')
+    if seconds is None:
+        # Keep any enclosing deadline intact; None adds no new deadline.
+        yield
+        return
     if seconds <= 0:
         raise WallDeadlineExpired('project wall budget exhausted')
     previous_handler = signal.getsignal(signal.SIGALRM)

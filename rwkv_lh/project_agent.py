@@ -71,11 +71,17 @@ def resume_project(output, *, settings, agent_port=None):
     return _deliver(output, ProjectRuntime(db, port))
 
 
-def continue_project(output, request, *, settings, extra_calls=0, extra_seconds=0.0, agent_port=None):
+def continue_project(output, request, *, settings, extra_calls=0, extra_seconds=0.0, agent_port=None,
+                     expected_request_count=None):
     """The user's follow-up request in the same session, State and workspace."""
     output = Path(output).resolve(strict=True)
     db = ProjectLedger(output / 'execution')
     with db.lease():
+        if expected_request_count is not None:
+            if type(expected_request_count) is not int or expected_request_count < 1:
+                raise ValueError('positive expected request count required')
+            if len(db.scan_verified_events()['state']['requests']) != expected_request_count:
+                raise ValueError('follow-up boundary changed before the request was appended')
         db.add_request(request, extra_calls=extra_calls, extra_seconds=extra_seconds)
     port = agent_port or ProjectSessions(settings, db.root)
     return _deliver(output, ProjectRuntime(db, port))

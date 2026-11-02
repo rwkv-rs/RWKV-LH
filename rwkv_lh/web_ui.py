@@ -7,6 +7,7 @@ import fcntl
 import hashlib
 import io
 import json
+import math
 import mimetypes
 import os
 import re
@@ -30,6 +31,7 @@ from rwkv_lh.retrieval import RetrievalRuntimeConfig
 from rwkv_lh.runtime.settings import PROJECT_ROOT, get_runtime_settings
 from rwkv_lh.project_runtime import ARCHITECTURE
 from rwkv_lh.project_ledger import ProjectLedger
+from rwkv_lh.project_protocols import agent
 
 
 SCHEMA_VERSION = "rwkv-lh.manual-web-run.v1"
@@ -44,6 +46,23 @@ TERMINAL_PHASES = {"finished", "failed", "stopped", "blocked"}
 MAX_REQUEST_BYTES = 6 * 1024 * 1024
 MAX_SEED_BYTES = 5 * 1024 * 1024
 MAX_TEXT_PREVIEW_BYTES = 1024 * 1024
+
+
+def followup_payload(payload):
+    if not isinstance(payload, Mapping) or set(payload) - {'request', 'extra_calls', 'extra_seconds'}:
+        raise ValueError('follow-up accepts request and budget increases only')
+    request = payload.get('request')
+    agent.request_message(request)
+    calls, seconds = payload.get('extra_calls', 0), payload.get('extra_seconds', 0)
+    if (type(calls) is not int or calls < 0 or type(seconds) not in (int, float)
+            or not math.isfinite(seconds) or seconds < 0):
+        raise ValueError('budget increases must be nonnegative and finite')
+    return {'request': request, 'extra_calls': calls, 'extra_seconds': seconds}
+
+
+def can_continue(state):
+    return bool(state and state['status'] in {'finished', 'blocked', 'interrupted'}
+                and not state['pending'] and not state['inbox'])
 
 
 def utc_now() -> str:
@@ -127,9 +146,11 @@ class ManualRunRepository:
         return self.runs_root / normalize_run_id(run_id)
 
     def create(self, payload: Mapping[str, Any]) -> dict[str, Any]:
-        request = str(payload.get("request") or "").strip()
-        if not request:
+        request = payload.get("request")
+        if not isinstance(request, str) or not request.strip():
             raise ValueError("request must not be empty")
+        agent.request_message(request)
+        permissions = agent.permissions(payload.get('writable_paths', ['.']), payload.get('protected_paths', []))
         if len(request) > 100_000:
             raise ValueError("request exceeds 100,000 characters")
         raw_constraints = payload.get("constraints") or []
@@ -153,10 +174,10 @@ class ManualRunRepository:
             raise ValueError("tool_scope must be coding; files and inspect execution are retired")
         max_transitions = payload.get("max_transitions", 6)
         max_seconds = payload.get("max_seconds", 300)
-        if type(max_transitions) is not int or not 1 <= max_transitions <= 100:
-            raise ValueError("max_transitions must be an integer between 1 and 100")
-        if type(max_seconds) not in (int, float) or not 1 <= max_seconds <= 3600:
-            raise ValueError("max_seconds must be between 1 and 3600")
+        if type(max_transitions) is not int or max_transitions < 1:
+            raise ValueError("max_transitions must be a positive integer")
+        if type(max_seconds) not in (int, float) or not math.isfinite(max_seconds) or max_seconds <= 0:
+            raise ValueError("max_seconds must be positive and finite")
         raw_seed_files = payload.get("seed_files") or []
         if not isinstance(raw_seed_files, list) or len(raw_seed_files) > 100:
             raise ValueError("seed_files must be an array with at most 100 items")
@@ -203,6 +224,8 @@ class ManualRunRepository:
             "max_seconds": max_seconds,
             "execution_mode": "project",
             "max_transitions": max_transitions,
+            "writable_paths": permissions['writable'],
+            "protected_paths": permissions['protected'],
             "seed_files": [
                 {
                     "path": item["path"],
@@ -273,12 +296,14 @@ class ManualRunRepository:
 
     def summary(self, run_id: str) -> dict[str, Any]:
         metadata = self.metadata(run_id)
-        output: dict[str, Any] = {"metadata": metadata, "request": self.request_document(run_id)}
+        output: dict[str, Any] = {"metadata": metadata, "request": self.request_document(run_id), 'can_continue': False}
         project = self.execution_root(run_id) / 'project.sqlite3'
         if project.is_file():
             state = ProjectLedger(project.parent).state()
+            output['can_continue'] = can_continue(state) and not metadata.get('active')
             output['project'] = {key: state[key] for key in ('session_id', 'permissions', 'requests',
                 'pending', 'status', 'stop_reason', 'calls', 'max_calls', 'elapsed', 'final', 'final_claim')}
+            output['project']['host_notices'] = [message for message in state['transcript'] if agent.is_host_notice(message)]
             progress_path = project.parent / 'PROGRESS.jsonl'
             progress = []
             if progress_path.is_file():
@@ -400,7 +425,11 @@ class ManualRunManager:
         self._processes: dict[str, subprocess.Popen[bytes]] = {}
         self._lock = threading.Lock()
 
-    def launch(self, run_id: str, *, resume: bool = False) -> dict[str, Any]:
+    def launch(self, run_id: str, *, resume: bool = False, followup=None) -> dict[str, Any]:
+        if followup is not None:
+            if resume:
+                raise ValueError('choose resume or follow-up')
+            followup = followup_payload(followup)
         run_root = self.repository.run_root(run_id)
         # The child retains this claim across UI restarts, including a parent
         # crash between Popen and PID publication. Closing the parent's copy
@@ -418,10 +447,19 @@ class ManualRunManager:
             request = self.repository.request_document(run_id)
             if request.get('runtime') != ARCHITECTURE or request.get('tool_scope') != 'coding':
                 raise ValueError('historical runtime execution is not supported; create a new Project task')
+            followup_file = None
+            if followup is not None:
+                db = ProjectLedger(self.repository.execution_root(run_id))
+                with db.lease():
+                    state = db.scan_verified_events()['state']
+                    if not can_continue(state):
+                        raise ValueError('follow-up requires an ended, confirmed session boundary')
+                followup_file = run_root / 'followups' / (secrets.token_hex(12) + '.json')
+                atomic_write_json(followup_file, {**followup, 'expected_request_count': len(state['requests'])})
             update_metadata(
                 run_root,
                 active=True,
-                phase="resuming" if resume else "starting",
+                phase="continuing" if followup is not None else "resuming" if resume else "starting",
                 pid=None,
                 error="",
                 resume_count=int(metadata.get("resume_count", 0)) + int(resume),
@@ -437,6 +475,8 @@ class ManualRunManager:
             ]
             if resume:
                 command.append("--resume")
+            if followup_file is not None:
+                command.extend(['--followup-file', str(followup_file)])
             with (run_root / "worker.log").open("ab", buffering=0) as log:
                 process = subprocess.Popen(
                     command,
@@ -687,12 +727,15 @@ class WebHandler(BaseHTTPRequestHandler):
                 launched = self.server.manager.launch(str(metadata["run_id"]))
                 self.send_json({"run": launched}, HTTPStatus.CREATED)
                 return
-            match = re.fullmatch(r"/api/runs/([^/]+)/resume", path)
+            match = re.fullmatch(r"/api/runs/([^/]+)/(resume|continue)", path)
             if not match:
                 self.send_error_json(404, "not found")
                 return
             run_id = normalize_run_id(unquote(match.group(1)))
-            self.send_json({"run": self.server.manager.launch(run_id, resume=True)})
+            if match.group(2) == 'continue':
+                self.send_json({'run': self.server.manager.launch(run_id, followup=self.read_body_json())})
+            else:
+                self.send_json({"run": self.server.manager.launch(run_id, resume=True)})
         except FileNotFoundError as exc:
             self.send_error_json(404, str(exc))
         except (ValueError, json.JSONDecodeError) as exc:

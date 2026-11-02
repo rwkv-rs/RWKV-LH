@@ -58,10 +58,12 @@
                   <select id="toolScope"><option value="coding">Project 隔离副本</option></select>
                 </label>
                 <label>模型调用上限
-                  <select id="transitionBudget"><option value="6">6 次</option><option value="12">12 次</option><option value="24">24 次</option></select>
+                  <input id="transitionBudget" type="number" min="1" value="12" required>
                 </label>
-                <label>时间上限（秒）<input id="secondsBudget" type="number" min="1" max="3600" value="300"></label>
+                <label>时间上限（秒）<input id="secondsBudget" type="number" min="1" value="300"></label>
               </div>
+              <label for="writablePaths">可写路径（每行一项；空白为只读；. 表示整个工作区）</label>
+              <textarea id="writablePaths" class="small-textarea">.</textarea>
               <label for="constraintInput">补充要求</label>
               <textarea id="constraintInput" class="small-textarea" placeholder="例如：不要使用外部依赖；页面优先适配手机。"></textarea>
               <div class="seed-heading"><span>已有文件</span><button id="addSeedButton" type="button">添加</button></div>
@@ -95,6 +97,17 @@
           </header>
 
           <p>执行顺序由 RWKV 决定；中断、回答提交与任务验收分别记录。</p>
+
+          <form id="followupForm" class="surface goal-composer">
+            <label for="followupInput">继续当前会话</label>
+            <textarea id="followupInput" required placeholder="输入下一条请求，保留已有工作区与对话。"></textarea>
+            <div class="settings-grid">
+              <label>追加调用数<input id="extraCalls" type="number" min="0" value="12" required></label>
+              <label>追加时间（秒）<input id="extraSeconds" type="number" min="0" value="300" required></label>
+            </div>
+            <button id="followupButton" class="button" type="submit" disabled>发送后续请求</button>
+            <p id="followupMessage" role="status"></p>
+          </form>
 
           <div class="metric-strip">
             <div><span>已结束请求（未验收）</span><strong id="obligationMetric">0 / 0</strong></div>
@@ -135,7 +148,7 @@
               <p id="goalRequest"></p>
             </article>
             <div id="obligationBoard" class="obligation-board"><p class="empty-copy">按用户目标验收，不限定工具顺序。</p></div>
-            <article class="surface graph-surface"><div class="surface-heading"><h3>用户请求</h3><span id="nodeCount">0 requests</span></div><div id="graphNodes" class="graph-nodes"></div></article>
+            <article class="surface graph-surface"><div class="surface-heading"><h3>用户请求</h3><span id="nodeCount">0 requests</span></div><div id="graphNodes" class="graph-nodes"></div><div id="hostNotices" class="host-notices"></div></article>
           </div>
 
           <div id="executionTab" class="tab-panel">

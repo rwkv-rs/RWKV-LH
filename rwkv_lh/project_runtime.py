@@ -90,7 +90,8 @@ class ProjectRuntime:
     def remaining(self):
         s = self.db.state()
         elapsed = self.initial_elapsed + time.monotonic() - self.started if self.started is not None else s['elapsed']
-        return {'calls': max(0, s['max_calls'] - s['calls']), 'seconds': max(0.0, s['max_seconds'] - elapsed)}
+        return {'calls': None if s['max_calls'] is None else max(0, s['max_calls'] - s['calls']),
+                'seconds': None if s['max_seconds'] is None else max(0.0, s['max_seconds'] - elapsed)}
 
     def _reject(self, error):
         """A turn the host could not accept: rolled back, recorded, and told to the agent."""
@@ -417,10 +418,10 @@ class ProjectRuntime:
                                 reason = 'checkpoint_yield'
                                 break
                             remaining = self.remaining()
-                            if remaining['seconds'] <= 0:
+                            if remaining['seconds'] is not None and remaining['seconds'] <= 0:
                                 reason = self._stop('wall_budget_exhausted')
                                 break
-                            if remaining['calls'] <= 0:
+                            if remaining['calls'] is not None and remaining['calls'] <= 0:
                                 reason = self._stop('resource_budget_exhausted')
                                 break
                             self._request()

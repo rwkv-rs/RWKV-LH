@@ -8,8 +8,8 @@ class CodingJob:
     request: str
     source_workspace: str
     output_dir: str
-    max_calls: int = 12
-    max_seconds: float = 600
+    max_calls: int | None = 12
+    max_seconds: float | None = 600
     record_generation_snapshots: bool = field(default=False, kw_only=True)
     writable_paths: tuple[str, ...] = field(default=('.',), kw_only=True)
     protected_paths: tuple[str, ...] = field(default=(), kw_only=True)
