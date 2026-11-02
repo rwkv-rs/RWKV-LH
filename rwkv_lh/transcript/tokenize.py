@@ -2,7 +2,7 @@
 import hashlib
 
 from .parse import catalog
-from .wire import HEADERS, PROTOCOL, render_turns
+from .wire import END_OF_TURN_TOKEN_ID, HEADERS, PROTOCOL, render_turns
 
 
 def segments(messages, native_tools):
@@ -26,7 +26,9 @@ def tokenize_transcript(messages, *, tokenizer, native_tools, max_tokens=None):
     """Return complete input_ids/loss_mask, or reject a capacity overflow.
 
     Token merges cannot cross a piece boundary and accidentally supervise host
-    bytes. No BOS/EOS is added, no target is shifted, and no tail is dropped.
+    bytes. Every assistant body is followed by one supervised end-of-turn EOS
+    token, which the serving State also keeps; no BOS is added, no target is
+    shifted, and no tail is dropped.
     This in-memory codec neither writes data nor authorizes training.
     """
     if max_tokens is not None and (type(max_tokens) is not int or max_tokens < 1):
@@ -39,6 +41,8 @@ def tokenize_transcript(messages, *, tokenizer, native_tools, max_tokens=None):
                 or tokenizer.decode_bytes(tokens) != text.encode('utf-8')):
             raise ValueError('tokenizer must preserve exact UTF-8 bytes without added special tokens')
         start = len(ids)
+        if supervised:
+            tokens.append(END_OF_TURN_TOKEN_ID)
         ids.extend(tokens)
         mask.extend([int(supervised)] * len(tokens))
         spans.append({'role': role, 'supervised': supervised, 'start': start, 'end': len(ids)})

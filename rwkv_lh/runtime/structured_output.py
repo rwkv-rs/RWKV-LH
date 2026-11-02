@@ -8,6 +8,8 @@ from .native_request_protocol import native_result_digest
 DECODER_PROTOCOL = 'rwkv-lh.structured-output.v2'
 DECODER_BACKEND = 'guidance'
 STATE_OUTPUT_POLICY = 'exclude_terminal_eos'
+# The Executor transcript ends every turn with a supervised EOS that stays in the State (wire.END_OF_TURN_TOKEN_ID).
+TRANSCRIPT_STATE_OUTPUT_POLICY = 'terminal_eos_enters_state'
 TRANSCRIPT_GRAMMAR_PROTOCOL = 'rwkv-lh.transcript-guidance.v2'
 
 
@@ -70,7 +72,7 @@ def build_transcript_decoder_contract(native_tools: list[dict[str, Any]]) -> dic
     original = deepcopy(native_tools)
     grammar = build_grammar(original)
     value = {'protocol': DECODER_PROTOCOL, 'backend': DECODER_BACKEND,
-             'state_output_policy': STATE_OUTPUT_POLICY,
+             'state_output_policy': TRANSCRIPT_STATE_OUTPUT_POLICY,
              'grammar_protocol': TRANSCRIPT_GRAMMAR_PROTOCOL,
              'transcript_protocol': PROTOCOL, 'tool_protocol': TOOL_PROTOCOL,
              'native_tools': original,
@@ -104,10 +106,13 @@ def decoder_receipt(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def state_output_token_ids(token_ids, finish_reason, decoder):
-    """Keep the sampled stop token in raw evidence, outside the next prompt.
+    """The generated tokens the State consumes, per the contract's EOS policy.
 
-    A terminal RWKV EOS ends generation; the caller supplies the next turn's
-    framing. No semantic token, field or action is added or repaired here.
+    A terminal RWKV EOS ends generation and is always kept in raw evidence. The
+    transcript contract keeps it in the State too, because training supervises
+    it and renders the next host header after it; the JSON-schema contract
+    excludes it. Either way the EOS must be single and terminal with
+    finish_reason 'stop'. No semantic token, field or action is added or repaired.
     """
     validate_decoder_contract(decoder)
     if (not isinstance(token_ids, (list, tuple)) or not token_ids
@@ -117,5 +122,8 @@ def state_output_token_ids(token_ids, finish_reason, decoder):
     if 0 in result:
         if finish_reason != 'stop' or result[-1] != 0 or result.count(0) != 1 or len(result) == 1:
             raise ValueError('invalid decoder EOS boundary')
-        result.pop()
+        if decoder['state_output_policy'] == STATE_OUTPUT_POLICY:
+            result.pop()
+    elif finish_reason == 'stop' and decoder['state_output_policy'] == TRANSCRIPT_STATE_OUTPUT_POLICY:
+        raise ValueError('finished transcript turn lacks its terminal EOS')
     return result

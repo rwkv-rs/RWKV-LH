@@ -13,7 +13,7 @@ from pathlib import Path
 from ..project_contracts import digest, fields, text
 from ..evaluation_policy import assert_training_record_allowed, assert_training_source_allowed
 from .parse import STORAGE_PROTOCOL, loads, parse_transcript, validate_assistant, validate_messages
-from .wire import PROTOCOL
+from .wire import END_OF_TURN_TOKEN_ID, PROTOCOL
 from .tools import TOOL_PROTOCOL, canonical_definitions
 from .tokenize import tokenize_transcript
 
@@ -96,11 +96,16 @@ def validate_token_row(row, *, vocab_size=None, context_tokens=None, require_acc
         raise ValueError('only current complete transcript tokens are accepted')
     tokens, mask = row['input_ids'], row['loss_mask']
     if (not isinstance(tokens, list) or len(tokens) < 2
-            or any(type(token) is not int or token <= 0 for token in tokens)
+            or any(type(token) is not int or token < 0 for token in tokens)
             or not isinstance(mask, list) or len(mask) != len(tokens)
             or any(type(value) is not int or value not in (0, 1) for value in mask)
             or mask[0] != 0 or not any(mask)):
         raise ValueError('invalid complete transcript input_ids/loss_mask')
+    # The end-of-turn EOS is the only zero token: it closes every supervised span, exactly once.
+    for index, token in enumerate(tokens):
+        closes = mask[index] == 1 and (index + 1 == len(tokens) or mask[index + 1] == 0)
+        if (token == END_OF_TURN_TOKEN_ID) != closes or (closes and mask[index - 1] != 1):
+            raise ValueError('every assistant body must end with exactly one supervised end-of-turn EOS')
     if vocab_size is not None and any(token >= vocab_size for token in tokens):
         raise ValueError('transcript token outside frozen vocabulary')
     if context_tokens is not None and len(tokens) > context_tokens:

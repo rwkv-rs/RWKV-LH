@@ -141,11 +141,14 @@ SCHEDULERS = ('constant_with_warmup', 'cosine_with_min_lr')
 # A full-parameter optimizer checkpoint is ~16 B/param; keep the newest two so an
 # interrupted write never leaves no resumable state. HF exports are all kept.
 KEEP_CHECKPOINTS = 2
+# Full-parameter SFT, or NoRA (AntiDoom's normalized LoRA in the pinned PEFT fork) on a frozen backbone.
+# NoRA exports merge the adapters into complete weights, so the serving artifact is unchanged.
+METHODS = ('sft_full', 'sft_nora')
 
 
 def native_config(*, model, train_file, output, batch_size, learning_rate, seed,
                   epochs, max_steps, chunk_size, checkpoint_interval, warmup_steps, scheduler,
-                  min_lr_rate=None, resume_from='', cpu_offload=True, performance=None):
+                  min_lr_rate=None, resume_from='', cpu_offload=True, performance=None, adapter=None):
     if (any(type(v) is not int or v <= 0 for v in
             (batch_size, epochs, max_steps, chunk_size, checkpoint_interval))
             or type(seed) is not int or not math.isfinite(learning_rate) or learning_rate <= 0
@@ -159,9 +162,12 @@ def native_config(*, model, train_file, output, batch_size, learning_rate, seed,
     performance = dict(performance or {})
     if set(performance) - set(PERFORMANCE_KEYS):
         raise ValueError('only registered math-preserving performance settings may be overridden')
+    if adapter is not None and (set(adapter) != {'rank', 'alpha'}
+                                or any(type(v) is not int or v <= 0 for v in adapter.values())):
+        raise ValueError('a NoRA adapter needs explicit positive integer rank and alpha')
     output = Path(output).absolute()
     config = {
-        'strategy': 'fsdp', 'model.path': str(model), 'model.lora.rank': 0,
+        'strategy': 'fsdp', 'model.path': str(model), 'model.lora.rank': 0 if adapter is None else adapter['rank'],
         'model_config_kwargs': {'wkv_mode': 'fp32io16'},
         'pretokenized_dataset_paths': [str(train_file)], 'max_length': None,
         'remove_microbatch_padding': False, 'use_sequence_packing': False,
@@ -185,6 +191,8 @@ def native_config(*, model, train_file, output, batch_size, learning_rate, seed,
         'eval_command': None, 'logger': 'console', 'project_name': 'rwkv-lh',
         'run_name': output.name, 'enable_ray_gpu_monitor': False,
     }
+    if adapter is not None:
+        config.update({'model.lora.alpha': adapter['alpha'], 'model.lora.use_nora': True})
     config.update(performance)
     return config
 
@@ -220,8 +228,22 @@ def validate_registration(registration):
             raise ValueError('optimizer authorization model, data, source or resource binding differs')
     if registration.get('gpu_uuid') != gpu_uuid(registration['gpu_index']):
         raise ValueError('registered GPU identity differs')
-    if registration.get('method') != 'sft_full':
-        raise ValueError('this entrance uses native SkyRL full-parameter SFT')
+    method = registration.get('method')
+    if method not in METHODS:
+        raise ValueError('this entrance uses native SkyRL full-parameter SFT or NoRA')
+    adapter = adapter_settings(registration)
+    if (adapter is None) != (method == 'sft_full') or (
+            adapter is not None and any(type(v) is not int or v <= 0 for v in adapter.values())):
+        raise ValueError('NoRA positive integer rank/alpha are registered exactly for sft_nora')
+    if method == 'sft_nora' and registration.get('cpu_offload', True) is not False:
+        raise ValueError('NoRA trains a frozen backbone on the GPU; register cpu_offload false')
+
+
+def adapter_settings(registration):
+    keys = ('lora_rank', 'lora_alpha')
+    if not any(key in registration for key in keys):
+        return None
+    return {'rank': registration.get('lora_rank'), 'alpha': registration.get('lora_alpha')}
 
 
 def prepare(registration, output):
@@ -266,7 +288,8 @@ def prepare(registration, output):
         chunk_size=registration['chunk_size'], checkpoint_interval=registration['checkpoint_interval'],
         warmup_steps=registration['warmup_steps'], scheduler=registration['scheduler'],
         min_lr_rate=registration.get('min_lr_rate'), resume_from=registration.get('resume_from', ''),
-        cpu_offload=registration.get('cpu_offload', True), performance=registration.get('performance'))
+        cpu_offload=registration.get('cpu_offload', True), performance=registration.get('performance'),
+        adapter=adapter_settings(registration))
     result = dict(schema_version=RUN_SCHEMA, configuration=config, dataset=exported,
                   model_manifest=registration['model_manifest'], chunk_gradient=chunk_gradient,
                   command=command(registration['python'], config), source_root=str(root),

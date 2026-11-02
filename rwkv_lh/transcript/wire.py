@@ -10,7 +10,11 @@ values are compact JSON. Role framing follows g1k's native template
 (``### System`` / ``### User`` / ``### Assistant`` / ``### Tool Output``); an
 assistant turn is ``<think>`` reasoning, optional narration, then one or more
 calls in the public Qwen3-Coder tag layout. The host appends the assistant
-header; the model produces exactly the body.
+header; the model produces exactly the body and then ends its turn with the
+vocabulary EOS token (``END_OF_TURN_TOKEN_ID``). The EOS is a token, not text: it
+is supervised in training, it is the only way the decoding grammar lets a turn
+end, and it stays in the persistent State, so the host's next header follows it
+identically in training and serving.
 
 Every accepted model turn satisfies ``render_body(parse_assistant(raw)) == raw``,
 so the State always holds exactly the bytes training renders for that message.
@@ -18,7 +22,8 @@ so the State always holds exactly the bytes training renders for that message.
 from .parse import catalog, loads, validate_assistant, validate_messages
 from .render import assistant_message, compact, ordered_arguments
 
-PROTOCOL = 'rwkv-lh.coder.transcript.v2'
+PROTOCOL = 'rwkv-lh.coder.transcript.v3'
+END_OF_TURN_TOKEN_ID = 0  # frozen RWKV vocabulary EOS
 HEADERS = {'system': '### System\n', 'user': '### User\n',
            'assistant': '### Assistant\n', 'tool': '### Tool Output\n'}
 THINK_OPEN, THINK_CLOSE = '<think>\n', '\n</think>\n'
