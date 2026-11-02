@@ -42,7 +42,8 @@ CLI、批量任务、终端和 Web 统一进入 `project_agent`：`run_project_j
 |工具词表|`transcript/tools.py`|固定九工具；规范名与底层参数映射|
 |模型可见文本|`transcript/wire.py`、`grammar.py`|唯一的结构→文本转换；生产、trace、token 化与 grammar 共用|
 |存储消息与回执|`transcript/render.py`、`parse.py`|原生消息形状；不生成模型可见文本|
-|完整 token 与监督|`transcript/tokenize.py`、`frozen.py`、`dataset.py`|无损 token/mask；训练来源必须是当前单 Agent 对话|
+|会话导出|`transcript/export.py::session_transcript`|已结束会话 → 存储 transcript（`native_messages.json`）的唯一转换；核对 trace 与构造器一致|
+|完整 token 与监督|`transcript/tokenize.py`、`frozen.py`、`dataset.py`|无损 token/mask；训练来源必须是当前单 Agent 对话；每个 assistant 轮均受监督|
 |Trace 重建|`project_trace.py::agent_boundaries`|逐边界证明记录输入等于生产构造器输出|
 |生成快照|`project_generation_snapshots.py`|可选：每次模型请求前封存工作区，供数据引擎分支恢复|
 |工具实现|`harness.py`、`project_tools.py`、`background_jobs.py`|同一 schema 驱动执行、能力与解码|
