@@ -13,7 +13,8 @@ from rwkv_lh.data_engine.records import write_immutable
 from rwkv_lh.data_engine.tasks import checksum
 
 SCHEMA = 'rwkv-lh.external-swe-task.v1'
-TASK_POOLS = frozenset({'nebius/SWE-rebench', 'SWE-Gym/SWE-Gym', 'R2E-Gym/R2E-Gym-Subset'})
+TASK_POOLS = frozenset({'nebius/SWE-rebench', 'nebius/SWE-rebench-V2',
+                        'SWE-Gym/SWE-Gym', 'R2E-Gym/R2E-Gym-Subset'})
 LICENSES = {'MIT': 'MIT', 'MIT License': 'MIT', 'Apache-2.0': 'Apache-2.0',
             'Apache License 2.0': 'Apache-2.0', 'BSD-2-Clause': 'BSD-2-Clause',
             'BSD 2-Clause "Simplified" License': 'BSD-2-Clause',

@@ -18,7 +18,12 @@ from rwkv_lh.data_engine.records import write_immutable
 from rwkv_lh.evaluation_policy import assert_training_record_allowed, assert_training_source_allowed
 
 
-def export_episode(task, run, verdict, production_root, export_root, *, teacher, context_tokens=65536):
+def export_episode(task, run, verdict, production_root, export_root, *, teacher, context_tokens=None):
+    """Preserve a complete verified episode before choosing a training window.
+
+    An explicit capacity remains a fail-closed downstream constraint. Collection
+    itself must not silently select only conversations below a training default.
+    """
     run,production_root,export_root=map(Path,(run,production_root,export_root))
     assert_training_record_allowed(task)
     for path in (run, production_root, export_root):
