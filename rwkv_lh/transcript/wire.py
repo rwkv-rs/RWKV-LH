@@ -22,7 +22,7 @@ so the State always holds exactly the bytes training renders for that message.
 from .parse import catalog, loads, validate_assistant, validate_messages
 from .render import assistant_message, compact, ordered_arguments
 
-PROTOCOL = 'rwkv-lh.coder.transcript.v3'
+PROTOCOL = 'rwkv-lh.coder.transcript.v4'
 END_OF_TURN_TOKEN_ID = 0  # frozen RWKV vocabulary EOS
 HEADERS = {'system': '### System\n', 'user': '### User\n',
            'assistant': '### Assistant\n', 'tool': '### Tool Output\n'}

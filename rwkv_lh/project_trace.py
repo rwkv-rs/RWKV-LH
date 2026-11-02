@@ -1,10 +1,11 @@
-"""Reconstruct actual role boundaries; this is not a StateTune admission gate."""
+"""Reconstruct actual agent boundaries; this is not a training admission gate."""
 from .project_contracts import digest
 from .project_ledger import ProjectLedger
-from .project_protocols import planner, executor
+from .project_protocols import agent
 
 
-def role_boundaries(root, *, read_only=True):
+def agent_boundaries(root, *, read_only=True):
+    """Yield each model boundary after proving its input equals the production builder's."""
     if read_only is not True:
         raise ValueError('Project trace extraction requires read-only access')
     intents, rows = {}, []
@@ -13,23 +14,10 @@ def role_boundaries(root, *, read_only=True):
         pending = state['pending']
         if event['kind'] == 'operation_started' and pending['kind'] == 'model':
             intent = pending['payload']
-            role, source = intent['role'], intent['input']
-            if role == 'planner':
-                planner.validate_input(source)
-                initial = state['initial_context']
-                payload = planner.build_input(state['request'],
-                    protected_paths=state['protected_paths'], workspace=initial['workspace'], materials=initial['materials'],
-                    remaining=source['remaining'], execution_capabilities=source['execution_capabilities'],
-                    work_orders=state['work_orders'])
-                if source['workspace'] != initial['workspace']:
-                    raise ValueError('planner initial workspace identity mismatch')
-            elif role == 'executor':
-                payload = executor.build_input(state['active'], project_state=state, remaining=source['remaining'],
-                    native_tools=source['native_tools'])
-            else:
-                raise ValueError('unknown project role')
+            source = intent['input']
+            payload = agent.build_input(state, native_tools=source['native_tools'])
             if payload != source or digest(payload) != intent['input_digest']:
-                raise ValueError('recorded role input differs from production builder')
+                raise ValueError('recorded agent input differs from production builder')
             intents[pending['id']] = (event['digest'], payload, intent)
         elif event['kind'] == 'operation_returned':
             inbox = state.get('inbox')
@@ -39,9 +27,9 @@ def role_boundaries(root, *, read_only=True):
             started, payload, intent = intents.pop(identifier)
             rows.append({'source_root': str(ledger.root), 'operation_id': identifier,
                 'source_event_digest': started, 'result_event_digest': event['digest'],
-                'role': intent['role'], 'lane': intent['lane'], 'input_protocol': payload['protocol'],
-                'input': payload, 'result': state['evidence'][identifier]['result'],
-                'checkpoint': state['sessions'][intent['lane']],
+                'role': 'agent', 'lane': intent['lane'], 'request_id': intent['request_id'],
+                'input_protocol': payload['protocol'], 'input': payload,
+                'result': state['evidence'][identifier]['result'], 'checkpoint': state['sessions'][intent['lane']],
                 'training_eligible': False,
                 'eligibility_reason': 'Recorded boundary only: source authorization, labels, coverage and regression gates are separate'})
     with ProjectLedger.read_snapshot(root) as ledger:

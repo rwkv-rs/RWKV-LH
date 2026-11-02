@@ -142,8 +142,8 @@ class ManualRunRepository:
         if not isinstance(raw_retrieval, Mapping):
             raise ValueError("retrieval_policy must be an object")
         retrieval = RetrievalRuntimeConfig.from_dict(raw_retrieval)
-        if payload.get("supervisor_mode") not in (None, "work_order_loop"):
-            raise ValueError("supervisor_mode must be work_order_loop")
+        if payload.get("supervisor_mode") is not None:
+            raise ValueError("supervisor_mode is retired; the single agent runs the whole loop")
         if payload.get("state_router_shadow", False) is not False:
             raise ValueError("state_router_shadow is retired")
         if retrieval.mode != "offline":
@@ -199,7 +199,6 @@ class ManualRunRepository:
             "constraints": constraints,
             "retrieval_policy": retrieval.to_dict(),
             "runtime": ARCHITECTURE,
-            "supervisor_mode": "work_order_loop",
             "tool_scope": scope,
             "max_seconds": max_seconds,
             "execution_mode": "project",
@@ -278,8 +277,8 @@ class ManualRunRepository:
         project = self.execution_root(run_id) / 'project.sqlite3'
         if project.is_file():
             state = ProjectLedger(project.parent).state()
-            output['project'] = {key: state[key] for key in ('goal', 'work_orders', 'current_order',
-                'pending', 'status', 'calls', 'elapsed', 'final', 'final_claim')}
+            output['project'] = {key: state[key] for key in ('session_id', 'permissions', 'requests',
+                'pending', 'status', 'stop_reason', 'calls', 'max_calls', 'elapsed', 'final', 'final_claim')}
             progress_path = project.parent / 'PROGRESS.jsonl'
             progress = []
             if progress_path.is_file():
@@ -291,7 +290,7 @@ class ManualRunRepository:
             output['project']['progress'] = progress
             output['project']['actions'] = [{'action_id': key, 'operation': value['intent']['name'],
                 'arguments': value['intent']['arguments'], 'result': value['result'],
-                'work_order_id': value['intent']['step_id'],
+                'request_id': value['intent']['request_id'],
                 'status': 'succeeded' if value['result'].get('success') else 'failed'}
                 for key, value in state['evidence'].items() if value['kind'] == 'tool']
         result = read_json(self.run_root(run_id) / "result.json")
@@ -592,8 +591,8 @@ class WebHandler(BaseHTTPRequestHandler):
                             "backend_profile": settings.backend_profile,
                             "max_model_len": settings.max_model_len,
                         },
-                        "can": ["计划模型循环派发工单", "RWKV 在隔离副本中自主读写、搜索与测试", "查看宿主事实报告", "下载真实输入输出、工具结果与 State 审计包"],
-                        "cannot": ["计划内检查通过不代表外部验收通过", "新架构尚未完成真实模型能力验收", "结果不确定的操作不能自动重放"],
+                        "can": ["单一 RWKV Agent 以持续 State 处理请求", "RWKV 在隔离副本中自主读写、搜索与测试", "查看每次请求的工具回执与结束声明", "下载真实输入输出、工具结果与 State 审计包"],
+                        "cannot": ["Agent 的结束声明不代表外部验收通过", "单一 Agent 架构尚未完成真实模型能力验收", "结果不确定的操作不能自动重放"],
                         "latest_formal": None,
                         "latest_diagnostic": None,
                     }
@@ -614,9 +613,8 @@ class WebHandler(BaseHTTPRequestHandler):
                     executor = client.health().to_dict()
                 finally:
                     client.close()
-                self.send_json({"runtime": ARCHITECTURE, "executor": executor,
-                                "harness": {"available": True, "scope": "isolated workspace"},
-                                "planner": {"role": "work_order_loop", "connectivity": "not_probed"}})
+                self.send_json({"runtime": ARCHITECTURE, "agent": executor,
+                                "harness": {"available": True, "scope": "isolated workspace"}})
                 return
             if path == "/api/runs":
                 rows = []

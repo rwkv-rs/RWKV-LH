@@ -33,7 +33,7 @@ def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
     update_metadata(run_root, active=True, phase="controller_running", pid=os.getpid(),
                     worker_started_at=utc_now(), error="")
     settings = direct_settings()
-    # No credentials enter persisted configuration. The shared executor records
+    # No credentials enter persisted configuration. The agent session records
     # actual input, output, observations and native State relations.
     atomic_write_json(run_root / "runtime.json", {
         key: value for key, value in vars(settings).items()
@@ -43,7 +43,7 @@ def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
         request["run_id"], goal, str(run_root / "workspace"), str(run_root / "delivery"),
         max_transitions, request["max_seconds"]), settings=settings, session_factory=create_model_session)
     atomic_write_json(run_root / "result.json", {**result, "final_output": result["final"]})
-    submitted = result["termination"] == 'planner_finished'
+    submitted = result["termination"] == 'agent_finished'
     execution = run_root / "delivery/execution"
     update_metadata(run_root, active=False, phase="finished" if submitted else "blocked",
                     pid=None, status=result.get("status", "finished" if submitted else "interrupted"),

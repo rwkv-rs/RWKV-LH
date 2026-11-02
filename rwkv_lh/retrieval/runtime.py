@@ -288,7 +288,7 @@ def operation_allowed_by_retrieval_policy(
 
 
 def runtime_policy_document(config: RetrievalRuntimeConfig) -> dict[str, Any]:
-    """Bind only retrieval authorization; Project owns work-order stopping rules."""
+    """Bind only retrieval authorization; the agent loop owns stopping rules."""
     return {"retrieval": config.to_dict()}
 
 

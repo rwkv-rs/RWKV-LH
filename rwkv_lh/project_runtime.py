@@ -1,33 +1,39 @@
-"""Work-order Planner loop with one persistent, transactional Executor lane."""
+"""The single-agent loop: one RWKV conversation, one persistent State, transactional tools.
+
+Each model turn is validated as a whole before any effect; its calls then run in
+order in an isolated copy and are published only within the session write
+permissions. ``finish_work`` records the agent's declaration for the current
+user request. The host never judges correctness, rewrites model output or
+writes task text; a follow-up request continues the same conversation.
+"""
 from dataclasses import dataclass
 from copy import deepcopy
 import json
 import shutil
 import time
 
-from .project_contracts import digest, fields, text, protected_paths
-from .project_ledger import ProjectLedger, UncertainOperation
-from .project_protocols import planner, executor
+from .project_contracts import digest, fields, text
+from .project_ledger import UncertainOperation
+from .project_protocols import agent
 from .harness import ActionHarness, ActionResult, HarnessError, UncertainToolOutcome
 from .project_tools import configure_project_tools
 from .project_workspace import explicit_write_targets, violations as write_violations, publish_workspace
 from .schema import GoalState, TaskAction
 from .workspace_snapshot import tree_identity, copy_verified_workspace, invalid_entries
-from .transcript.render import tool_result, user_message, compact
+from .transcript.render import tool_result
 from .transcript.parse import validate_assistant, validate_messages, loads
 from .transcript.tools import native_call
-from .project_work_orders import build_report
 from .job_budget import WallDeadlineExpired
 from .project_deadline import project_deadline
 from .model_session import InputBudgetError
-from .model_io import ModelCommand
-from .project_output_validation import validate_role_output
 
-ARCHITECTURE = 'rwkv-lh.coder.architecture.v2'
+ARCHITECTURE = 'rwkv-lh.coder.architecture.v3'
+BUDGET_REASONS = ('resource_budget_exhausted', 'wall_budget_exhausted',
+                  'model_output_budget_exhausted', 'model_input_budget_exhausted')
 
 
 @dataclass(frozen=True)
-class RoleReply:
+class AgentReply:
     command: dict
     checkpoint: dict
     evidence: dict
@@ -56,7 +62,7 @@ def violation_summary(paths, limit=SCOPE_VIOLATION_LIMIT):
 def violation_record(transaction, violations, entry_errors=None):
     """Receipt metadata for a rejected write; full lists go to the transaction directory.
 
-    Raw receipt bodies are delivered to the Executor, so they carry only the
+    Raw receipt bodies are delivered to the agent, so they carry only the
     bounded summary and a count, never the unbounded path list nor the
     operation-specific location of the full record.
     """
@@ -67,18 +73,15 @@ def violation_record(transaction, violations, entry_errors=None):
             'workspace_entry_errors': dict(sorted(entry_errors.items())[:SCOPE_VIOLATION_LIMIT])}
 
 
-def role_definitions(role, harness):
-    if role == 'planner':
-        return planner.action_definitions()
-    if role != 'executor':
-        raise ValueError('current project roles are planner and executor')
+def agent_definitions(harness):
+    """The frozen nine-tool catalog: eight Harness tools plus finish_work."""
     configure_project_tools(harness)
-    return executor.action_definitions(harness.g1i_tool_definitions())
+    return agent.action_definitions(harness.g1i_tool_definitions())
 
 
 class ProjectRuntime:
-    def __init__(self, ledger, roles, *, harness=None):
-        self.db, self.roles = ledger, roles
+    def __init__(self, ledger, agent_port, *, harness=None):
+        self.db, self.agent = ledger, agent_port
         self.harness = configure_project_tools(harness or ActionHarness())
         self.started = None
         self.initial_elapsed = 0.0
@@ -89,79 +92,53 @@ class ProjectRuntime:
         elapsed = self.initial_elapsed + time.monotonic() - self.started if self.started is not None else s['elapsed']
         return {'calls': max(0, s['max_calls'] - s['calls']), 'seconds': max(0.0, s['max_seconds'] - elapsed)}
 
-    def _feedback(self, kind, **value):
+    def _reject(self, error):
+        """A turn the host could not accept: rolled back, recorded, and told to the agent."""
         def change(s):
-            inbox = s.get('inbox') or {}
-            if kind.endswith('_rejected'):
-                receipt = s['evidence'].get(inbox.get('operation_id'), {})
-                raw = receipt.get('result', {}).get('evidence', {}).get('raw_generation', {})
-                value['rejected_operation_id'] = inbox.get('operation_id')
-                value['rejected_output'] = raw.get('raw_output')
-                s['role_rejections'][inbox['lane']] = {'kind': kind, **value}
-                if inbox['role'] == 'executor':
-                    s['consecutive_rejections'] += 1
-                    s['transcript'].append(user_message(compact({'kind': kind, **value})))
-            s['feedback'] = {'kind': kind, **value}
-            if inbox.get('role') == 'planner' and kind in ('planner_rejected', 'model_output_budget_exhausted'):
-                # The terminal decision and consumed inbox are one durable
-                # boundary. A sidecar failure must never permit replanning.
-                s.update(status='failed', stop_reason='planner_protocol_error')
+            inbox = s['inbox']
+            receipt = s['evidence'].get(inbox['operation_id'], {})
+            raw = receipt.get('result', {}).get('evidence', {}).get('raw_generation', {})
+            record = {'kind': 'turn_rejected', 'error': error, 'rejected_operation_id': inbox['operation_id'],
+                      'rejected_output': raw.get('raw_output'), 'request_id': s['requests'][-1]['id']}
+            s['rejections'].append(record)
+            s['consecutive_rejections'] += 1
+            s['transcript'].append(agent.host_notice('turn_rejected', error=error))
+            s['feedback'] = record
             s['inbox'] = None
-        self.db.update(kind, change)
+        self.db.update('turn_rejected', change)
 
     def _request(self):
-        configure_project_tools(self.harness)
+        definitions = agent_definitions(self.harness)
         s = self.db.state()
-        remaining = self.remaining()
-        if s['current_order'] is None:
-            role, lane = 'planner', 'planner'
-            initial = s['initial_context']
-            if not s['work_orders'] and (digest(initial['workspace']) != s['workspace_digest']
-                    or tree_identity(s['workspace']) != initial['workspace']):
-                raise ValueError('workspace changed before initial planning')
-            payload = planner.build_input(s['request'], workspace=initial['workspace'],
-                materials=initial['materials'], work_orders=s['work_orders'], protected_paths=s['protected_paths'],
-                remaining=remaining, execution_capabilities=self.harness.planning_capabilities())
-        else:
-            role, lane = 'executor', s['active']['id']
-            self.db.update('executor_budget_disclosed', lambda state: state['transcript'].append(
-                user_message(compact({'project_remaining': remaining,
-                    'work_order_calls_remaining': state['current_order']['call_budget'] - state['order_calls']}))))
-            s = self.db.state()
-            payload = executor.build_input(s['active'], project_state=s, remaining=remaining,
-                native_tools=role_definitions('executor', self.harness))
-        definitions = role_definitions(role, self.harness)
-        preflight = getattr(self.roles, 'preflight', None)
+        lane = s['session_id']
+        payload = agent.build_input(s, native_tools=definitions)
+        preflight = getattr(self.agent, 'preflight', None)
         if preflight:
             try:
-                preflight(role, lane, payload, definitions, s['sessions'].get(lane))
+                preflight(lane, payload, definitions, s['sessions'].get(lane))
             except InputBudgetError as exc:
                 self.db.update('model_input_rejected', lambda state:
                     state.setdefault('input_rejections', []).append({
-                        'role': role, 'lane': lane, 'input': payload, 'input_digest': digest(payload),
+                        'lane': lane, 'input': payload, 'input_digest': digest(payload),
                         'definitions': definitions, 'checkpoint': s['sessions'].get(lane), 'error': str(exc),
                         'measurement': getattr(exc, 'input_budget_evidence', None),
                         'call_reserved': False, 'generation_started': False}))
                 raise
         def reserve(state):
             state['calls'] += 1
-            state['role_calls'][role] += 1
-            if role == 'executor':
-                state['order_calls'] += 1
+            state['requests'][-1]['calls'] += 1
         self.db.update('call_reserved', reserve)
-        identifier = self.db.begin_operation('model', {'role': role, 'lane': lane,
-            'input': payload, 'input_digest': digest(payload), 'work_order_id':
-                s['current_order']['id'] if s['current_order'] else None})
+        identifier = self.db.begin_operation('model', {'role': 'agent', 'lane': lane, 'input': payload,
+            'input_digest': digest(payload), 'request_id': s['requests'][-1]['id']})
         if s.get('record_generation_snapshots', False):
             from .project_generation_snapshots import capture_snapshot
             capture_snapshot(self.db, identifier)
         started = time.monotonic()
-        reply = self.roles.request(role, lane, payload, definitions, s['sessions'].get(lane))
+        reply = self.agent.request(lane, payload, definitions, s['sessions'].get(lane))
         duration = time.monotonic() - started
         def change(state):
             state['sessions'][lane] = reply.checkpoint
-            state['inbox'] = {'role': role, 'lane': lane, 'command': reply.command,
-                'operation_id': identifier, 'cursor': 0}
+            state['inbox'] = {'lane': lane, 'command': reply.command, 'operation_id': identifier, 'cursor': 0}
         self.db.finish_operation(identifier, {'command': reply.command, 'evidence': reply.evidence,
             'generation_seconds': duration}, mutate=change)
 
@@ -170,41 +147,27 @@ class ProjectRuntime:
         inbox = s['inbox']
         command = inbox['command']
         fields(command, ('function', 'params'))
-        name, params, role = command['function'], command['params'], inbox['role']
+        name, params = command['function'], command['params']
         if not isinstance(params, dict):
             raise ValueError('parameter object required')
-        receipt = s['evidence'][inbox['operation_id']]
-        attestation = receipt['result']['evidence']
+        attestation = s['evidence'][inbox['operation_id']]['result']['evidence']
         if name == 'protocol_rejected':
             if attestation.get('rejected') is not True:
                 raise ValueError('protocol rejection requires host attestation')
             fields(params, ('error',))
-            self._feedback(role + '_rejected', error=text(params['error']))
+            self._reject(text(params['error']))
             return
         if name == 'model_output_budget_exhausted':
             if params or attestation.get('known_budget_exhaustion') is not True:
                 raise ValueError('output budget interruption requires host attestation')
-            if role == 'executor':
-                # Keep the known returned command until the report transaction
-                # also clears it. A process loss before handoff consumes this
-                # same inbox on recovery, without another model request.
-                self._return_order('model_output_budget_exhausted')
-            else:
-                self._feedback(name, role=role, evidence_id=inbox['operation_id'])
-            return
-        definitions = role_definitions(role, self.harness)
-        if role == 'planner':
-            accepted = ModelCommand(name, params)
-            validate_role_output(role, receipt['intent']['input'], accepted, definitions)
-            if name == 'issue_work_order':
-                self.db.issue_work_order(accepted.arguments)
-            elif name == 'finish_project':
-                self.db.finish_project(**accepted.arguments)
-            else:
-                raise ValueError('unknown Planner action')
+            # The truncated turn was rolled back and never executed. The notice
+            # and the interruption are one event; a follow-up continues here.
+            self.db.interrupt('model_output_budget_exhausted', notice=agent.host_notice(
+                'turn_truncated', error='reply exceeded the output budget; nothing in it was executed'))
             return
         if name != 'assistant':
-            raise ValueError('Executor requires a native assistant message')
+            raise ValueError('agent requires a native assistant message')
+        definitions = agent_definitions(self.harness)
         fields(params, ('message',))
         if 'batch' not in inbox:
             message = validate_assistant(params['message'], definitions)
@@ -219,7 +182,6 @@ class ProjectRuntime:
                 state['transcript'].append(message)
                 state['inbox'].update(batch=batch, cursor=0)
                 state['consecutive_rejections'] = 0
-                state['role_rejections'].pop(inbox['lane'], None)
             self.db.update('assistant_batch_prepared', prepared)
         while self.db.state()['inbox']:
             s = self.db.state()
@@ -230,69 +192,30 @@ class ProjectRuntime:
             selected = inbox['batch'][inbox['cursor']]
             if selected['name'] == 'finish_work':
                 declaration = deepcopy(selected['arguments'])
-                receipt = tool_result(selected['id'], {'declaration': declaration})
-                self._return_order('model_finished', declaration=declaration, declaration_receipt=receipt)
+                self.db.finish_request(declaration, tool_result(selected['id'], {'declaration': declaration}))
                 break
-            self._tool(selected['name'], selected['arguments'], inbox['lane'], s['current_order']['id'], selected['id'])
+            self._tool(selected['name'], selected['arguments'], selected['id'])
 
-    def _return_order(self, reason, *, declaration=None, declaration_receipt=None):
+    def _tool(self, name, params, tool_call_id):
         s = self.db.state()
-        order = s['current_order']
-        receipts, committed = [], []
-        for identifier in s['work_orders'][-1]['receipt_ids']:
-            evidence = s['evidence'][identifier]
-            reference = evidence['result']['raw_receipt']
-            path = (self.db.root / reference['path']).resolve(strict=True)
-            if self.db.root not in path.parents:
-                raise ValueError('raw receipt outside project records')
-            raw = json.loads(path.read_text())
-            if digest(raw) != reference['content_digest']:
-                raise ValueError('raw receipt digest mismatch')
-            intent = evidence['intent']
-            if intent['step_id'] != order['id']:
-                raise ValueError('work order receipt identity mismatch')
-            metadata = raw.get('metadata', {})
-            committed.extend(metadata.get('changed_paths', []))
-            arguments = intent['arguments']
-            execution_metadata = metadata.get('isolated_result', {}).get('metadata', metadata)
-            if (intent['name'] == 'run_shell' and execution_metadata.get('cwd') in ('.', './')
-                    and not arguments.get('run_in_background') and type(raw.get('exit_code')) is int):
-                stream = execution_metadata.get('command_streams', {}).get('stderr', {})
-                output = str(raw.get('output') or '').encode('utf-8')
-                stderr = output[stream.get('start_byte', len(output)):stream.get('end_byte', len(output))].decode('utf-8')
-                receipts.append({'receipt_id': identifier, 'name': 'run_shell',
-                    'command': arguments['command'], 'confirmed': True,
-                    'exit_code': raw['exit_code'], 'stderr': stderr})
-        report = build_report(order, receipts=receipts, committed_paths=committed,
-            calls_used=s['order_calls'], declaration=declaration, remaining=self.remaining(),
-            interrupted_reason='' if reason == 'model_finished' else reason)
-        self.db.return_work_order(report, reason=reason, declaration_receipt=declaration_receipt)
-
-    def _tool(self, name, params, lane, step_id, tool_call_id):
-        s = self.db.state()
-        if not s['active'] or s['active']['id'] != lane:
-            raise ValueError('stale worker assignment')
         params = deepcopy(params)
-        task = s['current_order']
-        if task is None or task['id'] != step_id:
-            raise ValueError('unknown work order')
+        request = s['requests'][-1]
         allowed = {d['name'] for d in self.harness.g1i_tool_definitions()}
         if name not in allowed:
             raise ValueError('unknown execution operation')
         action = self.harness.normalize_action(TaskAction(name, params))
-        goal = GoalState.create(request=task['goal'], workspace_root=s['workspace'], constraints=[])
+        goal = GoalState.create(request=request['text'], workspace_root=s['workspace'], constraints=[])
         with self.harness.action_transaction(goal):
             before_tree = tree_identity(s['workspace'])
             if digest(before_tree) != s['workspace_digest']:
-                raise ValueError('workspace changed outside the recorded worker')
-            policy = {'scope': task['scope'], 'protected': protected_paths(s)}
+                raise ValueError('workspace changed outside the recorded agent')
+            policy = {'scope': s['permissions']['writable'], 'protected': s['permissions']['protected']}
             control = name in ('read_job_output', 'kill_job')
             targets = [] if control else explicit_write_targets(self.harness, action, identity=before_tree)
-            violations = write_violations(targets,
-                                          before=before_tree, **policy)
-            identifier = self.db.begin_tool_operation({'assignment_id': lane, 'name': name,
+            violations = write_violations(targets, before=before_tree, **policy)
+            identifier = self.db.begin_tool_operation({'session_id': s['session_id'], 'name': name,
                 'arguments': action.arguments, 'requested_arguments': params,
-                'before': s['workspace_digest'], 'step_id': task['id'],
+                'before': s['workspace_digest'], 'request_id': request['id'],
                 'source_operation_id': s['inbox']['operation_id'], 'tool_call_id': tool_call_id})
             transaction = self.db.root / 'tool_transactions' / identifier
             transaction.mkdir(parents=True)
@@ -335,7 +258,7 @@ class ProjectRuntime:
                         raise UncertainToolOutcome('background launch did not return a job handle')
                     background = {'handle': handle, 'operation_id': identifier,
                         'workspace': str(staged.relative_to(self.db.root)), 'baseline': before_tree,
-                        'scope': task['scope'], 'job_identity': result.metadata.get('job_identity')}
+                        'scope': policy['scope'], 'job_identity': result.metadata.get('job_identity')}
                     self._pending_background[handle] = background
                     result.metadata.update(workspace_committed=False, background_workspace='isolated_running')
                     # The live process owns this inode. Never publish it, scan
@@ -353,13 +276,13 @@ class ProjectRuntime:
                 self.db.invalidate(state, current)
                 state['transcript'].append(tool_result(tool_call_id, raw))
                 state['inbox']['cursor'] += 1
-                state['work_orders'][-1]['receipt_ids'].append(identifier)
+                state['requests'][-1]['receipt_ids'].append(identifier)
                 if background is not None:
                     state.setdefault('background_workspaces', {})[background['handle']] = background
                 if finished_background is not None:
                     state['background_workspaces'].pop(finished_background)
                 state['feedback'] = {'kind': 'tool_returned' if result.success else 'execution_failed',
-                    'evidence_id': identifier, 'assignment_id': lane, 'step_id': task['id']}
+                    'evidence_id': identifier, 'request_id': request['id']}
             # Raw evidence is retained separately from the model-facing projection.
             raw_path = self.db.root / 'raw_tools'
             raw_path.mkdir(exist_ok=True)
@@ -445,9 +368,8 @@ class ProjectRuntime:
         """Readable live projection; the transactional ledger remains authority."""
         state = self.db.state()
         source = state['evidence'][operation_id]
-        row = {'operation_id': operation_id, 'role': source['intent']['role'],
-            'step_id': state['current_step_id'], 'command': source['result']['command'],
-            'input_digest': source['intent']['input_digest'],
+        row = {'operation_id': operation_id, 'role': 'agent', 'request_id': source['intent']['request_id'],
+            'command': source['result']['command'], 'input_digest': source['intent']['input_digest'],
             'raw_output': source['result']['evidence'].get('raw_generation', {}).get('raw_output'),
             'feedback': state['feedback'], 'status': state['status']}
         if (state['feedback'] or {}).get('kind') in ('tool_returned', 'execution_failed'):
@@ -460,7 +382,22 @@ class ProjectRuntime:
         with (self.db.root / 'PROGRESS.jsonl').open('a') as stream:
             stream.write(json.dumps(row, ensure_ascii=False) + '\n')
 
+    def _clean_boundary(self):
+        s = self.db.state()
+        return s['status'] == 'running' and not s['pending'] and s['inbox'] is None
+
+    def _stop(self, reason, error=None):
+        """Record why the loop stopped; an interruption is set only at a clean boundary."""
+        if error is not None:
+            self.db.update(reason, lambda state: state.update(error={'type': type(error).__name__, 'message': str(error)}))
+        if self.db.state()['pending']:
+            return 'uncertain_operation'
+        if self._clean_boundary() and reason in (*BUDGET_REASONS, 'repeated_rejection'):
+            self.db.interrupt(reason)
+        return reason
+
     def run(self, *, max_turns=None):
+        """Run the current request until the agent declares, a budget stops it, or a yield."""
         self.started = time.monotonic()
         self.initial_elapsed = self.db.state()['elapsed']
         reason = ''
@@ -472,26 +409,19 @@ class ProjectRuntime:
                     turns = 0
                     while self.db.state()['status'] == 'running':
                         s = self.db.state()
-                        if s['current_order'] is not None and s['inbox'] is None:
-                            if s['consecutive_rejections'] >= s['rejection_limit']:
-                                self._return_order('repeated_rejection')
-                                continue
-                            if s['order_calls'] >= s['current_order']['call_budget']:
-                                self._return_order('call_budget_exhausted')
-                                continue
-                        if s['current_order'] is None and s['consecutive_no_progress'] >= s['no_progress_limit']:
-                            reason = 'no_progress'
-                            break
-                        if max_turns is not None and turns >= max_turns and s['inbox'] is None:
-                            reason = 'checkpoint_yield'
-                            break
                         if s['inbox'] is None:
+                            if s['consecutive_rejections'] >= s['rejection_limit']:
+                                reason = self._stop('repeated_rejection')
+                                break
+                            if max_turns is not None and turns >= max_turns:
+                                reason = 'checkpoint_yield'
+                                break
                             remaining = self.remaining()
                             if remaining['seconds'] <= 0:
-                                reason = 'wall_budget_exhausted'
+                                reason = self._stop('wall_budget_exhausted')
                                 break
                             if remaining['calls'] <= 0:
-                                reason = 'resource_budget_exhausted'
+                                reason = self._stop('resource_budget_exhausted')
                                 break
                             self._request()
                             turns += 1
@@ -501,41 +431,26 @@ class ProjectRuntime:
                         except (ValueError, KeyError, TypeError, HarnessError) as exc:
                             boundary = self.db.state()
                             proof = boundary['evidence'][consumed['operation_id']]['result']['evidence']
-                            known_output_stop = (consumed['role'] == 'executor'
-                                and consumed['command'] == {'function': 'model_output_budget_exhausted', 'params': {}}
+                            known_output_stop = (consumed['command'] == {'function': 'model_output_budget_exhausted', 'params': {}}
                                 and proof.get('known_budget_exhaustion') is True)
                             if boundary['pending'] or (boundary['inbox'] or {}).get('batch') or known_output_stop:
                                 raise
-                            self._feedback(consumed['role'] + '_rejected', error=str(exc))
+                            self._reject(str(exc))
                         self._progress(consumed['operation_id'])
-                        boundary = self.db.state()
-                        if boundary['status'] == 'failed':
-                            reason = boundary['stop_reason']
-                            break
             except InputBudgetError as exc:
-                boundary = self.db.state()
-                reason = ('uncertain_operation' if boundary['pending']
-                          else boundary.get('stop_reason') or 'model_input_budget_exhausted')
-                self.db.update('input_budget_exhausted', lambda state: state.update(error={'type': type(exc).__name__, 'message': str(exc)}))
+                reason = self._stop('model_input_budget_exhausted', exc)
             except UncertainOperation:
                 reason = 'uncertain_operation'
             except WallDeadlineExpired as exc:
-                boundary = self.db.state()
-                reason = ('uncertain_operation' if boundary['pending']
-                          else boundary.get('stop_reason') or 'wall_budget_exhausted')
-                self.db.update('wall_budget_exhausted', lambda state: state.update(error={'type': type(exc).__name__, 'message': str(exc)}))
+                reason = self._stop('wall_budget_exhausted', exc)
             except Exception as exc:
-                boundary = self.db.state()
-                reason = ('uncertain_operation' if boundary['pending']
-                          else boundary.get('stop_reason') or 'execution_error')
-                self.db.update('runtime_error', lambda state: state.update(error={'type': type(exc).__name__, 'message': str(exc)}))
+                reason = self._stop('execution_error', exc)
             finally:
                 self.db.update('runtime_checkpoint', lambda state: state.update(
                     elapsed=self.initial_elapsed + time.monotonic() - self.started))
                 try:
                     self.reclaimed_jobs = self.reclaim_background_jobs()
                 except Exception as exc:
-                    from .harness import UncertainToolOutcome
                     if not isinstance(exc, UncertainToolOutcome):
                         raise
                     if not self.db.state()['pending']:
@@ -576,10 +491,11 @@ class ProjectRuntime:
             def changed(state):
                 state['background_workspaces'] = {}
                 state.setdefault('background_cleanup', []).append(fact)
-                # At checkpoint_yield the continued Executor must learn that
+                # The continued agent must learn that
                 # its old server was stopped. An unresolved tool stays pending.
                 if state['inbox'] is None:
-                    state['transcript'].append(user_message(compact(fact)))
+                    state['transcript'].append(agent.host_notice(fact['kind'],
+                        **{key: value for key, value in fact.items() if key != 'kind'}))
             if identifier is not None:
                 db.finish_operation(identifier, fact, mutate=changed)
             else:
@@ -589,35 +505,32 @@ class ProjectRuntime:
 
     def result(self, reason=''):
         s = self.db.state()
-        ended = s['status'] in ('finished', 'blocked') and not s['pending']
+        ended = s['status'] in ('finished', 'blocked', 'interrupted') and not s['pending']
+        declared = ended and s['status'] in ('finished', 'blocked')
         tool_receipts = [r for r in s['evidence'].values() if r['kind'] == 'tool']
-        usage = {}
-        for role in ('planner', 'executor'):
-            models = [r for r in s['evidence'].values() if r['kind'] == 'model' and r['intent']['role'] == role]
-            measured = []
-            for receipt in models:
-                proof = receipt['result']['evidence']
-                tokens = proof.get('usage') or proof.get('provider_response', {}).get('usage') or {}
-                prompt, output = tokens.get('input_tokens', tokens.get('prompt_tokens')), tokens.get('output_tokens', tokens.get('completion_tokens'))
-                if type(prompt) is int and type(output) is int and prompt >= 0 and output >= 0:
-                    measured.append((prompt, output))
-            usage[role] = {'model_calls': len(models), 'calls_reserved': s['role_calls'][role], 'generation_seconds': sum(r['result'].get('generation_seconds', 0) for r in models),
-                'input_tokens': sum(x[0] for x in measured) if len(measured) == len(models) else None,
-                'output_tokens': sum(x[1] for x in measured) if len(measured) == len(models) else None,
-                'token_measurement_calls': len(measured)}
-        result = {'architecture': ARCHITECTURE,
-            'status': s['status'] if ended or s['status'] == 'failed' else 'interrupted',
+        models = [r for r in s['evidence'].values() if r['kind'] == 'model']
+        measured = []
+        for receipt in models:
+            tokens = receipt['result']['evidence'].get('usage') or {}
+            prompt, output = tokens.get('input_tokens'), tokens.get('output_tokens')
+            if type(prompt) is int and type(output) is int and prompt >= 0 and output >= 0:
+                measured.append((prompt, output))
+        usage = {'model_calls': len(models), 'calls_reserved': s['calls'],
+            'generation_seconds': sum(r['result'].get('generation_seconds', 0) for r in models),
+            'input_tokens': sum(x[0] for x in measured) if len(measured) == len(models) else None,
+            'output_tokens': sum(x[1] for x in measured) if len(measured) == len(models) else None,
+            'token_measurement_calls': len(measured)}
+        result = {'architecture': ARCHITECTURE, 'session_id': s['session_id'],
+            'status': s['status'] if ended else 'interrupted',
             'termination_reason': reason or s.get('stop_reason') or 'interrupted',
-            'final': s['final'], 'final_claim': s['final_claim'], 'model_finished': ended and s['status'] == 'finished',
-            'completed': False, 'acceptance': 'not_evaluated', 'model_calls': s['calls'],
-            'planner_usage': usage['planner'], 'executor_usage': usage['executor'],
-            'work_order_count': len(s['work_orders']), 'work_orders': deepcopy(s['work_orders']),
-            'task_count': len(s['work_orders']), 'verified_tasks': 0,
+            'final': s['final'], 'final_claim': s['final_claim'], 'model_finished': declared,
+            'completed': False, 'acceptance': 'not_evaluated', 'model_calls': s['calls'], 'agent_usage': usage,
+            'request_count': len(s['requests']), 'requests': deepcopy(s['requests']),
             'mutation_count': sum(bool(r['result'].get('metadata', {}).get('workspace_committed')) for r in tool_receipts),
             'workspace': s['workspace'], 'workspace_digest': s['workspace_digest'], 'elapsed': s['elapsed'],
-            'diagnostics': {'next_role': None if ended or s['status'] == 'failed' else 'executor' if s['current_order'] else 'planner',
+            'diagnostics': {'resumable': s['status'] == 'running' and not s['pending'],
                 'pending_operation': s['pending'], 'runtime_error': s.get('error'),
-                'last_obstacle': s['feedback'], 'rejections': deepcopy(s['role_rejections']),
+                'last_obstacle': s['feedback'], 'rejections': deepcopy(s['rejections']),
                 'reclaimed_background_jobs': getattr(self, 'reclaimed_jobs', [])}}
         (self.db.root / 'RESULT.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
         return result

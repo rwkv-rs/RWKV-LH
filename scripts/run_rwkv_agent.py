@@ -1,4 +1,4 @@
-"""Run Project work orders with a Planner and persistent autonomous RWKV execution."""
+"""Run the single RWKV coding agent: new session, follow-up request, recovery, batch or preview."""
 import argparse
 import json
 from pathlib import Path
@@ -22,7 +22,9 @@ def main(argv=None):
                         help='Serve an existing static workspace without calling a model')
     source.add_argument('--launch', type=Path,
                         help='Launch an existing project copy with install/build/health receipts; no model call')
-    source.add_argument('--resume', type=Path, help='Resume a project output directory with its original budgets')
+    source.add_argument('--resume', type=Path, help='Recover an unfinished request in a session output directory')
+    source.add_argument('--continue', dest='continue_session', type=Path,
+                        help='Send the next user request (--request) to an ended session; same State and workspace')
     parser.add_argument('--request')
     parser.add_argument('request_text', nargs='?', help='Natural-language task; start an empty project by default')
     parser.add_argument('-i', '--interactive', action='store_true', help='Interactive terminal with follow-up requests')
@@ -32,6 +34,10 @@ def main(argv=None):
     parser.add_argument('--record-generation-snapshots', action='store_true')
     parser.add_argument('--protected-paths', action='append', default=[],
                         help="Read-only coding workspace path, '.' or './path'; repeat as needed")
+    parser.add_argument('--writable-paths', action='append', default=None,
+                        help="Writable workspace path (default: the whole workspace '.'); repeat as needed")
+    parser.add_argument('--extra-calls', type=int, default=0, help='--continue: model calls added to the session budget')
+    parser.add_argument('--extra-seconds', type=float, default=0.0, help='--continue: seconds added to the session budget')
     parser.add_argument('--max-calls', type=int, default=None)
     parser.add_argument('--max-seconds', type=float, default=None)
     parser.add_argument('--concurrency', type=int, default=1)
@@ -60,14 +66,18 @@ def main(argv=None):
     if not 0 < args.launch_timeout <= 3600:
         parser.error('launch-timeout must be in (0, 3600]')
     if terminal_mode:
-        if args.jobs or args.resume or args.preview or args.launch or (args.request_text and args.request):
+        if (args.jobs or args.resume or args.continue_session or args.preview or args.launch
+                or (args.request_text and args.request)):
             parser.error('terminal requests cannot be combined with jobs, resume, preview or a second request')
         from rwkv_lh.terminal import run_terminal
         return run_terminal(args)
     if args.no_preview:
         parser.error('--no-preview belongs to terminal mode')
-    if not any((args.jobs, args.source_workspace, args.new_project, args.preview, args.launch, args.resume)):
-        parser.error('enter a task, or select --new-project, --source-workspace, --jobs, --preview or --resume')
+    if not any((args.jobs, args.source_workspace, args.new_project, args.preview, args.launch, args.resume,
+                args.continue_session)):
+        parser.error('enter a task, or select --new-project, --source-workspace, --jobs, --preview, --resume or --continue')
+    if args.writable_paths is None:
+        args.writable_paths = ['.']
     if args.launch:
         if args.request or args.serve or args.protected_paths:
             parser.error('--launch only runs the existing project')
@@ -89,7 +99,7 @@ def main(argv=None):
         except (OSError, ValueError) as exc:
             parser.error(str(exc))
         return 0
-    if args.serve and (args.jobs or args.resume):
+    if args.serve and (args.jobs or args.resume or args.continue_session):
         parser.error('--serve requires --new-project or --source-workspace; use --preview for existing runs')
     if args.launch_kind != 'static' and not args.serve:
         parser.error('--launch-kind requires --launch, --serve or terminal mode')
@@ -111,7 +121,17 @@ def main(argv=None):
         overrides = {name: getattr(args, name) for name in ('base_url', 'model', 'model_sha256') if getattr(args, name) is not None}
         result = resume_project(args.resume, settings=RuntimeSettings.from_env(overrides=overrides))
         print(json.dumps(result, ensure_ascii=False, indent=2))
-        return 0 if result['termination'] == 'planner_finished' else 1
+        return 0 if result['termination'] == 'agent_finished' else 1
+    if args.continue_session:
+        if not args.request or args.output_dir or args.protected_paths:
+            parser.error('--continue takes only --request and optional --extra-calls/--extra-seconds')
+        from rwkv_lh.project_agent import continue_project
+        load_local_env(Path(__file__).resolve().parents[1] / '.env.local')
+        overrides = {name: getattr(args, name) for name in ('base_url', 'model', 'model_sha256') if getattr(args, name) is not None}
+        result = continue_project(args.continue_session, args.request, settings=RuntimeSettings.from_env(overrides=overrides),
+                                  extra_calls=args.extra_calls, extra_seconds=args.extra_seconds)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0 if result['termination'] == 'agent_finished' else 1
     jobs = []
     if args.source_workspace:
         if not args.request or not args.output_dir:
@@ -119,7 +139,7 @@ def main(argv=None):
         rows = [dict(task_id=args.task_id, request=args.request, workspace=args.source_workspace,
                      output_dir=args.output_dir, tool_scope='coding', max_calls=args.max_calls,
                      max_seconds=args.max_seconds, record_generation_snapshots=args.record_generation_snapshots,
-                     protected_paths=args.protected_paths)]
+                     writable_paths=tuple(args.writable_paths), protected_paths=tuple(args.protected_paths))]
     else:
         if args.request or args.output_dir or args.protected_paths:
             parser.error('--request and --output-dir belong to single coding tasks')
@@ -132,16 +152,17 @@ def main(argv=None):
         if not isinstance(parents, list):
             parser.error('depends_on must be an array of task IDs')
         if parents:
-            parser.error('project dependencies belong in work orders; depends_on is retired from this entry')
-        if 'assistance' in row:
-            parser.error('project uses the work-order loop; assistance jobs are retired')
+            parser.error('depends_on is not supported; send dependent requests to one session with --continue')
         scope = row.pop('tool_scope', 'coding')
-        recovery = row.pop('on_stall', None)
-        if recovery is not None:
-            parser.error('on_stall is retired; Executor controls its own execution and finish')
         if scope == 'coding':
             row['source_workspace'] = row.pop('workspace')
-            jobs.append(CodingJob(**row))
+            for key in ('writable_paths', 'protected_paths'):
+                if key in row:
+                    row[key] = tuple(row[key])
+            try:
+                jobs.append(CodingJob(**row))
+            except TypeError as exc:
+                parser.error(f'invalid job fields: {exc}')
         else:
             parser.error('tool_scope must be coding; files and inspect execution are retired')
     load_local_env(Path(__file__).resolve().parents[1] / '.env.local')
@@ -150,7 +171,7 @@ def main(argv=None):
     settings = direct_agent_settings(RuntimeSettings.from_env(overrides=overrides))
     results = run_agent_jobs(jobs, settings=settings, concurrency=args.concurrency)
     print(json.dumps(results, ensure_ascii=False, indent=2))
-    exit_code = 0 if all(r['termination'] == 'planner_finished' for r in results) else 1
+    exit_code = 0 if all(r['termination'] == 'agent_finished' for r in results) else 1
     if args.serve:
         from rwkv_lh.project_preview import serve_preview
         print(f'Agent termination: {results[0]["termination"]}; preview does not change task completion.', flush=True)

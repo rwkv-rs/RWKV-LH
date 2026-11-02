@@ -14,7 +14,7 @@ from rwkv_lh.runtime.structured_output import build_transcript_decoder_contract,
 def current_contract():
     from rwkv_lh.harness import ActionHarness
     from rwkv_lh.project_tools import configure_project_tools
-    from rwkv_lh.project_protocols.executor import action_definitions
+    from rwkv_lh.project_protocols.agent import action_definitions
     harness = configure_project_tools(ActionHarness())
     return build_transcript_decoder_contract(action_definitions(harness.g1i_tool_definitions()))
 

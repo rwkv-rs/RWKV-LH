@@ -17,11 +17,12 @@ def main():
     parser.add_argument('--request', required=True)
     parser.add_argument('--task-id', default='coding-task')
     parser.add_argument('--record-generation-snapshots', action='store_true')
+    parser.add_argument('--writable-paths', action='append', default=None,
+                        help="Writable workspace path (default: the whole workspace '.'); repeat for multiple paths")
     parser.add_argument('--protected-paths', action='append', default=[],
                         help="Read-only workspace path, '.' or './path'; repeat for multiple paths")
     parser.add_argument('--max-calls', type=int, default=12)
     parser.add_argument('--max-seconds', type=float, default=600)
-    parser.add_argument('--no-progress-limit', type=int, default=CodingJob.__dataclass_fields__['no_progress_limit'].default)
     parser.add_argument('--rejection-limit', type=int, default=CodingJob.__dataclass_fields__['rejection_limit'].default)
     parser.add_argument('--base-url')
     parser.add_argument('--model')
@@ -30,10 +31,13 @@ def main():
     load_local_env(Path(__file__).resolve().parents[1] / '.env.local')
     overrides = {name: getattr(args, name) for name in ('base_url', 'model', 'model_sha256') if getattr(args, name)}
     settings = direct_agent_settings(RuntimeSettings.from_env(overrides=overrides))
-    job = CodingJob(**{name: getattr(args, name) for name in CodingJob.__dataclass_fields__})
+    values = {name: getattr(args, name) for name in CodingJob.__dataclass_fields__}
+    values['writable_paths'] = tuple(args.writable_paths or ['.'])
+    values['protected_paths'] = tuple(args.protected_paths)
+    job = CodingJob(**values)
     result = run_coding_job(job, settings=settings)
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 0 if result['termination'] == 'planner_finished' else 1
+    return 0 if result['termination'] == 'agent_finished' else 1
 
 
 if __name__ == '__main__':

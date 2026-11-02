@@ -165,9 +165,15 @@ def _production_sources(manifest, base, native_tools):
 
 
 def training_messages(messages, native_tools):
-    """The one source -> training message mapping: the current Executor system turn."""
-    from ..project_protocols.executor import current_system
-    return current_system(messages, native_tools)
+    """The one source -> training message check: a current single-agent conversation.
+
+    Sources are returned unchanged. A system turn other than the current agent
+    builder's output (for example the retired work-order Executor) is rejected,
+    never rewritten.
+    """
+    from ..project_protocols.agent import validate_conversation
+    validate_conversation(messages, native_tools)
+    return deepcopy(messages)
 
 
 def read_manifest(path, expected_sha256):

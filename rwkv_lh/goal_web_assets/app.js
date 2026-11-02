@@ -87,7 +87,7 @@ async function loadTopology() {
   try {
     app.topology = await api("/api/runtime/topology");
     const healthy = Boolean(
-      app.topology.executor?.available
+      app.topology.agent?.available
       && app.topology.harness?.available
     );
     dot.className = `live-dot ${healthy ? "" : "offline"}`;
@@ -104,9 +104,8 @@ function renderTopology() {
   if (!app.topology) return;
   const topology = app.topology;
   const cards = [
-    { index: "01", name: "计划模型", ok: null, detail: '循环派单 · 接收宿主事实报告' },
-    { index: "02", name: "RWKV Executor", ok: topology.executor?.available, detail: `${topology.executor?.model || "RWKV"} · 持续执行、自测与交回` },
-    { index: "03", name: "工具与事实报告", ok: topology.harness?.available, detail: '隔离工作区 · 实际结果与变更' },
+    { index: "01", name: "RWKV Agent", ok: topology.agent?.available, detail: `${topology.agent?.model || "RWKV"} · 单一模型、持续 State、自主选工具` },
+    { index: "02", name: "工具与回执", ok: topology.harness?.available, detail: '隔离工作区 · 实际结果与变更' },
   ];
   $("topologyCards").innerHTML = cards.map((card) => `
     <article class="${card.ok === null ? 'pending' : card.ok ? "online" : "offline"}">
@@ -273,7 +272,7 @@ function renderRun() {
   const project = summary.project;
   const status = statusClass(metadata.active ? (project?.status || metadata.status || metadata.phase)
     : (summary.result?.status || project?.status || metadata.status || metadata.phase));
-  const orders = project?.work_orders || [];
+  const requests = project?.requests || [];
   const actions = project?.actions || [];
   $("runId").textContent = metadata.run_id || app.selectedRun;
   $("runObjective").textContent = summary.request?.request || "—";
@@ -283,19 +282,19 @@ function renderRun() {
   const resumable = summary.request?.tool_scope === 'coding' && !metadata.active && metadata.state_created
     && ["interrupted", "stopped", "failed", "blocked"].includes(status);
   $("resumeButton").classList.toggle("hidden", !resumable);
-  $("obligationMetric").textContent = `${orders.filter(item => item.report !== null).length} / ${orders.length}`;
+  $("obligationMetric").textContent = `${requests.filter(item => item.termination_reason !== null).length} / ${requests.length}`;
   $("actionMetric").textContent = actions.length;
   $("evidenceMetric").textContent = actions.length;
   $("fileMetric").textContent = app.files.length;
   $("requestMetric").textContent = project?.calls ?? summary.result?.generation_started ?? 0;
-  $("contractCount").textContent = orders.length;
+  $("contractCount").textContent = requests.length;
   $("executionCount").textContent = actions.length;
   $("evidenceCount").textContent = actions.length;
   $("artifactCount").textContent = app.files.length;
   $("rawCount").textContent = app.traces.length + app.events.length;
   $("currentPhaseLabel").textContent = status === 'finished' ? '模型已结束（未验收）'
     : status === 'blocked' ? '模型报告阻塞' : status === 'failed' ? '执行失败'
-    : status === 'interrupted' ? '运行已中断' : project?.current_order ? 'RWKV 正在执行工单' : '等待计划模型派单';
+    : status === 'interrupted' ? '运行已中断' : 'RWKV 正在执行当前请求';
   renderOverview(summary);
   renderContract(summary);
   renderActions(actions);
@@ -306,7 +305,7 @@ function renderRun() {
 
 function eventHeadline(item) {
   const data = item.data || {};
-  return data.operation || data.work_order_id || data.reason || item.kind || item.type;
+  return data.operation || data.request_id || data.reason || item.kind || item.type;
 }
 
 function renderOverview(summary) {
@@ -324,20 +323,19 @@ function renderOverview(summary) {
 
 function renderContract(summary) {
   const project = summary.project;
-  const orders = project?.work_orders || [];
-  $("goalDigest").textContent = project?.current_order?.id || (orders.length ? '已交回当前工单' : '等待首张工单');
+  const requests = project?.requests || [];
+  const current = requests[requests.length - 1];
+  $("goalDigest").textContent = project?.session_id || '等待创建会话';
   $("goalRequest").textContent = summary.request?.request || '—';
-  $("obligationBoard").innerHTML = project ? `<article class="obligation"><header><code>${escapeHtml(project.goal.id)}</code></header><p>${escapeHtml(project.goal.request)}</p></article>` : '<p class="empty-copy">等待创建项目记录。</p>';
-  $("nodeCount").textContent = `${orders.length} orders`;
-  $("graphNodes").innerHTML = orders.map(item => {
-    const order = item.order, report = item.report;
-    const label = project.current_order?.id === order.id ? '当前工单' : report ? '已交回（未验收）' : '已派发';
-    return `<article class="graph-node"><header><code>${escapeHtml(order.id)}</code><span>${label}</span></header>
-      <strong>${escapeHtml(order.goal)}</strong><p>可写范围：${escapeHtml(order.scope.join(', ') || '只读')}</p>
-      <p>检查命令：${escapeHtml(order.checks.join(' · ') || '无')}</p>
-      <p>模型调用：${report ? report.calls_used : '待交回'} / ${order.call_budget}</p>
-      ${report ? `<details><summary>宿主事实报告</summary><pre>${escapeHtml(pretty(report))}</pre></details>` : ''}</article>`;
-  }).join('') || '<p class="empty-copy">计划模型尚未派发工单。</p>';
+  $("obligationBoard").innerHTML = project ? `<article class="obligation"><header><code>权限</code></header><p>可写：${escapeHtml(project.permissions.writable.join(', ') || '只读')}；受保护：${escapeHtml(project.permissions.protected.join(', ') || '无')}</p></article>` : '<p class="empty-copy">等待创建会话记录。</p>';
+  $("nodeCount").textContent = `${requests.length} requests`;
+  $("graphNodes").innerHTML = requests.map(item => {
+    const label = item === current && !item.termination_reason ? '执行中' : item.declaration ? `模型声明：${item.declaration.outcome}（未验收）` : (item.termination_reason || '未结束');
+    return `<article class="graph-node"><header><code>${escapeHtml(item.id)}</code><span>${escapeHtml(label)}</span></header>
+      <strong>${escapeHtml(item.text)}</strong>
+      <p>模型调用：${item.calls} · 工具回执：${item.receipt_ids.length}</p>
+      ${item.declaration ? `<details><summary>结束声明</summary><pre>${escapeHtml(pretty(item.declaration))}</pre></details>` : ''}</article>`;
+  }).join('') || '<p class="empty-copy">尚无用户请求。</p>';
 }
 
 function renderActions(actions) {
@@ -345,7 +343,7 @@ function renderActions(actions) {
     <article class="action-card ${escapeHtml(statusClass(action.status))}">
       <span class="sequence">${String(index + 1).padStart(2, "0")}</span>
       <code>${escapeHtml(action.operation)}</code>
-      <p>${escapeHtml(action.work_order_id || '')} · ${escapeHtml(action.action_id)}</p>
+      <p>${escapeHtml(action.request_id || '')} · ${escapeHtml(action.action_id)}</p>
       <span class="action-status">${escapeHtml(action.status)}</span>
       <details><summary>真实调用与工具结果</summary><pre>${escapeHtml(pretty({arguments: action.arguments, result: action.result}))}</pre></details>
     </article>`).join('') || '<p class="empty-copy">等待第一条工具回执。</p>';
@@ -353,12 +351,9 @@ function renderActions(actions) {
 
 function renderEvidence(project) {
   const actions = project?.actions || [];
-  const reports = (project?.work_orders || []).filter(item => item.report !== null);
-  $("reviewSummary").textContent = `工具回执 ${actions.length} 条，工单报告 ${reports.length} 份；结束声明不代表验收通过。`;
-  $("evidenceTimeline").innerHTML = reports.map(item =>
-    `<article class="evidence-card"><strong>工单 ${escapeHtml(item.order.id)} 的宿主事实报告</strong><pre>${escapeHtml(pretty(item.report))}</pre></article>`).join('') +
-    actions.map(action => `<article class="evidence-card"><strong>实际工具回执</strong><pre>${escapeHtml(pretty(action))}</pre></article>`).join('') +
-    (project?.final_claim ? `<article class="evidence-card"><strong>项目结束声明</strong><pre>${escapeHtml(pretty(project.final_claim))}</pre></article>` : '');
+  $("reviewSummary").textContent = `工具回执 ${actions.length} 条；结束声明不代表验收通过。`;
+  $("evidenceTimeline").innerHTML = actions.map(action => `<article class="evidence-card"><strong>实际工具回执</strong><pre>${escapeHtml(pretty(action))}</pre></article>`).join('') +
+    (project?.final_claim ? `<article class="evidence-card"><strong>Agent 结束声明</strong><pre>${escapeHtml(pretty(project.final_claim))}</pre></article>` : '');
 }
 
 function renderFiles() {

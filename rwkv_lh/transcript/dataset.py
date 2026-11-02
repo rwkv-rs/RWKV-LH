@@ -1,7 +1,9 @@
 """Seal a transcript-token dataset version from an admitted, externally verified export.
 
 Admission (sealed source identity, external acceptance, defect gates) is decided
-upstream by the collector's ``train-export``; this module takes its byte copies
+upstream by the data engine's export (same layout as the former collector's
+``train-export``; sources must be single-agent conversations, see
+``frozen.training_messages``); this module takes its byte copies
 and acceptance evidence and performs the single source -> token conversion with
 the current codec, exactly as ``frozen.load_split`` recomputes it. Rows the
 current protocol cannot represent are excluded with a reason, never repaired or
@@ -21,6 +23,7 @@ import shutil
 import tempfile
 
 from . import frozen
+from ..project_protocols.agent import is_host_notice
 from .parse import STORAGE_PROTOCOL, loads, parse_transcript, validate_messages
 from .render import compact
 from .tokenize import tokenize_transcript
@@ -132,7 +135,8 @@ def build_dataset(admitted, production_root, output, *, model_sha256, context_to
             coverage[split]['family:' + freeze['task'].get('defect_family', 'unknown')] += 1
             names = {call['function']['name'] for m in document['messages'] for call in m.get('tool_calls', [])}
             coverage[split].update('tool:' + name for name in names)
-            coverage[split]['work_orders:' + str(len(freeze['task'].get('work_orders', [])))] += 1
+            requests = sum(m['role'] == 'user' and not is_host_notice(m) for m in messages)
+            coverage[split]['user_requests:' + str(requests)] += 1
             lengths[split].append((len(row['input_ids']), sum(row['loss_mask'])))
         if not rows['train'] or not rows['validation']:
             raise ValueError('both train and validation splits must be nonempty')
@@ -183,7 +187,7 @@ def build_dataset(admitted, production_root, output, *, model_sha256, context_to
 
 def main(argv=None):
     from ..harness import ActionHarness
-    from ..project_runtime import role_definitions
+    from ..project_runtime import agent_definitions
     from ..token_budget import VOCAB_PATH, tokenizer
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     parser.add_argument('production_root', type=Path)
@@ -196,7 +200,7 @@ def main(argv=None):
     report = build_dataset(args.admitted, args.production_root, args.output,
         model_sha256=args.model_sha256, context_tokens=args.context_tokens,
         owner_instruction=args.owner_instruction.read_text(encoding='utf-8'),
-        native_tools=role_definitions('executor', ActionHarness()), tokenizer=tokenizer(),
+        native_tools=agent_definitions(ActionHarness()), tokenizer=tokenizer(),
         tokenizer_sha256=_sha(VOCAB_PATH.read_bytes()))
     print(json.dumps({key: report[key] for key in ('output', 'manifest_sha256', 'rows', 'excluded')},
                      ensure_ascii=False, indent=2))

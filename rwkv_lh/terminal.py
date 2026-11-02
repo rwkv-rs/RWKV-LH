@@ -1,4 +1,4 @@
-"""Interactive terminal presentation around the unchanged Project Agent CLI."""
+"""Interactive terminal around the agent CLI: one session, follow-ups continue the same State."""
 from pathlib import Path
 import json
 import os
@@ -8,6 +8,7 @@ import sys
 import threading
 import time
 import uuid
+import re
 
 from .project_preview import preview_server, preview_unavailable_reason, serve_preview
 
@@ -20,37 +21,22 @@ def _display_text(value, limit=180):
     return text if len(text) <= limit else text[:limit] + '…'
 
 
-def _request_summaries(value):
-    """Describe raw model requests for display, without validating or executing them."""
-    if not isinstance(value, dict):
-        return []
-    calls = value.get('tool_calls')
-    if isinstance(calls, list):
-        names = []
-        for call in calls:
-            function = call.get('function') if isinstance(call, dict) else None
-            if isinstance(function, dict) and isinstance(function.get('name'), str):
-                names.append(_display_text(function['name']))
-        return names
-    name = value.get('function')
-    if not isinstance(name, str) or not name:
-        return []
-    params = value.get('params')
-    params = params if isinstance(params, dict) else {}
-    arguments = params
-    step = ''
-    if name == 'execute_tool':
-        tool = params.get('tool')
-        if isinstance(tool, str) and tool:
-            name = tool
-        arguments = params.get('arguments')
-        arguments = arguments if isinstance(arguments, dict) else {}
-        if isinstance(params.get('step_id'), str):
-            step = '（步骤 ' + _display_text(params['step_id'], 40) + '）'
-    details = [str(arguments[key]) for key in ('path', 'command', 'pattern', 'receipt_id', 'outcome')
-               if isinstance(arguments.get(key), (str, int, float))]
-    detail = (' ' + _display_text(' · '.join(details))) if details else ''
-    return [_display_text(name, 60) + detail + step]
+# One display parameter per tool; file contents, edit strings and summaries are never shown.
+_DISPLAY_PARAMETER = {'Read': 'file_path', 'Write': 'file_path', 'Edit': 'file_path', 'ListDir': 'path',
+                      'Grep': 'pattern', 'Bash': 'command', 'BashOutput': 'job_handle',
+                      'KillShell': 'job_handle', 'finish_work': 'outcome'}
+_CALL = re.compile(r'^<function=([^>\n]{1,80})>\n(.*?)^</function>$', re.M | re.S)
+
+
+def _request_summaries(raw):
+    """Name the calls in a raw model turn for display, without validating or executing them."""
+    summaries = []
+    for name, body in _CALL.findall(str(raw)):
+        key = _DISPLAY_PARAMETER.get(name)
+        found = key and re.search(r'^<parameter=' + key + r'>\n(.*?)\n</parameter>$', body, re.M | re.S)
+        detail = ' ' + _display_text(found.group(1), 120) if found else ''
+        summaries.append(_display_text(name, 60) + detail)
+    return summaries
 
 
 def _progress(trace, offset):
@@ -77,11 +63,7 @@ def _progress(trace, offset):
                     print(f'  [{role}] 输出被截断；本次不完整调用未执行，原文保留在 trace。', flush=True)
                     continue
                 # Presentation only: this neither validates nor authorizes an action.
-                try:
-                    value = json.loads(event.get('raw_output', ''))
-                    summaries = _request_summaries(value)
-                except (ValueError, TypeError):
-                    summaries = []
+                summaries = _request_summaries(event.get('raw_output', ''))
                 if summaries:
                     for summary in summaries:
                         print(f'  [{role}] 模型请求 {summary}', flush=True)
@@ -89,18 +71,18 @@ def _progress(trace, offset):
                     print(f'  [{role}] 已返回，原文保留在 trace', flush=True)
 
 
-def _run_child(argv, output):
-    log_path = output.parent / (output.name + '.terminal.log')
+def _run_child(argv, output, log_path):
     output.parent.mkdir(parents=True, exist_ok=True)
+    trace = output / 'execution/model_trace.jsonl'
     with log_path.open('x') as log:
         process = subprocess.Popen(argv, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
                                    start_new_session=True)
-        offset = 0
+        offset = trace.stat().st_size if trace.exists() else 0
         try:
             while process.poll() is None:
-                offset = _progress(output / 'execution/model_trace.jsonl', offset)
+                offset = _progress(trace, offset)
                 time.sleep(.2)
-            _progress(output / 'execution/model_trace.jsonl', offset)
+            _progress(trace, offset)
             if not (output / 'DELIVERY.json').exists():
                 print('\n'.join(log_path.read_text(errors='replace').splitlines()[-12:]), flush=True)
             return process.returncode
@@ -117,13 +99,15 @@ def _run_child(argv, output):
 
 class TerminalSession:
     def __init__(self, root, *, max_calls, max_seconds, source=None, output=None,
-                 extra_args=(), runner=_run_child):
+                 extra_args=(), continue_args=(), runner=_run_child):
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         self.max_calls, self.max_seconds = max_calls, max_seconds
         self.workspace = Path(source).resolve() if source else None
         self.explicit_output = Path(output).resolve() if output else None
         self.extra_args = list(extra_args)
+        self.continue_args = list(continue_args)
+        self.output = None
         self.runner = runner
         self.requests = []
         self.turns = []
@@ -131,43 +115,59 @@ class TerminalSession:
         self.unconfirmed = False
 
     def execute(self, request):
+        """First request starts the session; each later request continues the same State."""
         if self.unconfirmed:
             raise RuntimeError('上一轮有未确认操作或执行中断，请先检查记录；不会自动继续或重发。')
         request = request.strip()
         if not request:
             raise ValueError('任务不能为空')
-        output = self.explicit_output if not self.turns and self.explicit_output else self.root / f'turn-{len(self.turns)+1:03d}'
-        if output.exists():
-            raise FileExistsError(f'输出目录已存在：{output}')
+        turn = len(self.turns) + 1
+        if turn == 1:
+            output = self.explicit_output or self.root / 'session'
+            if output.exists():
+                raise FileExistsError(f'输出目录已存在：{output}')
+            argv = [sys.executable, '-m', 'scripts.run_rwkv_agent', '--request', request,
+                    '--output-dir', str(output), '--max-calls', str(self.max_calls),
+                    '--max-seconds', str(self.max_seconds), *self.extra_args]
+            argv += ['--source-workspace', str(self.workspace)] if self.workspace else ['--new-project']
+        else:
+            output = self.output
+            previous = output / 'DELIVERY.json'
+            if previous.exists():
+                archive = output / 'deliveries'
+                archive.mkdir(exist_ok=True)
+                previous.rename(archive / f'turn-{turn - 1:03d}.json')
+            # Each follow-up adds the same per-request budget to the session.
+            argv = [sys.executable, '-m', 'scripts.run_rwkv_agent', '--continue', str(output), '--request', request,
+                    '--extra-calls', str(self.max_calls), '--extra-seconds', str(self.max_seconds),
+                    *self.continue_args]
         self.requests.append(request)
-        combined = request if len(self.requests) == 1 else (
-            '用户最初目标：\n' + self.requests[0] + '\n\n用户后续要求（按顺序，保留原目标，按后续要求修订）：\n' +
-            '\n\n'.join(f'{index}. {text}' for index, text in enumerate(self.requests[1:], 1)))
-        argv = [sys.executable, '-m', 'scripts.run_rwkv_agent', '--request', combined,
-                '--output-dir', str(output), '--max-calls', str(self.max_calls),
-                '--max-seconds', str(self.max_seconds), *self.extra_args]
-        argv += ['--source-workspace', str(self.workspace)] if self.workspace else ['--new-project']
         print(f'\n任务：{request}\n项目：{output}/workspace', flush=True)
-        code = self.runner(argv, output)
+        code = self.runner(argv, output, self.root / f'turn-{turn:03d}.terminal.log')
         delivery = output / 'DELIVERY.json'
         result = json.loads(delivery.read_text()) if delivery.exists() else {
             'termination': 'interrupted', 'termination_reason': 'no_delivery_receipt', 'changed_files': []}
         result['process_exit_code'] = code
-        self.exit_code = 0 if code == 0 and result.get('termination') == 'planner_finished' else 1
+        self.exit_code = 0 if code == 0 and result.get('termination') == 'agent_finished' else 1
         self.unconfirmed = (code == 130 or not delivery.exists() or
-                            bool(result.get('diagnostics', {}).get('pending_operation')))
+                            bool(result.get('diagnostics', {}).get('pending_operation')) or
+                            result.get('status') not in ('finished', 'blocked', 'interrupted'))
+        self.output = output
         if (output / 'workspace').is_dir():
             self.workspace = output / 'workspace'
         self.turns.append(dict(request=request, output=str(output), termination=result.get('termination'),
                                termination_reason=result.get('termination_reason'), process_exit_code=code,
                                unconfirmed=self.unconfirmed))
         (self.root / 'SESSION.json').write_text(json.dumps(dict(requests=self.requests, turns=self.turns,
-            workspace=str(self.workspace) if self.workspace else None), ensure_ascii=False, indent=2)+'\n')
+            output=str(output), workspace=str(self.workspace) if self.workspace else None),
+            ensure_ascii=False, indent=2)+'\n')
         print(f'\nAgent 状态：{result.get("termination_reason", result.get("termination"))}', flush=True)
+        if result.get('final'):
+            print('Agent 总结（自述，未经验收）：' + _display_text(result['final'], 2000), flush=True)
         if result.get('termination_reason') == 'model_output_budget_exhausted':
             print('原因：模型达到单次输出上限，不是总调用次数耗尽。'
                   '本次不完整调用未执行，之前已确认的文件修改仍保留。', flush=True)
-        print('修改文件：' + (', '.join(result.get('changed_files') or []) or '无'), flush=True)
+        print('累计修改文件：' + (', '.join(result.get('changed_files') or []) or '无'), flush=True)
         print(f'记录：{output}/execution\n回执：{delivery}', flush=True)
         return result
 
@@ -220,13 +220,17 @@ def run_terminal(args):
         value = getattr(args, field, None)
         if value is not None:
             extra.extend(['--'+field.replace('_', '-'), value])
+    continue_args = list(extra)
     for flag in ('record_generation_snapshots',):
         if getattr(args, flag, False):
             extra.append('--'+flag.replace('_', '-'))
     for path in args.protected_paths:
         extra.extend(['--protected-paths', path])
+    for path in getattr(args, 'writable_paths', None) or []:
+        extra.extend(['--writable-paths', path])
     session = TerminalSession(root, max_calls=args.max_calls, max_seconds=args.max_seconds,
-                              source=args.source_workspace, output=args.output_dir, extra_args=extra)
+                              source=args.source_workspace, output=args.output_dir, extra_args=extra,
+                              continue_args=continue_args)
     print('RWKV-LH · 项目终端\n输入需求即可执行；/help 查看命令，/exit 退出。', flush=True)
     print('源项目：' + (str(session.workspace) if session.workspace else '新建空项目'), flush=True)
     preview = _LivePreview(args.port, kind=args.launch_kind, timeout=args.launch_timeout,
@@ -246,7 +250,7 @@ def run_terminal(args):
             if request in ('/exit', '/quit'):
                 break
             if request == '/help':
-                print('直接输入需求；后续要求基于上次产物的副本执行。\n/files 查看文件，/status 查看结果，/open 启动预览，/stop 停止服务，/exit 退出。')
+                print('直接输入需求；后续要求在同一会话中继续（同一 State 与工作区）。\n/files 查看文件，/status 查看结果，/open 启动预览，/stop 停止服务，/exit 退出。')
             elif request == '/files':
                 print(str(session.workspace) if session.workspace else '尚无项目')
                 if session.workspace:

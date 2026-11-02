@@ -265,14 +265,14 @@ def prepare(registration, output):
     artifact = verify_artifact(Path(model['root']), expected_manifest=registration['model_manifest'])
     from .token_budget import VOCAB_PATH
     verify_vocabulary(model['root'], VOCAB_PATH)
-    from .project_runtime import role_definitions
+    from .project_runtime import agent_definitions
     from .harness import ActionHarness
     from .token_budget import tokenizer
     cfg = json.loads((Path(model['root']) / 'config.json').read_text())
     manifest, rows = load_split(dataset['path'], dataset['sha256'], 'train',
         context_tokens=registration['data_context_tokens'], vocab_size=cfg['vocab_size'],
         model_sha256=artifact['source']['sha256'], tokenizer_sha256=artifact['source_vocabulary_sha256'],
-        tokenizer=tokenizer(), native_tools=role_definitions('executor', ActionHarness()))
+        tokenizer=tokenizer(), native_tools=agent_definitions(ActionHarness()))
     if manifest['tokenizer_sha256'] != artifact['source_vocabulary_sha256']:
         raise ValueError('frozen dataset and model vocabulary identities differ')
     if manifest['model_sha256'] != artifact['source']['sha256']:

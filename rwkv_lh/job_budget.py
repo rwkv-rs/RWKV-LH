@@ -17,11 +17,6 @@ class WallDeadlineExpired(BaseException):
     """Must not be consumed as a recoverable model/protocol error."""
 
 
-def unresolved_assistance(job):
-    return ('strong_takeover' if getattr(job, 'mode', '') == 'takeover' else
-            'strong_advised' if getattr(job, 'mode', '') == 'advice' else 'rwkv_independent')
-
-
 def task_deadline(function):
     @wraps(function)
     def run(job, *args, **kwargs):
@@ -46,14 +41,10 @@ def task_deadline(function):
         except WallDeadlineExpired:
             # No invented answer or usage. Recover only already-persisted events.
             counts = count_generation_traces(execution_model_traces(output))
-            calls = counts.started
-            returned = counts.returned
-            if getattr(job, 'mode', '') == 'advice':
-                calls = returned = None  # Advice provider usage is separate; not guessed here.
             result = {'id': job.task_id, 'final': None, 'termination': 'budget',
                 'termination_reason': 'wall_budget_exhausted', 'acceptance': 'unreviewable',
-                'generation_started': calls, 'generation_returned': returned, 'trace_complete': False,
-                'assistance': unresolved_assistance(job)}
+                'generation_started': counts.started, 'generation_returned': counts.returned,
+                'trace_complete': False}
         finally:
             signal.setitimer(signal.ITIMER_REAL, 0)
             signal.signal(signal.SIGALRM, old_handler)

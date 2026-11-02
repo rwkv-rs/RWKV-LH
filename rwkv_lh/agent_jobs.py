@@ -1,4 +1,4 @@
-"""Coding job data shared by Project entrypoints and offline collection."""
+"""Coding job data shared by the agent entry points and batch runs."""
 from dataclasses import dataclass, field
 
 
@@ -11,6 +11,6 @@ class CodingJob:
     max_calls: int = 12
     max_seconds: float = 600
     record_generation_snapshots: bool = field(default=False, kw_only=True)
+    writable_paths: tuple[str, ...] = field(default=('.',), kw_only=True)
     protected_paths: tuple[str, ...] = field(default=(), kw_only=True)
-    no_progress_limit: int = field(default=3, kw_only=True)
     rejection_limit: int = field(default=3, kw_only=True)

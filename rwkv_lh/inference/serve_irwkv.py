@@ -18,8 +18,8 @@ LOCK = json.loads(Path(__file__).with_name('irwkv.lock.json').read_text())
 def launch_configuration(registration, output):
     if registration.get('schema_version') != SCHEMA:
         raise ValueError('current irwkv deployment registration is required')
-    if registration.get('protocol') != 'executor':
-        raise ValueError('current Executor protocol is required; retired protocols cannot be deployed')
+    if registration.get('protocol') != 'agent':
+        raise ValueError('current single-agent protocol is required; retired protocols cannot be deployed')
     device = gpu_uuid(registration['gpu_index'])
     if registration['gpu_uuid'] != device:
         raise ValueError('registered GPU identity differs')

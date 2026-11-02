@@ -1,25 +1,43 @@
-"""Durable autonomous execution ledger; claims never become verified success."""
+"""Durable single-agent session ledger; model claims never become verified success.
+
+One session holds one workspace, one persistent agent conversation (one model
+State) and the user's requests in order. A follow-up request appends a User
+turn to the same conversation; it never resets the State or rewrites history.
+"""
 from contextlib import contextmanager, closing
 from copy import deepcopy
 import fcntl
 import json
+import math
 from pathlib import Path
 import sqlite3
 from uuid import uuid4
 
-from .project_contracts import digest, make_assignment, text, strings, make_goal, validate_goal
-from .project_work_orders import validate_order, validate_report
-from .transcript.render import user_message, compact
+from .project_contracts import digest, text
+from .project_protocols import agent
 from .transcript.parse import validate_messages
 from .workspace_snapshot import tree_identity
 from .project_record_store import RecordStore
-from .project_materials import capture_materials, validate_initial_context
 
-PROTOCOL = 'rwkv-lh.coder.ledger.v2'
+PROTOCOL = 'rwkv-lh.coder.ledger.v3'
+IMMUTABLE = ('protocol', 'session_id', 'permissions', 'initial_workspace_digest')
+# Ended at a clean boundary; only a new user request (with any budget increase) continues.
+ENDED = ('finished', 'blocked', 'interrupted')
 
 
 class UncertainOperation(RuntimeError):
     pass
+
+
+def _budgets(max_calls, max_seconds):
+    if (type(max_calls) is not int or max_calls < 1 or type(max_seconds) not in (int, float)
+            or not math.isfinite(max_seconds) or max_seconds <= 0):
+        raise ValueError('positive finite budgets required')
+
+
+def _request_record(index, request, position):
+    return {'id': 'R' + str(index), 'text': text(request), 'message_index': position,
+            'calls': 0, 'receipt_ids': [], 'declaration': None, 'termination_reason': None}
 
 
 class ProjectLedger:
@@ -31,74 +49,39 @@ class ProjectLedger:
             raise FileNotFoundError(self.path)
         state = self.state()
         if state.get('protocol') != PROTOCOL:
-            raise ValueError('unsupported project ledger protocol; start a new run')
-        validate_goal(state['goal'])
-        validate_initial_context(state['request'], state['initial_context'])
-        if state['goal']['request'] != state['request'] or state['goal']['protected_paths'] != state['protected_paths']:
-            raise ValueError('original goal differs from owner authority')
-        assignment = state['active']
-        expected = make_assignment(state['goal'], assignment_id=assignment['id'],
-            workspace_digest=assignment['workspace_digest'], materials_digest=digest(state['initial_context']['materials']))
-        if assignment != expected:
-            raise ValueError('unsupported or inconsistent persistent project assignment')
-        issued = []
-        for item in state['work_orders']:
-            validate_order(item['order'], issued_ids=issued)
-            issued.append(item['order']['id'])
-            if item['report'] is not None:
-                validate_report(item['report'])
-        if state['current_order'] is not None:
-            validate_order(state['current_order'])
-            if not state['work_orders'] or state['work_orders'][-1]['order'] != state['current_order']:
-                raise ValueError('current order differs from the issued history')
+            raise ValueError('unsupported project ledger protocol; start a new session')
+        agent.validate_permissions(state['permissions'])
         validate_messages(state['transcript'])
+        users = [index for index, message in enumerate(state['transcript'])
+                 if message['role'] == 'user' and not agent.is_host_notice(message)]
+        if [item['message_index'] for item in state['requests']] != users:
+            raise ValueError('recorded user requests differ from the conversation')
+        for item in state['requests']:
+            if agent.request_message(item['text']) != state['transcript'][item['message_index']]:
+                raise ValueError('recorded user request text differs from its User turn')
 
     @classmethod
-    def create(cls, root, *, request, workspace, max_calls, max_seconds, protected_paths=(), original_context=None,
-               no_progress_limit=3, rejection_limit=3):
-        """Capture a new project, or preserve a verified source's task context.
-
-        Offline corrections supply the original context from their verified
-        source ledger: a generation snapshot may already contain edited files.
-        This does not resume a model State or create a model-generated trace.
-        """
-        import math
-        from .project_contracts import scope_path
-        strings(list(protected_paths))
-        for path in protected_paths:
-            scope_path(path)
+    def create(cls, root, *, request, workspace, max_calls, max_seconds, writable=('.',), protected_paths=(),
+               rejection_limit=3):
+        """Start one session on an existing workspace with the user's first request."""
+        session_permissions = agent.permissions(writable, protected_paths)
         root = Path(root).resolve()
         workspace = Path(workspace).resolve(strict=True)
         if root == workspace or root in workspace.parents or workspace in root.parents:
             raise ValueError('project records must be outside workspace')
-        if (type(max_calls) is not int or max_calls < 1 or type(max_seconds) not in (int, float)
-                or not math.isfinite(max_seconds) or max_seconds <= 0):
-            raise ValueError('positive finite budgets required')
-        for limit in (no_progress_limit, rejection_limit):
-            if type(limit) is not int or limit < 1:
-                raise ValueError('positive integer stopping limits required')
+        _budgets(max_calls, max_seconds)
+        if type(rejection_limit) is not int or rejection_limit < 1:
+            raise ValueError('positive integer rejection limit required')
         initial_digest = digest(tree_identity(workspace))
-        if original_context is None:
-            initial_workspace, materials = capture_materials(workspace, request, expected_digest=initial_digest)
-            initial_context = {'workspace': initial_workspace, 'materials': materials}
-        else:
-            initial_context = deepcopy(validate_initial_context(request, original_context))
         root.mkdir(parents=True, exist_ok=False)
-        state = {'protocol': PROTOCOL, 'request': text(request), 'workspace': str(workspace),
-            'workspace_digest': initial_digest,
-            'initial_context': initial_context,
-            'goal': make_goal(request, protected_paths),
-            'active': make_assignment(make_goal(request, protected_paths), assignment_id='W-' + uuid4().hex,
-                workspace_digest=initial_digest, materials_digest=digest(initial_context['materials'])),
-            'current_step_id': None,
-            'work_orders': [], 'current_order': None, 'transcript': [], 'order_calls': 0,
-            'consecutive_rejections': 0, 'consecutive_no_progress': 0,
-            'no_progress_limit': no_progress_limit, 'rejection_limit': rejection_limit,
-            'pending': None, 'evidence': {}, 'feedback': None, 'sessions': {},
-            'calls': 0, 'role_calls': {'planner': 0, 'executor': 0}, 'elapsed': 0.0, 'max_calls': max_calls, 'max_seconds': max_seconds,
-            'status': 'running', 'final': None, 'final_claim': None,
-            'role_rejections': {}, 'protected_paths': list(protected_paths),
-            'inbox': None}
+        state = {'protocol': PROTOCOL, 'session_id': 'S-' + uuid4().hex, 'permissions': session_permissions,
+            'workspace': str(workspace), 'workspace_digest': initial_digest,
+            'initial_workspace_digest': initial_digest,
+            'requests': [_request_record(1, request, 0)], 'transcript': [agent.request_message(request)],
+            'consecutive_rejections': 0, 'rejection_limit': rejection_limit,
+            'pending': None, 'evidence': {}, 'feedback': None, 'sessions': {}, 'rejections': [],
+            'calls': 0, 'elapsed': 0.0, 'max_calls': max_calls, 'max_seconds': max_seconds,
+            'status': 'running', 'stop_reason': None, 'final': None, 'final_claim': None, 'inbox': None}
         with closing(sqlite3.connect(root / 'project.sqlite3')) as connection, connection:
             connection.execute('PRAGMA journal_mode=WAL')
             connection.execute('CREATE TABLE current (id INTEGER PRIMARY KEY CHECK(id=1), body TEXT NOT NULL)')
@@ -203,15 +186,16 @@ class ProjectLedger:
                 raise ValueError('project current state differs from event digest chain')
             store = RecordStore(connection)
             state = store.read(reference)
-            initial_context = deepcopy(state['initial_context'])
+            fixed = {key: deepcopy(state[key]) for key in IMMUTABLE}
             mutate(state)
-            if state['initial_context'] != initial_context:
-                raise ValueError('initial material context is immutable')
+            if any(state[key] != value for key, value in fixed.items()):
+                raise ValueError('session identity and permissions are immutable')
             reference = store.write(state)
             body = json.dumps(reference, ensure_ascii=False, allow_nan=False)
             connection.execute('INSERT INTO events(kind,body,digest) VALUES (?,?,?)', (kind, body, digest([previous, kind, reference])))
             connection.execute('UPDATE current SET body=? WHERE id=1', (body,))
         return deepcopy(state)
+
 
     def workspace_digest(self):
         return digest(tree_identity(self.state()['workspace']))
@@ -225,17 +209,28 @@ class ProjectLedger:
         current = self.workspace_digest()
         return self.update('workspace_observed', lambda s: self.invalidate(s, current))
 
-    def issue_work_order(self, order):
+    def current_request(self, state=None):
+        return (state or self.state())['requests'][-1]
+
+    def add_request(self, request, *, extra_calls=0, extra_seconds=0.0):
+        """A user follow-up: same conversation, same State; budgets only grow.
+
+        Allowed only at a clean ended boundary: no pending effect, no unconsumed
+        model output, and the previous request finished, blocked or interrupted.
+        """
+        if type(extra_calls) is not int or extra_calls < 0 or type(extra_seconds) not in (int, float) \
+                or not math.isfinite(extra_seconds) or extra_seconds < 0:
+            raise ValueError('budget increases must be nonnegative and finite')
         def change(state):
-            if state['current_order'] is not None or state['pending']:
-                raise ValueError('work order requires a confirmed handoff boundary')
-            accepted = validate_order(order, issued_ids=[x['order']['id'] for x in state['work_orders']],
-                total_remaining_calls=state['max_calls'] - state['calls'])
-            state['work_orders'].append({'order': accepted, 'report': None, 'receipt_ids': []})
-            state.update(current_order=accepted, current_step_id=accepted['id'], order_calls=0,
-                consecutive_rejections=0, inbox=None, feedback={'kind': 'work_order_issued', 'work_order_id': accepted['id']})
-            state['transcript'].append(user_message(compact(accepted)))
-        return self.update('work_order_issued', change)
+            if state['pending'] or state['inbox'] or state['status'] not in ENDED:
+                raise ValueError('a follow-up request requires an ended, confirmed session boundary')
+            state['requests'].append(_request_record(len(state['requests']) + 1, request, len(state['transcript'])))
+            state['transcript'].append(agent.request_message(request))
+            state['max_calls'] += extra_calls
+            state['max_seconds'] += extra_seconds
+            state.update(status='running', stop_reason=None, final=None, final_claim=None, consecutive_rejections=0,
+                         error=None, feedback={'kind': 'user_request', 'request_id': state['requests'][-1]['id']})
+        return self.update('user_request', change)
 
     def begin_tool_operation(self, payload):
         """Persist the next prevalidated batch call before any effect can occur."""
@@ -244,50 +239,55 @@ class ProjectLedger:
             if state['pending']:
                 raise UncertainOperation(state['pending']['id'])
             inbox = state['inbox']
-            if not inbox or inbox['role'] != 'executor' or not inbox.get('batch'):
+            if not inbox or not inbox.get('batch'):
                 raise ValueError('tool intent requires a prevalidated assistant batch')
             selected = inbox['batch'][inbox['cursor']]
             if (payload['source_operation_id'] != inbox['operation_id']
-                    or payload['assignment_id'] != inbox['lane']
+                    or payload['session_id'] != state['session_id']
                     or payload['name'] != selected['name']
                     or payload['requested_arguments'] != selected['arguments']
                     or payload['tool_call_id'] != selected['id']
-                    or payload['step_id'] != state['current_order']['id']):
+                    or payload['request_id'] != state['requests'][-1]['id']):
                 raise ValueError('tool intent differs from the model-selected operation')
             state['pending'] = {'id': identifier, 'kind': 'tool', 'payload': deepcopy(payload),
                                 'workspace_digest': state['workspace_digest']}
         self.update('operation_started', change)
         return identifier
 
-    def return_work_order(self, report, *, reason, declaration_receipt=None):
+    def finish_request(self, declaration, declaration_receipt):
+        """The agent's finish_work: a declaration recorded as a claim, never acceptance."""
+        if declaration.get('outcome') not in ('finished', 'blocked'):
+            raise ValueError('unknown agent declaration')
+        text(declaration.get('summary'))
         def change(state):
-            if state['pending'] or state['current_order'] is None:
-                raise ValueError('handoff requires a confirmed execution boundary')
-            accepted = validate_report(report)
-            if accepted['work_order_id'] != state['current_order']['id']:
-                raise ValueError('report belongs to a different work order')
-            state['work_orders'][-1]['report'] = accepted
-            state['work_orders'][-1]['termination_reason'] = reason
-            state['consecutive_no_progress'] = (0 if accepted['committed_paths'] else state['consecutive_no_progress'] + 1)
-            if declaration_receipt is not None:
-                state['transcript'].append(deepcopy(declaration_receipt))
-            state['transcript'].append(user_message(compact(accepted)))
-            state.update(current_order=None, current_step_id=None, inbox=None,
-                feedback={'kind': 'work_order_returned', 'work_order_id': accepted['work_order_id'], 'reason': reason})
-        return self.update('work_order_returned', change)
+            if state['pending'] or not state['inbox']:
+                raise ValueError('finish_work requires a confirmed batch boundary')
+            claim = {'outcome': declaration['outcome'], 'summary': declaration['summary'], 'authority': 'agent_claim',
+                     'request_id': state['requests'][-1]['id'], 'source_operation_id': state['inbox']['operation_id'],
+                     'workspace_digest': state['workspace_digest']}
+            state['transcript'].append(deepcopy(declaration_receipt))
+            state['requests'][-1].update(declaration=deepcopy(declaration), termination_reason='model_finished')
+            state.update(status=declaration['outcome'], final=declaration['summary'], final_claim=claim, inbox=None,
+                         stop_reason='model_finished', feedback={'kind': 'agent_declared', 'claim': claim})
+        return self.update('agent_declared', change)
 
-    def finish_project(self, outcome, summary):
-        if outcome not in ('finished', 'blocked'):
-            raise ValueError('unknown project declaration')
-        text(summary)
+    def interrupt(self, reason, *, notice=None):
+        """Host stop at a clean boundary (budget, repeated rejection, truncation); not completion.
+
+        An optional host notice for the agent is recorded in the same event.
+        """
+        text(reason)
         def change(state):
-            if state['pending'] or state['current_order'] is not None:
-                raise ValueError('project finish requires a confirmed handoff boundary')
-            claim = {'outcome': outcome, 'summary': summary, 'authority': 'planner_claim',
-                'source_operation_id': state['inbox']['operation_id'], 'workspace_digest': state['workspace_digest']}
-            state.update(status=outcome, final=summary, final_claim=claim, inbox=None,
-                stop_reason='planner_finished', feedback={'kind': 'planner_finished', 'claim': claim})
-        return self.update('planner_finished', change)
+            if state['pending']:
+                raise ValueError('an interruption cannot hide an unconfirmed operation')
+            if notice is not None:
+                if not agent.is_host_notice(notice):
+                    raise ValueError('interruption notice must be a host notice')
+                state['transcript'].append(deepcopy(notice))
+            state['requests'][-1]['termination_reason'] = reason
+            state.update(status='interrupted', stop_reason=reason, inbox=None,
+                         feedback={'kind': 'interrupted', 'reason': reason})
+        return self.update('interrupted', change)
 
     def begin_operation(self, kind, payload):
         identifier = 'OP-' + uuid4().hex
