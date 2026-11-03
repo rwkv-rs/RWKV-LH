@@ -44,7 +44,11 @@ def admit(task, directory):
     for name in ('seed','reference',*(f'mutant-{i}' for i in range(len(task['mutants'])))):
         write_files(directory/name,task['seed_files'])
     write_files(directory/'reference',task['reference_files'])
-    reference=verify(task,directory/'reference',directory/'evidence/reference')
+    repetitions=task.get('reference_repetitions',1)
+    if type(repetitions) is not int or repetitions<1:
+        raise ValueError('positive reference repetition count required')
+    references=[verify(task,directory/'reference',directory/f'evidence/reference-{i}')
+                for i in range(repetitions)]
     first_reference = None
     if task.get('followups'):
         write_files(directory/'first_reference',task['seed_files'])
@@ -57,10 +61,11 @@ def admit(task, directory):
         path=directory/f'mutant-{i}'
         write_files(path,task['reference_files']);write_files(path,files)
         mutants.append(verify(task,path,directory/f'evidence/mutant-{i}'))
-    passed=(reference['passed'] and (first_reference is None or first_reference['passed'])
+    passed=(all(reference['passed'] for reference in references) and (first_reference is None or first_reference['passed'])
         and bool(mutants) and all(not r['passed'] for r in mutants)
         and (not task.get('seed_must_fail') or not seed['passed']))
-    record={'task_digest':task['digest'],'admitted':passed,'reference_passed':reference['passed'],
+    record={'task_digest':task['digest'],'admitted':passed,'reference_passed':all(r['passed'] for r in references),
+        'reference_repetitions':[r['passed'] for r in references],
         'seed_passed':seed['passed'],'mutants_failed':[not r['passed'] for r in mutants],
         'first_reference_passed':None if first_reference is None else first_reference['passed']}
     (directory/'ADMISSION.json').write_text(dump(record))
