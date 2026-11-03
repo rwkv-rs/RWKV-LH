@@ -6,7 +6,7 @@ are candidates, not training data: execution admission is a separate gate.
 """
 import asyncio
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from . import checksum, dump
 from ...project_contracts import scope_path
@@ -111,15 +111,27 @@ def make_candidate(candidate, spec, response, provider):
     if candidate.get('first_reference_files'):
         maps.append(candidate['first_reference_files'])
     for files in maps:
+        canonical=set()
         for path, content in files.items():
             scope_path(path)
+            identity=PurePosixPath(path)
+            if identity in canonical or identity==PurePosixPath('.'):
+                raise ValueError('duplicate or non-file task path')
+            canonical.add(identity)
             if not isinstance(content, str):
                 raise ValueError('UTF-8 task content required')
     for path in candidate['protected_paths']:
         scope_path(path)
-    for path in candidate['reference_files']:
-        if any(path == p or path.startswith(p + '/') for p in candidate['protected_paths']):
-            raise ValueError('reference modifies a protected path')
+    seed={PurePosixPath(p):c for p,c in candidate['seed_files'].items()}
+    reference={**seed,**{PurePosixPath(p):c for p,c in candidate['reference_files'].items()}}
+    protected=[PurePosixPath(p) for p in candidate['protected_paths']]
+    variants=[(candidate['reference_files'],seed),(candidate.get('first_reference_files',{}),seed)]
+    variants.extend((files,reference) for files in candidate['mutants'])
+    for files,baseline in variants:
+        for name,content in files.items():
+            path=PurePosixPath(name)
+            if content!=baseline.get(path) and any(path==p or p in path.parents for p in protected):
+                raise ValueError('reference or mutant modifies a protected path')
     source = {'kind': 'original_teacher_authored_project', 'assignment': spec,
         'author_model': provider['model'], 'author_provider': provider['id'],
         'author_response_sha256': checksum(response), 'generator_sha256': checksum(Path(__file__).read_text())}
