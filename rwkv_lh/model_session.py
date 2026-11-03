@@ -1057,6 +1057,7 @@ class NativeRWKVModelSession(ModelSession):
         lane_id: str | None = None,
         event_ids: Sequence[str] = (),
         native_tool_call_json: bool = False,
+        input_token_ids: list[int] | None = None,
     ) -> ModelCheckpoint:
         identifier = lane_id or f"L-{lane_kind.value.upper()}-{uuid4().hex[:12]}"
         transcript = (
@@ -1074,18 +1075,31 @@ class NativeRWKVModelSession(ModelSession):
             event_ids=event_ids,
             status=ModelCheckpointStatus.COMMITTED,
         )
-        self._check_delta_budget(checkpoint.token_count, 'bootstrap')
+        if input_token_ids is not None:
+            if (not isinstance(input_token_ids, list) or not input_token_ids
+                    or any(type(t) is not int or t < 0 for t in input_token_ids)
+                    or tokenizer().decode_bytes([t for t in input_token_ids if t != 0]) != transcript.encode('utf-8')):
+                raise ModelSessionError('exact bootstrap tokens differ from rendered history')
+        self._check_delta_budget(len(input_token_ids) if input_token_ids is not None else checkpoint.token_count, 'bootstrap')
         binding = self._cache_binding(
             checkpoint,
             state_chain_digest=_next_state_chain_digest("", transcript),
             delta=transcript,
         )
+        if input_token_ids is not None:
+            # Text identity remains useful for checkpoint imports, but EOS
+            # positions also bind the consumed State's causal chain.
+            binding = replace(binding, state_chain_digest=_digest_items(input_token_ids))
         snapshot = self.native_client.state_create(
             lane_id=identifier,
             text=transcript,
             cache_binding=binding,
             request_id=f"CREATE-{checkpoint.checkpoint_id}",
+            **({'input_token_ids': input_token_ids} if input_token_ids is not None else {}),
         )
+        if input_token_ids is not None and (snapshot.metadata.get('prompt_token_ids') != input_token_ids
+                or snapshot.metadata.get('input_bos_token_count') != int(input_token_ids[0] == 0)):
+            raise ModelSessionError('native bootstrap did not attest exact history tokens')
         checkpoint = self._bind_snapshot(checkpoint, snapshot, binding)
         self._emit(
             {

@@ -737,20 +737,34 @@ class OpenAICompatibleRWKVClient:
         text: str,
         cache_binding: NativeStateCacheBinding,
         request_id: str | None = None,
+        input_token_ids: list[int] | None = None,
     ) -> NativeStateSnapshot:
         # A cache binding describes content, not the lifetime of an allocation.
         # ModelSession supplies its persistent checkpoint ID for recovery;
         # standalone callers allocate fresh state unless they explicitly retry.
         allocation_id = request_id if request_id is not None else f"CREATE-{uuid4().hex}"
+        exact = {'delta': str(text)}
+        if input_token_ids is not None:
+            from .native_state import EXACT_TOKEN_INPUT_PROTOCOL
+            if (not isinstance(input_token_ids, list) or not input_token_ids
+                    or any(type(t) is not int or t < 0 for t in input_token_ids)):
+                raise ValueError('nonempty exact input token IDs required')
+            exact = {'input_token_protocol': EXACT_TOKEN_INPUT_PROTOCOL,
+                     'input_token_ids': input_token_ids, 'input_bos_token_count': int(input_token_ids[0] == 0)}
         data = self._native_request(
             "create", self._native_payload(
                 cache_binding,
                 lane_id=str(lane_id),
-                delta=str(text),
                 request_id=allocation_id,
+                **exact,
             ),
         )
-        return self._native_snapshot(data, expected_binding=cache_binding)
+        snapshot = self._native_snapshot(data, expected_binding=cache_binding)
+        if input_token_ids is not None and (snapshot.metadata.get('prompt_token_ids') != input_token_ids
+                or snapshot.metadata.get('prompt_token_ids_scope') != 'full_context'
+                or snapshot.metadata.get('input_bos_token_count') != int(input_token_ids[0] == 0)):
+            raise RWKVProtocolError('exact bootstrap token echo differs')
+        return snapshot
 
     def state_append(
         self,

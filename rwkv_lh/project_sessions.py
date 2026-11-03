@@ -18,7 +18,7 @@ from .runtime.structured_output import build_transcript_decoder_contract
 from .project_runtime import AgentReply
 from .project_contracts import digest, fields
 from .project_protocols import agent
-from .token_budget import get_token_count
+from .token_budget import get_token_count, tokenizer
 from .transcript.parse import validate_assistant, validate_messages
 from .transcript.wire import PROTOCOL as TRANSCRIPT_PROTOCOL, generation_prompt, parse_assistant, render_turns
 from .transcript.tools import TOOL_PROTOCOL
@@ -55,6 +55,15 @@ def _suffix(messages, checkpoint, native_tools):
 
 def _event_renderer(event, visible_definitions=(), **kwargs):
     return event.payload['text']
+
+
+def _bootstrap_tokens(messages, definitions):
+    """Rebuilt history must include EOS tokens, which have no text rendering."""
+    from .transcript.tokenize import tokenize_transcript
+    if not any(message['role'] == 'assistant' for message in messages):
+        return None
+    return (tokenize_transcript(messages, tokenizer=tokenizer(), native_tools=definitions)['input_ids']
+            + tokenizer().encode(generation_prompt()))
 
 
 def _verify_checkpoint(checkpoint):
@@ -108,7 +117,8 @@ class ProjectSessions:
         if payload['native_tools'] != definitions:
             raise ValueError('agent input tool catalog differs from live definitions')
         delta = _suffix(payload['messages'], checkpoint, definitions)
-        count, limit = get_token_count(delta), self.settings.max_prompt_tokens(1)
+        exact = _bootstrap_tokens(payload['messages'], definitions) if checkpoint is None else None
+        count, limit = len(exact) if exact is not None else get_token_count(delta), self.settings.max_prompt_tokens(1)
         if count > limit:
             raise ProjectInputBudgetError(f'agent visible input requires {count} tokens; limit is {limit}',
                 input_tokens=count, input_limit=limit, capacity=self.settings.max_model_len,
@@ -148,8 +158,12 @@ class ProjectSessions:
                 event_id='PT-' + digest([payload['messages'], parent.checkpoint_id]), scope_id=lane,
                 payload={'text': suffix}))
         else:
+            exact = _bootstrap_tokens(payload['messages'], definitions)
+            if exact is not None and session.transport != 'native_rwkv':
+                raise ValueError('history bootstrap requires exact native token input')
             parent = session.bootstrap(ModelLaneKind.ACTION, _suffix(payload['messages'], None, definitions),
-                                       definitions, lane_id=lane)
+                                       definitions, lane_id=lane,
+                                       **({'input_token_ids': exact} if exact is not None else {}))
         started = time.monotonic()
         def evidence(extra):
             return {**extra, 'usage': None, 'generation_seconds': time.monotonic() - started}

@@ -18,7 +18,8 @@ from rwkv_lh.data_engine.records import write_immutable
 from rwkv_lh.evaluation_policy import assert_training_record_allowed, assert_training_source_allowed
 
 
-def export_episode(task, run, verdict, production_root, export_root, *, teacher, context_tokens=None):
+def export_episode(task, run, verdict, production_root, export_root, *, teacher, context_tokens=None,
+                   rollout_policy='qwen', student=None):
     """Preserve a complete verified episode before choosing a training window.
 
     An explicit capacity remains a fail-closed downstream constraint. Collection
@@ -28,6 +29,16 @@ def export_episode(task, run, verdict, production_root, export_root, *, teacher,
     assert_training_record_allowed(task)
     for path in (run, production_root, export_root):
         assert_training_source_allowed(path)
+    from rwkv_lh.data_engine.branch import validate_fork
+    fork = validate_fork(run)
+    if fork and not fork['source_training_eligible']:
+        raise ValueError('evaluation-only correction ancestry cannot enter training')
+    if rollout_policy not in ('qwen', 'rwkv', 'rwkv_with_qwen_correction'):
+        raise ValueError('unknown rollout policy')
+    if (rollout_policy == 'rwkv_with_qwen_correction') != bool(fork):
+        raise ValueError('correction policy must match actual fork provenance')
+    if rollout_policy != 'qwen' and not student:
+        raise ValueError('RWKV student identity required')
     if verdict['task_digest']!=task['digest'] or verdict['passed'] is not True: raise ValueError('passing real execution required')
     if tree_identity(run/'workspace')!=verdict['workspace']:raise ValueError('workspace changed after verification')
     with ProjectLedger.read_snapshot(run/'execution') as db:
@@ -54,7 +65,8 @@ def export_episode(task, run, verdict, production_root, export_root, *, teacher,
         'teacher':teacher,'ledger_tip':tip['digest'],'verification_sha256':checksum(verdict),
         'input_tokens':len(encoded['input_ids']),'supervised_tokens':sum(encoded['loss_mask']),
         'protocol_source_sha256':hashlib.sha256(Path(agent.__file__).read_bytes()).hexdigest(),
-        'policy':'round0_teacher_in_production_loop','rollout_policy':'qwen','training_eligible':True}
+        'policy':('round0_teacher_in_production_loop' if rollout_policy == 'qwen' else 'student_in_production_loop'),
+        'rollout_policy':rollout_policy,'student':student,'correction_fork':fork,'training_eligible':True}
     write_immutable(target/'freeze.json',dump(provenance).encode())
     write_immutable(target/'manifest.json',dump({'native_messages.json':sha,'freeze.json':hashlib.sha256((target/'freeze.json').read_bytes()).hexdigest()}).encode())
     # One immutable export shard per episode avoids shared JSONL append races.

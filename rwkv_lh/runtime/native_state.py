@@ -199,6 +199,7 @@ class NativeRWKVStateClient(Protocol):
         text: str,
         cache_binding: NativeStateCacheBinding,
         request_id: str | None = None,
+        input_token_ids: list[int] | None = None,
     ) -> NativeStateSnapshot: ...
 
     def state_append(

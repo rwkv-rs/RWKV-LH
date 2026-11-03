@@ -3,19 +3,17 @@ import asyncio
 from concurrent.futures import ProcessPoolExecutor
 from contextlib import contextmanager
 import hashlib
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import multiprocessing
 from pathlib import Path
-import secrets
 import sqlite3
-import threading
 import time
 import traceback
 
 from rwkv_lh.data_engine.qwen import TeacherPool
 from rwkv_lh.data_engine.tasks import load_task, dump, checksum
 from rwkv_lh.evaluation_policy import assert_training_source_allowed, assert_training_record_allowed
+from .broker import teacher_broker
 
 
 class Queue:
@@ -183,29 +181,6 @@ async def campaign(root, providers, *, tasks_manifest, count=None, workers=32, m
     pools = {p['id']:TeacherPool(p,root/'teachers'/(p['id']+'.sqlite3')) for p in providers}
     queue = Queue(root/'queue.sqlite3');queue.populate(len(tasks));queue.reconcile(root,tasks,max_attempts)
     loop = asyncio.get_running_loop()
-    token = secrets.token_urlsafe(32)
-    class Handler(BaseHTTPRequestHandler):
-        def log_message(self,*args):pass
-        def do_POST(self):
-            if self.headers.get('Authorization') != 'Bearer '+token:
-                self.send_error(403);return
-            status = 200
-            try:
-                size = int(self.headers['Content-Length'])
-                if not 0<size<20*1024*1024:raise ValueError('invalid request size')
-                body = json.loads(self.rfile.read(size))
-                future = asyncio.run_coroutine_threadsafe(pools[body['provider']].complete(body['messages'],key=body['key'],
-                    max_output_tokens=body['max_output_tokens'],tools=body.get('tools')),loop)
-                value = future.result()
-            except Exception as exc:
-                value = {'error':type(exc).__name__+': '+str(exc)};status=503
-            raw = json.dumps(value).encode()
-            self.send_response(status);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(raw)));self.end_headers()
-            try:self.wfile.write(raw)
-            except (BrokenPipeError,ConnectionResetError):pass
-    server = ThreadingHTTPServer(('127.0.0.1',0),Handler)
-    thread = threading.Thread(target=server.serve_forever,daemon=True);thread.start()
-    broker = {'url':f'http://127.0.0.1:{server.server_port}/complete','token':token}
     started = time.time()
     async def monitor():
         while True:
@@ -213,20 +188,20 @@ async def campaign(root, providers, *, tasks_manifest, count=None, workers=32, m
             (root/'STATUS.json').write_text(dump(report))
             print(json.dumps({'event':'status','jobs':report['jobs'],'elapsed_seconds':round(report['elapsed_seconds'])}),flush=True)
             await asyncio.sleep(30)
-    monitoring = asyncio.create_task(monitor())
-    try:
-        with ProcessPoolExecutor(max_workers=workers,mp_context=multiprocessing.get_context('spawn')) as executor:
-            async def worker(provider):
-                while (claimed:=queue.claim(provider['id'])) is not None:
-                    index,attempt = claimed
-                    row = await loop.run_in_executor(executor,run_episode,str(root),tasks[index],attempt,broker,provider)
-                    queue.finish(index,row,max_attempts)
-                    with (root/'RESULTS.jsonl').open('a') as stream:stream.write(json.dumps(row,ensure_ascii=False)+'\n')
-                    print(json.dumps({'event':'episode',**{k:row.get(k) for k in ('task','attempt','provider','Strict','completed','termination_reason','error')}}),flush=True)
-            await asyncio.gather(*(worker(public[i%len(public)]) for i in range(workers)))
-    finally:
-        monitoring.cancel()
-        server.shutdown();server.server_close();thread.join(timeout=5)
+    with teacher_broker(pools) as broker:
+        monitoring = asyncio.create_task(monitor())
+        try:
+            with ProcessPoolExecutor(max_workers=workers,mp_context=multiprocessing.get_context('spawn')) as executor:
+                async def worker(provider):
+                    while (claimed:=queue.claim(provider['id'])) is not None:
+                        index,attempt = claimed
+                        row = await loop.run_in_executor(executor,run_episode,str(root),tasks[index],attempt,broker,provider)
+                        queue.finish(index,row,max_attempts)
+                        with (root/'RESULTS.jsonl').open('a') as stream:stream.write(json.dumps(row,ensure_ascii=False)+'\n')
+                        print(json.dumps({'event':'episode',**{k:row.get(k) for k in ('task','attempt','provider','Strict','completed','termination_reason','error')}}),flush=True)
+                await asyncio.gather(*(worker(public[i%len(public)]) for i in range(workers)))
+        finally:
+            monitoring.cancel()
     result = {'jobs':queue.counts(),'teachers':[p.status() for p in pools.values()],'elapsed_seconds':time.time()-started}
     (root/'FINAL_STATUS.json').write_text(dump(result))
     return result

@@ -117,17 +117,24 @@ class TeacherPool:
                         fcntl.flock(lease, fcntl.LOCK_UN)
             time.sleep(.05)
 
-    async def complete(self, messages, *, key, lane='continuation', max_output_tokens=8192, tools=None):
+    async def complete(self, messages, *, key, lane='continuation', max_output_tokens=8192, tools=None,
+                       generation_options=None):
         lock = self.key_locks.setdefault(key, asyncio.Lock())
         async with lock:
-            return await self._complete(messages,key=key,lane=lane,max_output_tokens=max_output_tokens,tools=tools)
+            return await self._complete(messages,key=key,lane=lane,max_output_tokens=max_output_tokens,
+                                        tools=tools,generation_options=generation_options)
 
-    async def _complete(self, messages, *, key, lane, max_output_tokens, tools):
+    async def _complete(self, messages, *, key, lane, max_output_tokens, tools, generation_options=None):
         if lane not in ('correction','continuation','task_generation'): raise ValueError('unknown teacher lane')
         body={'model':self.provider['model'],'messages':messages,'max_tokens':max_output_tokens,'temperature':0}
-        for option in ('reasoning_effort','reasoning_budget_tokens','temperature','top_p','top_k'):
+        allowed = ('reasoning_effort','reasoning_budget_tokens','temperature','top_p','top_k')
+        if generation_options is not None and (not isinstance(generation_options,dict)
+                or any(key not in allowed for key in generation_options)):
+            raise ValueError('unsupported generation option')
+        for option in allowed:
             if option in self.provider:
                 body[option] = self.provider[option]
+        body.update(generation_options or {})
         if tools is not None: body.update(tools=tools,tool_choice='auto',parallel_tool_calls=True)
         encoded=json.dumps(body,ensure_ascii=False,sort_keys=True,separators=(',',':'))
         identity=hashlib.sha256(encoded.encode()).hexdigest()
